@@ -1,18 +1,18 @@
 {
-  "capturedAt": "2026-07-10T20:03:12.744Z",
+  "capturedAt": "2026-07-10T20:15:26.549Z",
   "targetUrl": "https://maloysius-wq.github.io/uptime-empire-play/",
   "headless": false,
   "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "captures": [
     {
-      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-front&qaRun=1783713782219",
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-front&qaRun=1783714516728",
       "view": "arcade-front",
       "camera": {
         "view": "arcade-front",
         "target": "arcade",
         "x": -2.67,
         "y": 1.54,
-        "z": 1.5719999999999996,
+        "z": 1.8299999999999996,
         "yaw": 3.141592653589793,
         "pitch": -0.05258306161094176
       },
@@ -27,14 +27,14 @@
       "hardwareConcurrency": 8
     },
     {
-      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-quarter&qaRun=1783713787062",
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-quarter&qaRun=1783714520851",
       "view": "arcade-quarter",
       "camera": {
         "view": "arcade-quarter",
         "target": "arcade",
         "x": -1.3299999999999998,
         "y": 1.6199999999999999,
-        "z": 2.0119999999999996,
+        "z": 2.2699999999999996,
         "yaw": 2.2491670171429705,
         "pitch": -0.09270025783198153
       },
@@ -49,7 +49,7 @@
       "hardwareConcurrency": 8
     },
     {
-      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=desk-mount&qaRun=1783713789105",
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=desk-mount&qaRun=1783714522860",
       "view": "desk-mount",
       "camera": {
         "view": "desk-mount",
@@ -71,16 +71,16 @@
       "hardwareConcurrency": 8
     },
     {
-      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=storage-cabinet&qaRun=1783713791076",
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=storage-cabinet&qaRun=1783714524790",
       "view": "storage-cabinet",
       "camera": {
         "view": "storage-cabinet",
         "target": "storageCabinet",
-        "x": 0.6800000000000002,
+        "x": 3.08,
         "y": 0.98,
-        "z": -4.605999999999999,
-        "yaw": -2.356194490192345,
-        "pitch": -0.08680980303134093
+        "z": -2.0059999999999993,
+        "yaw": 0.702256931509007,
+        "pitch": -0.09368022428931232
       },
       "viewport": {
         "width": 1600,
