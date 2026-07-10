@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Uptime Empire Expanded</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="office-world-mode">
+  <div class="world-hud" id="worldHud" aria-live="polite">
+    <div class="world-hud-brand">UPTIME EMPIRE</div>
+    <div class="world-hud-chip"><span>Credits</span><strong id="worldCreditsValue">0 CC</strong></div>
+    <div class="world-hud-chip"><span>Passive / sec</span><strong id="worldRateValue">0 CC</strong></div>
+    <div class="world-hud-chip"><span>Incidents</span><strong id="worldIncidentsValue">0</strong></div>
+    <div class="world-hud-prompt">Walk to the desk and press <strong>E</strong> to open the management computer.</div>
+  </div>
+  <button class="desk-computer-close hidden" id="deskComputerCloseBtn" type="button">Esc / Close Computer</button>
+  <div class="world-quick-actions" id="worldQuickActions" aria-label="World quick actions">
+    <button class="world-action-btn" id="worldShopBtn" type="button">Shop</button>
+    <button class="world-action-btn" id="worldSettingsBtn" type="button">Settings</button>
+  </div>
+
+  <div class="placement-hud hidden" id="placementHud" aria-live="polite">
+    <div class="placement-kicker">Wall Placement</div>
+    <div class="placement-title-row">
+      <div>
+        <div class="placement-title" id="placementTitle">Place wall decor</div>
+        <div class="placement-wall-label" id="placementWallLabel">Back Wall</div>
+      </div>
+      <button class="placement-cancel-btn" id="placementCancelBtn" type="button">Cancel</button>
+    </div>
+    <div class="placement-copy" id="placementCopy">Move the ghost object on the wall, then click to place.</div>
+    <div class="placement-mode-actions">
+      <button class="soft-btn small hidden" id="placementBackToMoveBtn" type="button">↓ Wall View</button>
+    </div>
+    <div class="placement-rotate-controls hidden" id="placementRotateControls" aria-label="Item rotation controls">
+      <button class="soft-btn small" id="placementRotateLeftBtn" type="button">⟲ Rotate 90°</button>
+      <button class="soft-btn small" id="placementRotateRightBtn" type="button">Rotate 90° ⟳</button>
+    </div>
+  </div>
+  <button class="placement-wall-arrow placement-wall-arrow-left hidden" id="placementWallPrevBtn" type="button" aria-label="Previous wall">‹</button>
+  <button class="placement-wall-arrow placement-wall-arrow-right hidden" id="placementWallNextBtn" type="button" aria-label="Next wall">›</button>
+
+  <div class="app-shell" id="appShell">
+    <aside class="stats-sidebar">
+      <header class="topbar card stats-card">
+        <div class="stats-header-row">
+          <div>
+            <div class="eyebrow">Empire Telemetry</div>
+            <p class="muted">Real-time compute, staffing, mission, and resilience metrics.</p>
+          </div>
+        </div>
+        <div class="stats-grid telemetry-grid primary">
+          <div class="stat"><span>Compute Credits</span><strong id="creditsValue">0</strong></div>
+          <div class="stat"><span>Avg Potential / sec</span><strong id="ipsValue">0</strong></div>
+          <div class="stat"><span>Automated / sec</span><strong id="passiveIpsValue">0</strong></div>
+          <div class="stat"><span>Innovation Points</span><strong id="ipValue">0</strong></div>
+        </div>
+        <div class="stats-grid compact telemetry-grid secondary">
+          <div class="stat"><span>Research Data</span><strong id="researchValue">0</strong></div>
+          <div class="stat"><span>IP Fragments</span><strong id="fragmentsValue">0</strong></div>
+          <div class="stat"><span>Empire Capacity</span><strong id="capacityValue">0 / 0</strong></div>
+          <div class="stat"><span>Managers</span><strong id="managersValue">0</strong></div>
+          <div class="stat"><span>Mission Teams</span><strong id="missionTeamsValue">0</strong></div>
+          <div class="stat"><span>Security</span><strong id="securityValue">0</strong></div>
+          <div class="stat"><span>Lifetime Compute</span><strong id="lifetimeValue">0</strong></div>
+          <div class="stat"><span>Offline Cap</span><strong id="offlineValue">0</strong></div>
+        </div>
+      </header>
+    </aside>
+
+    <div class="app-main">
+      <nav class="bottom-nav card" id="mainNav">
+        <div class="command-bar-head">
+          <div class="command-pulse reverse" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="command-title-wrap">
+            <h1 class="command-title">UPTIME EMPIRE</h1>
+            <p class="command-subtitle">from lonely home lab to planetary compute weirdness</p>
+          </div>
+          <div class="command-pulse" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <button class="soft-btn command-help-btn" id="helpBtn">Help</button>
+        </div>
+        <div class="nav-grid">
+          <button class="nav-btn active" data-panel="ops">Ops</button>
+          <button class="nav-btn" data-panel="missions">Missions</button>
+          <button class="nav-btn" data-panel="upgrades">Upgrades</button>
+          <button class="nav-btn" data-panel="staff">Staff</button>
+          <button class="nav-btn" data-panel="regions">Regions</button>
+          <button class="nav-btn" data-panel="command">Command</button>
+          <button class="nav-btn" data-panel="overhaul">Overhaul</button>
+        </div>
+      </nav>
+
+      <section class="region-strip card" id="networkFootprintCard">
+        <div class="region-strip-head">
+          <div>
+            <h2>Network Footprint</h2>
+            <p class="muted">Unlocked regions stack bonuses and capacity into your empire</p>
+          </div>
+          <div class="purchase-mode" id="purchaseModeWrap"></div>
+        </div>
+        <div class="region-chip-row" id="regionChipRow"></div>
+        <div class="network-shortcuts" id="networkShortcuts"></div>
+      </section>
+
+      <main class="panel-stack">
+        <section class="panel active" id="panel-ops">
+          <div class="section-head card">
+            <div>
+              <h2>Operations</h2>
+              <p class="muted">Buy hardware, kick off cycles, and automate the humming machine.</p>
+            </div>
+          </div>
+          <div class="card section-card ops-status-card">
+            <div class="mini-head">
+              <h3>Current Pressure</h3>
+              <p class="muted">Incidents are mild but persistent. Services and specialists tame the chaos.</p>
+            </div>
+            <div id="opsIncidentSummary" class="inline-status-grid"></div>
+          </div>
+          <div id="opsList" class="stack"></div>
+        </section>
+
+        <section class="panel" id="panel-missions">
+          <div class="section-head card">
+            <div>
+              <h2>Quest Board & Incidents</h2>
+              <p class="muted">Dispatch teams, research weird things, and swat the occasional digital gremlin.</p>
+            </div>
+          </div>
+          <div class="stats-grid compact mission-top-grid">
+            <div class="stat"><span>Available Teams</span><strong id="missionTeamsPanelValue">0</strong></div>
+            <div class="stat"><span>Research Data</span><strong id="missionResearchValue">0</strong></div>
+            <div class="stat"><span>Active Incidents</span><strong id="activeIncidentsValue">0</strong></div>
+            <div class="stat"><span>Incident Shield</span><strong id="incidentShieldValue">0</strong></div>
+          </div>
+          <div class="split-stack mission-layout">
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Incident Monitor</h3>
+                <p class="muted">Nothing apocalyptic. Just enough trouble to keep the NOC awake.</p>
+              </div>
+              <div id="incidentList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card mission-board-card">
+              <div class="mini-head">
+                <h3>Quest Board</h3>
+                <p class="muted">Allocate mission teams for money, research, protection buffs, and IP fragments.</p>
+              </div>
+              <div id="missionList" class="mini-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-command">
+          <div class="section-head card">
+            <div>
+              <h2>Command</h2>
+              <p class="muted">Long-term planning, run identity, rotating contracts, and all the big-arc stuff that keeps the empire interesting.</p>
+            </div>
+          </div>
+          <div class="card section-card">
+            <div class="mini-head">
+              <h3>Career Route</h3>
+              <p class="muted">Massive once-per-career objectives that survive overhauls and give the empire a true north star.</p>
+            </div>
+            <div id="campaignGoalList" class="mini-stack"></div>
+          </div>
+          <div class="split-stack command-meta-layout">
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Seasonal Operations</h3>
+                <p class="muted">Weekly empire-wide modifiers that change the rules of the road. Check here first to see what kind of server weather you are operating in.</p>
+              </div>
+              <div id="seasonCard"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Daily & Weekly Contracts</h3>
+                <p class="muted">Daily and weekly goals that hand out extra rewards for showing up. They are the easiest reason to pop back in and push a little farther.</p>
+              </div>
+              <div id="contractsList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Boss Ladder</h3>
+                <p class="muted">Persistent boss-style outages and disasters that grow into a long-term hunt. Clear them repeatedly to build a trophy trail across runs.</p>
+              </div>
+              <div id="bossLadderList" class="mini-stack"></div>
+            </div>
+          </div>
+          <div class="split-stack command-strategy-layout">
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Empire Doctrines</h3>
+                <p class="muted">Choose the strategic personality of your current run. Each doctrine nudges the economy toward a different strength and play rhythm.</p>
+              </div>
+              <div id="doctrineList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Era Programs</h3>
+                <p class="muted">Long-arc progression layers that reshape the feel of the whole empire. Switching eras gives veteran runs a new flavor and new incentives.</p>
+              </div>
+              <div id="eraList" class="mini-stack"></div>
+            </div>
+          </div>
+          <div class="card section-card">
+            <div class="mini-head">
+              <h3>Challenge Runs</h3>
+              <p class="muted">Optional hard-mode variants for your next run. They add restrictions, then pay you back with bragging rights and durable progress.</p>
+            </div>
+            <div id="challengeList" class="mini-stack"></div>
+          </div>
+          <div class="split-stack command-summary-layout">
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Region Mastery</h3>
+                <p class="muted">Each region slowly earns permanent mastery as you invest in it. Over time those regional specialties become another engine for replayability.</p>
+              </div>
+              <div id="regionMasteryList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Meta Collections</h3>
+                <p class="muted">A running archive of major accomplishments that never resets. This is where the game quietly keeps score of your career, not just this run.</p>
+              </div>
+              <div id="commandCollectionsList" class="mini-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-upgrades">
+          <div class="section-head card">
+            <div>
+              <h2>Upgrades</h2>
+              <p class="muted">Global tuning, category boosts, and empire-scale optimizations.</p>
+            </div>
+          </div>
+          <div class="subtabs card" id="upgradeTabs">
+            <button class="subtab active" data-upgrade-view="global">Global</button>
+            <button class="subtab" data-upgrade-view="category">Category</button>
+            <button class="subtab" data-upgrade-view="automation">Automation</button>
+            <button class="subtab" data-upgrade-view="facilities">Facilities</button>
+            <button class="subtab" data-upgrade-view="resilience">Resilience</button>
+            <button class="subtab" data-upgrade-view="research">Research</button>
+          </div>
+          <div id="upgradeList" class="stack"></div>
+        </section>
+
+        <section class="panel" id="panel-staff">
+          <div class="section-head card">
+            <div>
+              <h2>Staff & Services</h2>
+              <p class="muted">Managers automate generators. Specialists bend the whole empire. Services keep the fires tiny.</p>
+            </div>
+          </div>
+          <div class="split-stack triple-stack">
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Managers</h3>
+                <p class="muted">One per generator, permanent automation.</p>
+              </div>
+              <div id="managerList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Specialists</h3>
+                <p class="muted">Rare hires with global passives.</p>
+              </div>
+              <div id="specialistList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card">
+              <div class="mini-head">
+                <h3>Services</h3>
+                <p class="muted">Contracts, backups, labs, and other grown-up panic management.</p>
+              </div>
+              <div id="serviceList" class="mini-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-regions">
+          <div class="section-head card">
+            <div>
+              <h2>Regions</h2>
+              <p class="muted">Unlock capacity, expand footprints, and stack regional bonuses.</p>
+            </div>
+          </div>
+          <div id="regionsList" class="stack"></div>
+        </section>
+
+        <section class="panel" id="panel-achievements">
+          <div class="section-head card">
+            <div>
+              <h2>Achievements</h2>
+              <p class="muted">Badges, trophies, timestamps, and permanent little bragging rights.</p>
+            </div>
+          </div>
+          <div class="card section-card">
+            <div class="mini-head">
+              <h3>Achievement Grid</h3>
+              <p class="muted">Click any badge to see what it is and when you unlocked it.</p>
+            </div>
+            <div class="achievement-grid large" id="achievementPanelGrid"></div>
+          </div>
+          <div class="card section-card">
+            <div class="mini-head">
+              <h3>Recent Glory</h3>
+              <p class="muted">The last unlocked badges in case you need a quick shot of pride.</p>
+            </div>
+            <div id="achievementRecentList" class="mini-stack"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-overhaul">
+          <div class="section-head card">
+            <div>
+              <h2>Infrastructure Overhaul</h2>
+              <p class="muted">Reset the empire, keep the know-how, come back louder.</p>
+            </div>
+          </div>
+          <div class="card prestige-summary">
+            <div class="prestige-summary-copy">
+              <div class="muted caps">Projected Gain</div>
+              <div class="mega" id="prestigeGainValue">0 IP</div>
+              <p class="muted prestige-note">Overhaul resets current credits, hardware, managers, run upgrades, missions, incidents, and region expansions. You keep Innovation Points, research, fragments, cosmetics, achievements, and permanent tree bonuses.</p>
+            </div>
+            <button class="big-btn warning" id="prestigeBtn">Perform Overhaul</button>
+          </div>
+          <div class="card section-card">
+            <div class="mini-head">
+              <h3>Innovation Tree</h3>
+              <p class="muted">Permanent bonuses purchased with Innovation Points.</p>
+            </div>
+            <div id="prestigeTree" class="stack"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <aside class="office-sidebar card">
+      <div class="suite-tabs cardless" id="suiteTabs">
+        <button class="suite-tab active" data-suite-tab="office"><span class="suite-tab-label">Office<br>Suite</span></button>
+        <button class="suite-tab" data-suite-tab="achievements"><span class="suite-tab-label">Achieve-<br>ments</span></button>
+        <button class="suite-tab" data-suite-tab="console"><span class="suite-tab-label">Console</span></button>
+      </div>
+
+      <div class="suite-panel-stack">
+        <section class="suite-panel active" id="suite-panel-office">
+          <div class="office-head">
+            <div>
+              <h2>Office Suite</h2>
+              <p class="muted">A first-person control room now. Walk to the desk and press E to open the management computer.</p>
+            </div>
+          </div>
+          <div class="office-scene office-3d-shell" id="officeScene" data-office-tier="0" data-wall-finish="default" data-floor-finish="default">
+            <canvas class="office-3d-canvas" id="office3dCanvas" aria-label="3D office suite walkthrough"></canvas>
+            <div class="office-3d-overlay">
+              <div class="office-3d-hint" id="office3dHint" aria-hidden="true"></div>
+            </div>
+            <div class="arcade-overlay hidden" id="arcadeOverlay">
+              <div class="arcade-overlay-shell">
+                <div class="arcade-overlay-topbar">
+                  <div class="arcade-overlay-brand">UPTIME ARCADE // INSERT VIBES</div>
+                  <button class="arcade-close-btn" id="arcadeQuitBtn" aria-label="Quit current game">×</button>
+                </div>
+                <div class="arcade-menu-screen" id="arcadeMenuScreen"></div>
+                <div class="arcade-game-screen hidden" id="arcadeGameScreen"></div>
+                <div class="arcade-inline-confirm hidden" id="arcadeInlineConfirm">
+                  <div class="arcade-inline-confirm-card">
+                    <h4 id="arcadeInlineConfirmTitle">Leave arcade?</h4>
+                    <p id="arcadeInlineConfirmBody">Your current game will close.</p>
+                    <div class="manager-actions">
+                      <button class="soft-btn" id="arcadeInlineCancelBtn">Cancel</button>
+                      <button class="buy-btn can-afford" id="arcadeInlineConfirmBtn">Confirm</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="office-notes office-3d-notes">
+            <div class="note"><span>View Mode</span><strong id="officeViewModeValue">Manual Standby</strong></div>
+            <div class="note"><span>Suite Size</span><strong id="officeSuiteValue">Regular Office</strong></div>
+            <div class="note"><span>Wall Finish</span><strong id="wallFinishValue">Soft Green Walls</strong></div>
+            <div class="note"><span>Floor Finish</span><strong id="floorFinishValue">Dark Gray Floor</strong></div>
+            <div class="note"><span>Equipped Props</span><strong id="officePropsValue">0 / 1</strong></div>
+            <div class="note"><span>Office Upgrade</span><button class="soft-btn small" id="officeUpgradeBtn">Upgrade Suite</button></div>
+          </div>
+        </section>
+
+        <section class="suite-panel" id="suite-panel-achievements">
+          <div class="office-head">
+            <div>
+              <h2>Achievement Vault</h2>
+              <p class="muted">All badges, with the locked ones still lurking in the shadows.</p>
+            </div>
+          </div>
+          <div class="cardless suite-section-card">
+            <div class="achievement-grid compact suite-achievement-grid" id="suiteAchievementGrid"></div>
+          </div>
+          <div class="cardless suite-section-card">
+            <div class="mini-head tight">
+              <h3>Recent Glory</h3>
+              <p class="muted">Newest unlocks from your badge pile.</p>
+            </div>
+            <div id="achievementRecentAsideList" class="mini-stack"></div>
+          </div>
+        </section>
+
+        <section class="suite-panel" id="suite-panel-console">
+          <div class="office-head">
+            <div>
+              <h2>Console</h2>
+              <p class="muted">A phosphor-green event feed straight out of a chunky old terminal.</p>
+            </div>
+          </div>
+          <div class="console-shell">
+            <div class="console-topline">UPTIME-OPS//LIVE-FEED</div>
+            <div class="console-feed" id="consoleFeed"></div>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+  </div>
+
+
+
+  <div class="world-utility-overlay hidden" id="worldUtilityOverlay" aria-hidden="true">
+    <div class="world-utility-card card" role="dialog" aria-modal="true" aria-labelledby="worldUtilityTitle">
+      <div class="world-utility-head">
+        <div>
+          <div class="eyebrow">World Console</div>
+          <h2 id="worldUtilityTitle">Shop</h2>
+          <p class="muted" id="worldUtilitySubtitle">Open-world tools, no desk terminal required.</p>
+        </div>
+        <button class="soft-btn" id="worldUtilityCloseBtn" type="button">Close</button>
+      </div>
+      <div class="world-utility-body">
+        <section class="world-utility-section active" id="world-utility-shop">
+          <div class="office-head">
+            <div>
+              <h2>Cosmetic Shop</h2>
+              <p class="muted">Pure vanity. Zero power. Maximum office nonsense.</p>
+            </div>
+          </div>
+          <div class="suite-upgrade-card cardless" id="suiteUpgradeCard"></div>
+          <div class="shop-move-mode-bar cardless" id="shopMoveModeBar">
+            <div>
+              <strong>Arrange the office directly</strong>
+              <p class="muted">Click Move Mode, then grab placed decor in the room instead of hunting through shop cards.</p>
+            </div>
+            <button class="buy-btn can-afford" id="shopMoveModeBtn" type="button">Move Mode</button>
+          </div>
+          <div class="subtabs cardless" id="shopTabs">
+            <button class="subtab active" data-shop-view="office">Office</button>
+            <button class="subtab" data-shop-view="wall">Wall</button>
+            <button class="subtab" data-shop-view="desk">Desk</button>
+            <button class="subtab" data-shop-view="floor">Floor</button>
+            <button class="subtab" data-shop-view="shelf">Shelf</button>
+            <button class="subtab" data-shop-view="wallFinish">Wall Finish</button>
+            <button class="subtab" data-shop-view="floorFinish">Floor Finish</button>
+            <button class="subtab" data-shop-view="deskFinish">Desk Color</button>
+            <button class="subtab" data-shop-view="chairFinish">Chair Color</button>
+                      </div>
+          <div id="shopList" class="stack modal-list"></div>
+        </section>
+        
+        <section class="world-utility-section" id="world-utility-settings">
+          <div class="office-head">
+            <div>
+              <h2>Settings & Saves</h2>
+              <p class="muted">Clean little control box for audio and save tools.</p>
+            </div>
+          </div>
+          <div class="cardless suite-section-card settings-card">
+            <p class="muted settings-note">Autosave runs every 15 seconds. Manual save and backup tools live here too.</p>
+            <div class="settings-graphics" aria-label="3D graphics quality">
+              <span>3D Graphics</span>
+              <div class="graphics-quality-control" id="graphicsQualityWrap">
+                <button class="mode-chip" type="button" data-graphics-quality="performance">Performance</button>
+                <button class="mode-chip" type="button" data-graphics-quality="balanced">Balanced</button>
+                <button class="mode-chip" type="button" data-graphics-quality="quality">Quality</button>
+                <button class="mode-chip" type="button" data-graphics-quality="auto">Auto</button>
+              </div>
+            </div>
+            <div class="settings-grid settings-grid-actions">
+              <button class="top-action settings-action" id="toggleSoundBtn">Sound On</button>
+              <button class="top-action settings-action" id="saveBtn">Save Now</button>
+              <button class="top-action settings-action" id="exportBtn">Export Save</button>
+              <button class="top-action settings-action" id="importBtn">Import Save</button>
+              <button class="top-action settings-action danger" id="resetBtn">Hard Reset</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="achievementModal">
+    <div class="modal card modal-narrow">
+      <div class="modal-head">
+        <div>
+          <h2 id="achievementModalTitle">Achievement</h2>
+          <p class="muted" id="achievementModalSubtitle">Badge details</p>
+        </div>
+        <button class="soft-btn" id="closeAchievementBtn">Close</button>
+      </div>
+      <div id="achievementModalBody" class="stack modal-list"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="helpModal">
+    <div class="modal card help-modal">
+      <div class="modal-head">
+        <div>
+          <h2>Uptime Empire Field Manual</h2>
+          <p class="muted">A guided, plain-language explanation of how the empire works.</p>
+        </div>
+        <button class="soft-btn" id="closeHelpBtn">Close</button>
+      </div>
+      <div class="help-layout">
+        <div class="help-nav" id="helpNav"></div>
+        <div class="help-content-wrap">
+          <div class="help-content" id="helpContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="incident-alert hidden" id="incidentAlert">
+    <div class="incident-alert-card card">
+      <div class="incident-alert-icon" id="incidentAlertIcon">🚨</div>
+      <div>
+        <div class="incident-alert-title" id="incidentAlertTitle">Incident detected</div>
+        <div class="incident-alert-text" id="incidentAlertText">Something unhappy is happening.</div>
+      </div>
+      <div class="incident-alert-actions">
+        <button class="soft-btn" id="incidentAlertAckBtn">Acknowledge</button>
+        <button class="big-btn danger" id="incidentAlertBtn">Go to Incident</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="fx-layer" id="fxLayer"></div>
+
+  <script src="data.js"></script>
+  <script src="save.js"></script>
+  <script src="game.js"></script>
+  <script src="assets/arcade_model_data.js"></script>
+  <script src="assets/server_ambience_audio_data.js"></script>
+  <script src="assets/background_music_data.js"></script>
+  <script src="assets/footstep_audio_data.js"></script>
+  <script src="assets/desk_monitor_model_data.js"></script>
+  <script src="assets/raising_desk_model_data.js"></script>
+  <script src="assets/chair_model_data.js"></script>
+  <script src="assets/keyboard_model_data.js"></script>
+  <script src="assets/mouse_model_data.js"></script>
+  <script src="assets/lava_lamp_model_data.js"></script>
+  <script src="assets/pendant_light_model_data.js"></script>
+  <script src="assets/server_rack_model_data.js"></script>
+  <script src="assets/aesthetic_floor_tile_data.js"></script>
+  <script src="assets/scifi_floor_tile_data.js"></script>
+  <script src="assets/circuit_wall_texture_data.js"></script>
+  <script src="office3d.js"></script>
+  <script src="ui.js"></script>
+
+  <div class="modal-backdrop hidden" id="robotModal">
+    <div class="modal card modal-narrow">
+      <div class="modal-head">
+        <div>
+          <h2 id="robotModalTitle">Floor Bot Settings</h2>
+          <p class="muted">Rename the bot, tune its voice, or silence it completely.</p>
+        </div>
+        <button class="soft-btn" id="closeRobotBtn">Close</button>
+      </div>
+      <div class="stack">
+        <label class="stack">
+          <span class="muted caps">Bot Name</span>
+          <input id="robotNameInput" class="save-textarea" type="text" maxlength="28" placeholder="Floor Bot" />
+        </label>
+        <label class="stack">
+          <span class="muted caps">Voice Pitch</span>
+          <input id="robotPitchInput" type="range" min="0.025" max="10.0" step="0.025" />
+          <div class="muted" id="robotPitchValue">1.00x</div>
+        </label>
+        <label class="stack">
+          <span class="muted caps">Voice Speed</span>
+          <input id="robotSpeedInput" type="range" min="0.25" max="3.0" step="0.05" />
+          <div class="muted" id="robotSpeedValue">1.00x</div>
+        </label>
+        <label class="stack">
+          <span class="muted caps">Speech Frequency</span>
+          <input id="robotFrequencyInput" type="range" min="0.25" max="3.0" step="0.05" />
+          <div class="muted" id="robotFrequencyValue">1.00x</div>
+        </label>
+        <label class="stack">
+          <span class="muted caps">Voice Type</span>
+          <select id="robotVoiceSelect" class="save-textarea">
+            <option value="">Default Browser Voice</option>
+          </select>
+          <div class="muted">Available voices depend on your browser and operating system.</div>
+        </label>
+        <label class="stack">
+          <span class="muted caps">Personality</span>
+          <select id="robotPersonalitySelect" class="save-textarea">
+            <option value="funny">Funny</option>
+            <option value="serious">Serious</option>
+            <option value="sassy">Sassy</option>
+            <option value="queen">Queen</option>
+            <option value="sad">Sad</option>
+          </select>
+        </label>
+        <label class="toggle-row">
+          <span>Voice Enabled</span>
+          <input id="robotVoiceToggle" type="checkbox" checked />
+        </label>
+        <div class="manager-actions">
+          <button class="buy-btn can-afford" id="saveRobotBtn">Save Robot Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="offline-summary-popup hidden" id="offlineSummaryPopup">
+    <div class="offline-summary-card">
+      <div class="manager-top">
+        <h3>While you were away</h3>
+        <button class="soft-btn small" id="offlineSummaryCloseBtn">Close</button>
+      </div>
+      <div id="offlineSummaryBody" class="mini-stack"></div>
+    </div>
+  </div>
+
+</body>
+</html>
