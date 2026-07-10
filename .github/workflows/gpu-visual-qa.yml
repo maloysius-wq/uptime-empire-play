@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 22
       - name: Capture hardware-accelerated Chrome views
-        shell: pwsh
+        shell: powershell
         env:
           UPTIME_QA_URL: ${{ inputs.target_url }}
           UPTIME_QA_HEADLESS: "0"
@@ -43,7 +43,7 @@ jobs:
           retention-days: 14
       - name: Publish latest QA screenshots
         if: always()
-        shell: pwsh
+        shell: powershell
         run: |
           if (!(Test-Path qa-results)) { exit 0 }
           git config user.name "uptime-empire-qa[bot]"
