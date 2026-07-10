@@ -2322,8 +2322,9 @@ const HELP_SECTIONS = [
       this.arcade.overlayOpen = true;
       this.arcade.holdView = true;
       clearTimeout(this.arcade.showTimer);
-      if (this.els.officeScene) this.els.officeScene.classList.add('arcade-focus', 'arcade-expanded');
+      if (this.els.officeScene) this.els.officeScene.classList.add('arcade-focus');
       document.body.classList.add('arcade-active');
+      this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
       this.office3D?.enterArcadeView();
       this.arcade.showTimer = setTimeout(() => {
         if (!this.arcade || !this.arcade.overlayOpen) return;
@@ -2340,6 +2341,10 @@ const HELP_SECTIONS = [
       clearTimeout(this.arcade.showTimer);
       if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
       this.hideArcadeInlineConfirm();
+      const heldGame = this.arcade.currentGameId ? this.arcadeGameDef(this.arcade.currentGameId) : null;
+      this.office3D?.setArcadeScreenState(holdView && heldGame
+        ? { mode: 'paused', title: heldGame.title }
+        : { mode: 'attract', title: 'UPTIME ARCADE' });
       document.body.classList.remove('arcade-active');
       if (this.els.officeScene) {
         this.els.officeScene.classList.toggle('arcade-focus', !!holdView);
@@ -3341,6 +3346,7 @@ const HELP_SECTIONS = [
       this.hideArcadeInlineConfirm();
       this.els.arcadeGameScreen.classList.add('hidden');
       this.els.arcadeMenuScreen.classList.remove('hidden');
+      this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
       const brand = this.els.arcadeOverlay?.querySelector('.arcade-overlay-brand');
       if (brand) brand.textContent = 'UPTIME ARCADE // NEON SERVICE DECK';
       const totalHi = this.arcade.catalog.reduce((sum, game) => sum + this.getArcadeScore(game.id), 0);
@@ -3393,6 +3399,7 @@ const HELP_SECTIONS = [
       this.hideArcadeInlineConfirm();
       this.els.arcadeMenuScreen.classList.add('hidden');
       this.els.arcadeGameScreen.classList.remove('hidden');
+      this.office3D?.setArcadeScreenState({ mode: 'game', title: gameDef.title });
       const brand = this.els.arcadeOverlay?.querySelector('.arcade-overlay-brand');
       if (brand) brand.textContent = `UPTIME ARCADE // ${gameDef.title.toUpperCase()}`;
       this.els.arcadeGameScreen.innerHTML = `
@@ -3409,8 +3416,10 @@ const HELP_SECTIONS = [
             <div class="arcade-game-stat">HI ${this.getArcadeScore(id)}</div>
             <button class="arcade-pixel-btn" type="button" id="arcadeRestartBtn">RESTART</button>
           </div>
-          <canvas id="arcadeCanvas" width="640" height="360"></canvas>
-          <div class="arcade-dom-game hidden" id="arcadeDomGame"></div>
+          <div class="arcade-crt-viewport">
+            <canvas id="arcadeCanvas" width="640" height="360"></canvas>
+            <div class="arcade-dom-game hidden" id="arcadeDomGame"></div>
+          </div>
         </div>`;
       this.els.arcadeCanvas = document.getElementById('arcadeCanvas');
       this.els.arcadeDomGame = document.getElementById('arcadeDomGame');

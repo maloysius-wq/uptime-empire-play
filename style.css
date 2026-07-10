@@ -7175,3 +7175,220 @@ body.arcade-active {
   .arcade-bomb-grid { gap: 3px; }
   .arcade-bomb-cell { font-size: 0.72rem; border-width: 1px; }
 }
+
+/* v3.106 physical arcade CRT: keep the playable surface inside a real 4:3 screen. */
+.arcade-overlay {
+  padding: 12px;
+  background: radial-gradient(ellipse at center, rgba(3, 8, 12, 0.10) 0 34%, rgba(2, 5, 8, 0.72) 100%);
+}
+
+.arcade-overlay-shell {
+  width: min(760px, 84vw, 106vh);
+  min-height: 0;
+  max-height: calc(100% - 24px);
+  aspect-ratio: 4 / 3;
+}
+
+.arcade-overlay-topbar {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 9px;
+}
+
+.arcade-menu-screen,
+.arcade-game-screen {
+  padding: 8px;
+  min-height: 0;
+}
+
+.arcade-menu-grid {
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+.arcade-game-card.arcade-pixel-card {
+  min-height: 0;
+  padding: 8px;
+  gap: 5px;
+}
+
+.arcade-game-card.arcade-pixel-card p {
+  font-size: 0.70rem;
+  line-height: 1.25;
+}
+
+.arcade-game-screen {
+  display: flex;
+  overflow: hidden;
+}
+
+.arcade-game-cabinet {
+  width: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 7px;
+}
+
+.arcade-game-hud {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  min-height: 0;
+  padding: 6px;
+  gap: 6px;
+}
+
+.arcade-game-titleplate {
+  gap: 6px;
+}
+
+.arcade-game-titleplate div > span {
+  max-height: 2.35em;
+  overflow: hidden;
+  font-size: 0.66rem;
+  line-height: 1.16;
+}
+
+.arcade-crt-viewport {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 620px);
+  min-height: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 3px solid color-mix(in srgb, var(--game-accent, var(--arcade-cyan)) 62%, #f7fbff);
+  border-radius: 8px;
+  background:
+    radial-gradient(ellipse at center, rgba(69,247,255,0.10), transparent 62%),
+    #02040a;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.72) inset, 0 0 22px color-mix(in srgb, var(--game-accent, var(--arcade-cyan)) 20%, transparent);
+}
+
+.arcade-crt-viewport::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+}
+
+.arcade-crt-viewport > #arcadeCanvas,
+.arcade-crt-viewport > .arcade-dom-game {
+  grid-area: 1 / 1;
+}
+
+.arcade-crt-viewport > #arcadeCanvas {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  margin: auto 0;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.arcade-crt-viewport > .arcade-dom-game {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.arcade-mini-shell {
+  min-height: 0;
+  padding: 6px;
+  gap: 5px;
+}
+
+.arcade-mini-hud {
+  padding: 5px 6px;
+  font-size: 0.68rem;
+}
+
+.arcade-status-line {
+  min-height: 20px;
+  padding: 4px 6px;
+  font-size: 0.66rem;
+}
+
+.arcade-bomb-grid {
+  width: min(100%, 290px);
+  gap: 3px;
+}
+
+.arcade-bomb-cell {
+  border-width: 1px;
+  font-size: clamp(0.52rem, 1.5vw, 0.70rem);
+}
+
+.arcade-solitaire-board {
+  height: 100%;
+  min-height: 0;
+  gap: 6px;
+  overflow: auto;
+}
+
+.arcade-solitaire-top {
+  grid-template-columns: minmax(104px, 0.36fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.arcade-stock-waste,
+.arcade-solitaire-foundations,
+.arcade-solitaire-layout {
+  gap: 4px;
+}
+
+.arcade-solitaire-layout {
+  min-height: 184px;
+}
+
+.pixel-solitaire .arcade-pile,
+.pixel-solitaire .arcade-foundation,
+.pixel-solitaire .arcade-tableau {
+  min-height: 58px;
+  padding: 3px;
+}
+
+.pixel-solitaire .arcade-tableau {
+  min-height: 184px;
+}
+
+.pixel-solitaire .arcade-card {
+  min-height: 48px;
+  padding: 3px;
+  font-size: 0.66rem;
+}
+
+.pixel-solitaire .arcade-card + .arcade-card {
+  margin-top: -28px;
+}
+
+.arcade-rpg-shell {
+  grid-template-rows: auto minmax(0, 1fr) auto minmax(54px, auto);
+}
+
+.arcade-rpg-panel {
+  padding: 7px;
+  gap: 5px;
+}
+
+.arcade-rpg-log {
+  max-height: 76px;
+  padding: 6px;
+  font-size: 0.66rem;
+}
+
+@media (max-width: 780px) {
+  .arcade-overlay-shell { width: min(94vw, 106vh); }
+  .arcade-menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .arcade-game-hud { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .arcade-game-hud #arcadeRestartBtn { grid-column: 2 / -1; }
+  .arcade-game-titleplate div > span { display: none; }
+}

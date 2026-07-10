@@ -119,6 +119,8 @@
       this.lastAutoPos = { x: 0, z: 0 };
       this.propGroups = [];
       this.dynamicDisplays = [];
+      this.arcadeDisplay = null;
+      this.arcadeScreenState = { mode: 'attract', title: 'UPTIME ARCADE' };
       this.animatedLavaLamps = [];
       this.animatedSceneObjects = [];
       this.animationObjectCacheDirty = true;
@@ -2914,6 +2916,7 @@
       this.computerView = null;
       this.computerTransition = null;
       this.dynamicDisplays = [];
+      this.arcadeDisplay = null;
       this.animatedLavaLamps = [];
       this.animatedSceneObjects = [];
       this.animationObjectCacheDirty = true;
@@ -3363,9 +3366,14 @@
       doorFrame.receiveShadow = true;
       doorFrame.position.set(storageX, 0.84, storageZ + 0.41);
       this.root.add(doorFrame);
-      const handleL = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.03), new THREE.MeshStandardMaterial({ color: 0xdbe4ee, metalness: 0.7, roughness: 0.22 }));
+      // Keep the pulls close to the door face. The earlier z offset placed them
+      // far enough forward that they read as two disconnected floating bars.
+      const doorSeam = new THREE.Mesh(new THREE.BoxGeometry(0.014, 1.22, 0.016), new THREE.MeshStandardMaterial({ color: 0x364250, roughness: 0.72 }));
+      doorSeam.position.set(storageX, 0.82, storageZ + 0.428);
+      this.root.add(doorSeam);
+      const handleL = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.24, 0.052), new THREE.MeshStandardMaterial({ color: 0xdbe4ee, metalness: 0.7, roughness: 0.22 }));
       handleL.castShadow = true;
-      handleL.position.set(storageX - 0.07, 0.77, storageZ + 0.63);
+      handleL.position.set(storageX - 0.072, 0.77, storageZ + 0.454);
       const handleR = handleL.clone();
       handleR.position.x = storageX + 0.07;
       this.root.add(handleL);
@@ -3390,10 +3398,39 @@
       const startX = -totalWidth / 2 + spec.scale / 2 + 0.12;
       const baseY = 1.06;
       const baseZ = deskZ - 0.1;
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0x2a333c, metalness: 0.5, roughness: 0.5 }));
-      pole.position.set(0.12, 1.03, baseZ - 0.26);
-      pole.castShadow = true;
-      this.root.add(pole);
+      const clusterCenterX = startX + (spec.cols - 1) * (spec.scale + 0.12) / 2;
+      const mount = new THREE.Group();
+      const mountMat = new THREE.MeshStandardMaterial({ color: 0x26333d, metalness: 0.62, roughness: 0.42 });
+      const deskSurfaceY = 0.852;
+      const mountZ = baseZ - 0.245;
+      const monitorBackZ = baseZ - 0.074;
+      const monitorHeight = spec.scale * 0.68;
+      const topMonitorY = baseY + (spec.rows - 1) * 0.54;
+      const mastHeight = Math.max(0.44, topMonitorY + monitorHeight / 2 + 0.12 - deskSurfaceY);
+      const basePlate = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.032, 0.18), mountMat);
+      basePlate.position.set(clusterCenterX, deskSurfaceY + 0.016, mountZ);
+      mount.add(basePlate);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, mastHeight, 12), mountMat);
+      mast.position.set(clusterCenterX, deskSurfaceY + mastHeight / 2, mountZ);
+      mast.castShadow = true;
+      mount.add(mast);
+      const addMountBox = (width, height, depth, x, y, z) => {
+        const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mountMat);
+        part.castShadow = true;
+        mount.add(part);
+        part.position.set(x, y, z);
+        return part;
+      };
+      for (let row = 0; row < spec.rows; row += 1) {
+        const y = baseY + row * 0.54;
+        addMountBox(totalWidth + 0.16, 0.035, 0.038, clusterCenterX, y, mountZ);
+        for (let col = 0; col < spec.cols; col += 1) {
+          const x = startX + col * (spec.scale + 0.12);
+          addMountBox(0.052, 0.052, Math.abs(monitorBackZ - mountZ), x, y, (monitorBackZ + mountZ) / 2);
+          addMountBox(Math.min(0.19, spec.scale * 0.34), Math.min(0.16, monitorHeight * 0.42), 0.022, x, y, monitorBackZ);
+        }
+      }
+      this.root.add(mount);
       let idx = 0;
       const palette = [0x6ef4a1, 0x58d8ff, 0xffcf7a, 0xc1a2ff, 0xff9bd4, 0x9ff2a2];
       for (let row = 0; row < spec.rows; row += 1) {
@@ -3475,6 +3512,7 @@
       holder.position.set(centerX, 0, centerZ);
 
       let cabinet = this.buildArcadeModelMesh();
+      const usingUploadedCabinet = !!cabinet;
       if (!cabinet) {
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.74, 1.85, 0.72), new THREE.MeshStandardMaterial({ color: 0x1a222d, roughness: 0.9 }));
         body.position.set(0, 0.92, 0.03);
@@ -3489,11 +3527,65 @@
         holder.add(cabinet);
       }
 
-      this.arcadeAnchor = { x: centerX, z: centerZ - depth / 2 - 0.42, yaw: 0 };
-      this.screenInteractive = { position: { x: centerX, z: centerZ - depth / 2 - 0.14 }, radius: 1.55 };
+      const screenPose = this.buildArcadeScreenDisplay(holder, usingUploadedCabinet);
+      this.arcadeAnchor = { x: centerX + screenPose.x, z: centerZ + screenPose.z - 0.68, yaw: 0 };
+      this.screenInteractive = {
+        position: { x: centerX + screenPose.x, y: screenPose.y, z: centerZ + screenPose.z },
+        radius: 1.55,
+        yaw: 0
+      };
       this.obstacles.length = obstacleIndex;
       this.addObstacle(centerX, centerZ + 0.02, 1.08, 1.18, 0.18);
       this.addContactShadow(centerX, centerZ + 0.02, 0.92, 0.70, 0.20);
+    }
+
+    buildArcadeScreenDisplay(holder, usingUploadedCabinet) {
+      const THREE = this.THREE;
+      // The converted cabinet's screen recess is centered slightly left after the
+      // source model is normalized and rotated. These measurements seat the CRT
+      // inside that recess instead of placing a generic plane in front of it.
+      const pose = usingUploadedCabinet
+        ? { x: -0.05, y: 1.46, z: -0.628, width: 0.56, height: 0.42 }
+        : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
+      const canvas = makeCanvas(512, 384);
+      const ctx = canvas.getContext('2d');
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace || texture.colorSpace;
+      const screenMat = new THREE.MeshStandardMaterial({
+        map: texture,
+        emissive: 0x0a2030,
+        emissiveIntensity: 0.62,
+        roughness: 0.36,
+        metalness: 0.1,
+        side: THREE.DoubleSide
+      });
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(pose.width, pose.height), screenMat);
+      screen.position.set(pose.x, pose.y, pose.z);
+      screen.renderOrder = 10;
+      holder.add(screen);
+
+      const bezelMat = new THREE.MeshStandardMaterial({ color: 0x101b2a, metalness: 0.58, roughness: 0.33 });
+      const bezelZ = pose.z - 0.014;
+      const bezelParts = [
+        [pose.width + 0.065, 0.032, 0, pose.height / 2 + 0.016],
+        [pose.width + 0.065, 0.032, 0, -pose.height / 2 - 0.016],
+        [0.032, pose.height + 0.065, -pose.width / 2 - 0.016, 0],
+        [0.032, pose.height + 0.065, pose.width / 2 + 0.016, 0]
+      ];
+      bezelParts.forEach(([width, height, offsetX, offsetY]) => {
+        const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.026), bezelMat);
+        part.position.set(pose.x + offsetX, pose.y + offsetY, bezelZ);
+        holder.add(part);
+      });
+
+      this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, nextFrameAt: 0, interval: 0.34 };
+      this.dynamicDisplays.push(this.arcadeDisplay);
+      return pose;
+    }
+
+    setArcadeScreenState(nextState = {}) {
+      this.arcadeScreenState = Object.assign({ mode: 'attract', title: 'UPTIME ARCADE' }, nextState || {});
+      if (this.arcadeDisplay) this.arcadeDisplay.nextFrameAt = 0;
     }
 
     buildBotDock() {
@@ -4738,12 +4830,16 @@
       document.exitPointerLock?.();
       this.pointerLocked = false;
       const lookYaw = Number.isFinite(target.yaw) ? target.yaw : this.player.yaw;
-      const zoomDistance = 0.18;
+      // Stop at a believable seated distance from the physical CRT, then tilt
+      // toward its center. The old 0.18m stop put the camera through the bezel.
+      const zoomDistance = 0.46;
       const zoomX = target.x - Math.sin(lookYaw) * zoomDistance;
       const zoomZ = target.z - Math.cos(lookYaw) * zoomDistance;
+      const screenY = Number.isFinite(target.y) ? target.y : this.player.y - 0.1;
+      const lookPitch = clamp(Math.atan2(screenY - this.player.y, zoomDistance), -0.48, -0.04);
       this.arcadeTransition = {
         from: { x: this.player.x, z: this.player.z, yaw: this.player.yaw, pitch: this.player.pitch },
-        to: { x: zoomX, z: zoomZ, yaw: lookYaw, pitch: -0.02 },
+        to: { x: zoomX, z: zoomZ, yaw: lookYaw, pitch: lookPitch },
         t: 0,
         duration: 0.48
       };
@@ -5243,6 +5339,57 @@
             ctx.fillStyle = '#fff'; ctx.font='700 14px Arial'; ctx.fillText('POWER / THERMALS',18,32);
           }
           if (screen && screen.material) screen.material.emissiveIntensity = 0.34 + Math.abs(Math.sin(tt*1.3))*0.08;
+          texture.needsUpdate = true;
+          return;
+        }
+        if (display.type === 'arcade') {
+          const { ctx, canvas, texture, screen } = display;
+          const state = this.arcadeScreenState || { mode: 'attract', title: 'UPTIME ARCADE' };
+          const now = t * 1.45;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#02050a';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = '#45f7ff';
+          ctx.lineWidth = 7;
+          ctx.strokeRect(13, 13, canvas.width - 26, canvas.height - 26);
+          ctx.strokeStyle = 'rgba(255,79,216,0.66)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(23, 23, canvas.width - 46, canvas.height - 46);
+          ctx.fillStyle = 'rgba(69,247,255,0.17)';
+          for (let y = 46; y < canvas.height - 30; y += 22) ctx.fillRect(30, y, canvas.width - 60, 1);
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#57f4ff';
+          ctx.font = '900 38px monospace';
+          ctx.fillText('UPTIME ARCADE', 46, 62);
+          const activeTitle = String(state.title || 'UPTIME ARCADE').toUpperCase();
+          if (state.mode === 'game' || state.mode === 'paused') {
+            ctx.fillStyle = state.mode === 'paused' ? '#ffd34d' : '#7dff68';
+            ctx.font = '800 17px monospace';
+            ctx.fillText(state.mode === 'paused' ? 'SESSION PAUSED' : 'NOW PLAYING', 48, 110);
+            ctx.fillStyle = '#f7fbff';
+            ctx.font = '900 27px monospace';
+            ctx.fillText(activeTitle.slice(0, 22), 48, 150);
+            ctx.fillStyle = '#ff4fd8';
+            ctx.font = '800 15px monospace';
+            ctx.fillText(state.mode === 'paused' ? 'PRESS E TO RESUME' : 'CRT LINK ACTIVE', 48, 206);
+          } else {
+            const games = ['BOMBMOPPER', 'STACK OVERFLOW', 'CIRCUIT BREAKER', 'CTRL+ALT+DEFEAT', 'MORTAL KONFIG'];
+            const selected = Math.floor(now * 0.55) % games.length;
+            games.forEach((game, index) => {
+              const y = 116 + index * 40;
+              ctx.fillStyle = index === selected ? '#ff4fd8' : '#a8eaff';
+              ctx.font = index === selected ? '900 19px monospace' : '700 16px monospace';
+              ctx.fillText(`${index === selected ? '>' : ' '} ${game}`, 48, y);
+            });
+            ctx.fillStyle = '#ffd34d';
+            ctx.font = '900 17px monospace';
+            ctx.fillText('PRESS E TO PLAY', 48, 338);
+          }
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(28, 0, 4, canvas.height);
+          ctx.fillRect(canvas.width - 32, 0, 4, canvas.height);
+          if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.54 + Math.abs(Math.sin(now * 1.4)) * 0.16;
           texture.needsUpdate = true;
           return;
         }
