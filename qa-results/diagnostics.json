@@ -1,0 +1,96 @@
+{
+  "capturedAt": "2026-07-10T20:03:12.744Z",
+  "targetUrl": "https://maloysius-wq.github.io/uptime-empire-play/",
+  "headless": false,
+  "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "captures": [
+    {
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-front&qaRun=1783713782219",
+      "view": "arcade-front",
+      "camera": {
+        "view": "arcade-front",
+        "target": "arcade",
+        "x": -2.67,
+        "y": 1.54,
+        "z": 1.5719999999999996,
+        "yaw": 3.141592653589793,
+        "pitch": -0.05258306161094176
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 1000,
+        "devicePixelRatio": 1
+      },
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB (0x00001C03) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "vendor": "Google Inc. (NVIDIA)",
+      "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "hardwareConcurrency": 8
+    },
+    {
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=arcade-quarter&qaRun=1783713787062",
+      "view": "arcade-quarter",
+      "camera": {
+        "view": "arcade-quarter",
+        "target": "arcade",
+        "x": -1.3299999999999998,
+        "y": 1.6199999999999999,
+        "z": 2.0119999999999996,
+        "yaw": 2.2491670171429705,
+        "pitch": -0.09270025783198153
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 1000,
+        "devicePixelRatio": 1
+      },
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB (0x00001C03) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "vendor": "Google Inc. (NVIDIA)",
+      "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "hardwareConcurrency": 8
+    },
+    {
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=desk-mount&qaRun=1783713789105",
+      "view": "desk-mount",
+      "camera": {
+        "view": "desk-mount",
+        "target": "deskMount",
+        "x": 1.6400000000000001,
+        "y": 1.26,
+        "z": -2.813999999999999,
+        "yaw": 0.8482523238230197,
+        "pitch": -0.0983821174027931
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 1000,
+        "devicePixelRatio": 1
+      },
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB (0x00001C03) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "vendor": "Google Inc. (NVIDIA)",
+      "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "hardwareConcurrency": 8
+    },
+    {
+      "url": "https://maloysius-wq.github.io/uptime-empire-play/?qa=storage-cabinet&qaRun=1783713791076",
+      "view": "storage-cabinet",
+      "camera": {
+        "view": "storage-cabinet",
+        "target": "storageCabinet",
+        "x": 0.6800000000000002,
+        "y": 0.98,
+        "z": -4.605999999999999,
+        "yaw": -2.356194490192345,
+        "pitch": -0.08680980303134093
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 1000,
+        "devicePixelRatio": 1
+      },
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB (0x00001C03) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "vendor": "Google Inc. (NVIDIA)",
+      "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "hardwareConcurrency": 8
+    }
+  ]
+}
