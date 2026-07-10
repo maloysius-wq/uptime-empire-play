@@ -3560,10 +3560,13 @@
       // source model is normalized and rotated. Keep the whole display assembly
       // recessed into that opening, not on the outermost cabinet silhouette.
       const pose = usingUploadedCabinet
-        ? { x: -0.05, y: 1.46, z: -0.37, width: 0.56, height: 0.42 }
+        ? { x: -0.05, y: 1.46, z: -0.2, width: 0.6, height: 0.45 }
         : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
       const displayAssembly = new THREE.Group();
       displayAssembly.position.set(pose.x, pose.y, pose.z);
+      // Match the cabinet's sloped CRT face: the top recedes slightly while the
+      // lower edge stays near the control deck.
+      if (usingUploadedCabinet) displayAssembly.rotation.x = 0.18;
       holder.add(displayAssembly);
       const canvas = makeCanvas(512, 384);
       const ctx = canvas.getContext('2d');
