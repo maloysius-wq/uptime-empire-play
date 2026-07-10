@@ -3405,7 +3405,9 @@
       const mount = new THREE.Group();
       const mountMat = new THREE.MeshStandardMaterial({ color: 0x26333d, metalness: 0.62, roughness: 0.42 });
       const deskSurfaceY = 0.852;
-      const mountZ = baseZ - 0.245;
+      // Keep the mounting rail immediately behind the monitor shells. The previous
+      // deeper rail read as a detached bar from the office camera.
+      const mountZ = baseZ - 0.14;
       const monitorBackZ = baseZ - 0.074;
       const monitorHeight = spec.scale * 0.68;
       const topMonitorY = baseY + (spec.rows - 1) * 0.54;
@@ -3426,7 +3428,7 @@
       };
       for (let row = 0; row < spec.rows; row += 1) {
         const y = baseY + row * 0.54;
-        addMountBox(totalWidth + 0.16, 0.035, 0.038, clusterCenterX, y, mountZ);
+        addMountBox(Math.max(0.22, totalWidth - 0.06), 0.035, 0.038, clusterCenterX, y, mountZ);
         for (let col = 0; col < spec.cols; col += 1) {
           const x = startX + col * (spec.scale + 0.12);
           addMountBox(0.052, 0.052, Math.abs(monitorBackZ - mountZ), x, y, (monitorBackZ + mountZ) / 2);
@@ -3555,11 +3557,14 @@
     buildArcadeScreenDisplay(holder, usingUploadedCabinet) {
       const THREE = this.THREE;
       // The converted cabinet's screen recess is centered slightly left after the
-      // source model is normalized and rotated. These measurements seat the CRT
-      // inside that recess instead of placing a generic plane in front of it.
+      // source model is normalized and rotated. Keep the whole display assembly
+      // recessed into that opening, not on the outermost cabinet silhouette.
       const pose = usingUploadedCabinet
-        ? { x: -0.05, y: 1.46, z: -0.628, width: 0.56, height: 0.42 }
+        ? { x: -0.05, y: 1.46, z: -0.37, width: 0.56, height: 0.42 }
         : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
+      const displayAssembly = new THREE.Group();
+      displayAssembly.position.set(pose.x, pose.y, pose.z);
+      holder.add(displayAssembly);
       const canvas = makeCanvas(512, 384);
       const ctx = canvas.getContext('2d');
       const texture = new THREE.CanvasTexture(canvas);
@@ -3570,15 +3575,17 @@
         emissiveIntensity: 0.62,
         roughness: 0.36,
         metalness: 0.1,
-        side: THREE.DoubleSide
+        side: THREE.FrontSide
       });
       const screen = new THREE.Mesh(new THREE.PlaneGeometry(pose.width, pose.height), screenMat);
-      screen.position.set(pose.x, pose.y, pose.z);
+      // The physical screen faces the room's negative-Z arcade approach. Without
+      // this rotation, the front camera sees the texture through its mirrored back.
+      screen.rotation.y = Math.PI;
       screen.renderOrder = 10;
-      holder.add(screen);
+      displayAssembly.add(screen);
 
       const bezelMat = new THREE.MeshStandardMaterial({ color: 0x101b2a, metalness: 0.58, roughness: 0.33 });
-      const bezelZ = pose.z - 0.014;
+      const bezelZ = -0.014;
       const bezelParts = [
         [pose.width + 0.065, 0.032, 0, pose.height / 2 + 0.016],
         [pose.width + 0.065, 0.032, 0, -pose.height / 2 - 0.016],
@@ -3587,11 +3594,11 @@
       ];
       bezelParts.forEach(([width, height, offsetX, offsetY]) => {
         const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.026), bezelMat);
-        part.position.set(pose.x + offsetX, pose.y + offsetY, bezelZ);
-        holder.add(part);
+        part.position.set(offsetX, offsetY, bezelZ);
+        displayAssembly.add(part);
       });
 
-      this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, nextFrameAt: 0, interval: 0.34 };
+      this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, assembly: displayAssembly, nextFrameAt: 0, interval: 0.34 };
       this.dynamicDisplays.push(this.arcadeDisplay);
       return pose;
     }
@@ -3606,7 +3613,7 @@
         'arcade-front': { target: 'arcade', offset: { x: 0, y: 0.08, z: -1.52 } },
         'arcade-quarter': { target: 'arcade', offset: { x: 1.34, y: 0.16, z: -1.08 } },
         'desk-mount': { target: 'deskMount', offset: { x: 1.52, y: 0.2, z: 1.34 } },
-        'storage-cabinet': { target: 'storageCabinet', offset: { x: -1.3, y: 0.16, z: -1.3 } }
+        'storage-cabinet': { target: 'storageCabinet', offset: { x: 1.1, y: 0.16, z: 1.3 } }
       };
       const view = views[viewName] || views['arcade-front'];
       const target = this.visualQATargets?.[view.target];
