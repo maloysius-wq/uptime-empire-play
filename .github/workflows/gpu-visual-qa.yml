@@ -1,0 +1,55 @@
+name: GPU Visual QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Published Uptime Empire build to inspect
+        required: false
+        default: https://maloysius-wq.github.io/uptime-empire-play/
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: uptime-empire-gpu-visual-qa
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: [self-hosted, windows, x64, gpu]
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture hardware-accelerated Chrome views
+        shell: pwsh
+        env:
+          UPTIME_QA_URL: ${{ inputs.target_url }}
+          UPTIME_QA_HEADLESS: "0"
+        run: node qa/capture-visuals.mjs
+      - name: Upload visual QA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uptime-empire-gpu-visual-qa
+          path: qa-results
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish latest QA screenshots
+        if: always()
+        shell: pwsh
+        run: |
+          if (!(Test-Path qa-results)) { exit 0 }
+          git config user.name "uptime-empire-qa[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f qa-results
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git commit -m "Publish GPU visual QA screenshots"
+          git push origin HEAD:main

@@ -121,6 +121,7 @@
       this.dynamicDisplays = [];
       this.arcadeDisplay = null;
       this.arcadeScreenState = { mode: 'attract', title: 'UPTIME ARCADE' };
+      this.visualQATargets = Object.create(null);
       this.animatedLavaLamps = [];
       this.animatedSceneObjects = [];
       this.animationObjectCacheDirty = true;
@@ -2917,6 +2918,7 @@
       this.computerTransition = null;
       this.dynamicDisplays = [];
       this.arcadeDisplay = null;
+      this.visualQATargets = Object.create(null);
       this.animatedLavaLamps = [];
       this.animatedSceneObjects = [];
       this.animationObjectCacheDirty = true;
@@ -3378,6 +3380,7 @@
       handleR.position.x = storageX + 0.07;
       this.root.add(handleL);
       this.root.add(handleR);
+      this.visualQATargets.storageCabinet = { x: storageX, y: 0.82, z: storageZ + 0.454 };
 
       this.buildMonitorCluster(deskZ);
       this.buildDeskDefaults(deskZ);
@@ -3431,6 +3434,11 @@
         }
       }
       this.root.add(mount);
+      this.visualQATargets.deskMount = {
+        x: clusterCenterX,
+        y: baseY + (spec.rows - 1) * 0.27,
+        z: monitorBackZ
+      };
       let idx = 0;
       const palette = [0x6ef4a1, 0x58d8ff, 0xffcf7a, 0xc1a2ff, 0xff9bd4, 0x9ff2a2];
       for (let row = 0; row < spec.rows; row += 1) {
@@ -3528,6 +3536,11 @@
       }
 
       const screenPose = this.buildArcadeScreenDisplay(holder, usingUploadedCabinet);
+      this.visualQATargets.arcade = {
+        x: centerX + screenPose.x,
+        y: screenPose.y,
+        z: centerZ + screenPose.z
+      };
       this.arcadeAnchor = { x: centerX + screenPose.x, z: centerZ + screenPose.z - 0.68, yaw: 0 };
       this.screenInteractive = {
         position: { x: centerX + screenPose.x, y: screenPose.y, z: centerZ + screenPose.z },
@@ -3586,6 +3599,40 @@
     setArcadeScreenState(nextState = {}) {
       this.arcadeScreenState = Object.assign({ mode: 'attract', title: 'UPTIME ARCADE' }, nextState || {});
       if (this.arcadeDisplay) this.arcadeDisplay.nextFrameAt = 0;
+    }
+
+    setVisualQACamera(viewName = 'arcade-front') {
+      const views = {
+        'arcade-front': { target: 'arcade', offset: { x: 0, y: 0.08, z: -1.52 } },
+        'arcade-quarter': { target: 'arcade', offset: { x: 1.34, y: 0.16, z: -1.08 } },
+        'desk-mount': { target: 'deskMount', offset: { x: 1.52, y: 0.2, z: 1.34 } },
+        'storage-cabinet': { target: 'storageCabinet', offset: { x: -1.3, y: 0.16, z: -1.3 } }
+      };
+      const view = views[viewName] || views['arcade-front'];
+      const target = this.visualQATargets?.[view.target];
+      if (!target) return null;
+
+      const x = target.x + view.offset.x;
+      const y = target.y + view.offset.y;
+      const z = target.z + view.offset.z;
+      const horizontalDistance = Math.max(0.001, Math.hypot(target.x - x, target.z - z));
+      this.pointerLocked = false;
+      this.arcadeHold = false;
+      this.computerHold = false;
+      this.arcadeTransition = null;
+      this.computerTransition = null;
+      this.player.x = x;
+      this.player.y = y;
+      this.player.z = z;
+      this.player.yaw = Math.atan2(x - target.x, z - target.z);
+      this.player.pitch = clamp(Math.atan2(target.y - y, horizontalDistance), -0.65, 0.5);
+      this.player.bob = 0;
+      if (this.camera) {
+        this.camera.position.set(x, y, z);
+        this.camera.rotation.set(this.player.pitch, this.player.yaw, 0, 'YXZ');
+      }
+      this.updateOverlay('visual QA');
+      return { view: viewName, target: view.target, x, y, z, yaw: this.player.yaw, pitch: this.player.pitch };
     }
 
     buildBotDock() {

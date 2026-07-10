@@ -7392,3 +7392,42 @@ body.arcade-active {
   .arcade-game-hud #arcadeRestartBtn { grid-column: 2 / -1; }
   .arcade-game-titleplate div > span { display: none; }
 }
+
+/* The visual-QA URL is only used by the GPU screenshot runner. */
+body.visual-qa-mode {
+  background: #090d12;
+  overflow: hidden;
+}
+
+body.visual-qa-mode .world-hud,
+body.visual-qa-mode .world-quick-actions,
+body.visual-qa-mode .office-3d-overlay,
+body.visual-qa-mode .arcade-overlay,
+body.visual-qa-mode .stats-sidebar,
+body.visual-qa-mode .bottom-nav,
+body.visual-qa-mode .region-strip,
+body.visual-qa-mode .toast,
+body.visual-qa-mode .fx-layer,
+body.visual-qa-mode .incident-alert,
+body.visual-qa-mode .modal-backdrop,
+body.visual-qa-mode .offline-summary-popup {
+  display: none !important;
+}
+
+body.visual-qa-mode #officeScene {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+body.visual-qa-mode #office3dCanvas {
+  width: 100% !important;
+  height: 100% !important;
+}

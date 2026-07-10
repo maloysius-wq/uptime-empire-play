@@ -229,6 +229,7 @@ const HELP_SECTIONS = [
       this.syncComputerMode();
       this.startArcadeLoop();
       this.renderAll();
+      this.startVisualQAFromQuery();
     },
 
     cacheDom() {
@@ -377,6 +378,36 @@ const HELP_SECTIONS = [
         incidentAlertAckBtn: $('incidentAlertAckBtn'),
         incidentAlertBtn: $('incidentAlertBtn')
       };
+    },
+
+    startVisualQAFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const requestedView = params.get('qa');
+      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet']);
+      if (!allowedViews.has(requestedView)) return;
+
+      document.body.classList.add('visual-qa-mode');
+      const deadline = performance.now() + 30000;
+      const waitForScene = () => {
+        const scene = this.office3D;
+        if (scene?.loaded && scene.assetsReady && scene.arcadeDisplay) {
+          scene.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
+          const camera = scene.setVisualQACamera(requestedView);
+          window.__UPTIME_VISUAL_QA__ = {
+            status: camera ? 'ready' : 'failed',
+            view: requestedView,
+            camera,
+            assetsReady: !!scene.assetsReady
+          };
+          return;
+        }
+        if (performance.now() >= deadline) {
+          window.__UPTIME_VISUAL_QA__ = { status: 'failed', view: requestedView, reason: 'Timed out waiting for the office scene.' };
+          return;
+        }
+        requestAnimationFrame(waitForScene);
+      };
+      requestAnimationFrame(waitForScene);
     },
 
     bindEvents() {
