@@ -2696,6 +2696,7 @@ const HELP_SECTIONS = [
       const x = Math.max(0, Math.min(512, u * 512));
       const y = Math.max(0, Math.min(384, v * 384));
       if (!arcade.currentGameId) {
+        if (y > 330) { this.leaveArcade(false); return; }
         const index = Math.floor((y - 86) / 43);
         if (index >= 0 && index < arcade.catalog.length) {
           arcade.cabinetMenuIndex = index;
@@ -2799,7 +2800,7 @@ const HELP_SECTIONS = [
       });
       const selected = arcade.catalog[arcade.cabinetMenuIndex];
       this.drawCabinetText(ctx, selected.desc.toUpperCase(), 256, 324, 10, '#d5efff', 'center');
-      this.drawCabinetText(ctx, `HI ${this.getArcadeScore(selected.id)}   //   ENTER TO PLAY   //   ESC TO EXIT`, 256, 348, 11, '#7dff68', 'center');
+      this.drawCabinetText(ctx, `HI ${this.getArcadeScore(selected.id)}   //   ENTER TO PLAY   //   ESC OR TAP HERE TO EXIT`, 256, 348, 10, '#7dff68', 'center');
       if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, 'READY', 462, 42, 9, '#ff4fd8', 'right');
     },
 

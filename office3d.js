@@ -3772,6 +3772,8 @@
       this.arcadeAnchor = { x: centerX + screenPose.x, z: centerZ + screenPose.z - 0.68, yaw: 0 };
       this.screenInteractive = {
         position: { x: centerX + screenPose.x, y: screenPose.y, z: centerZ + screenPose.z },
+        width: screenPose.width,
+        height: screenPose.height,
         radius: 1.55,
         yaw: 0
       };
@@ -5312,9 +5314,16 @@
       document.exitPointerLock?.();
       this.pointerLocked = false;
       const lookYaw = Number.isFinite(target.yaw) ? target.yaw : this.player.yaw;
-      // Stop at a believable seated distance from the physical CRT, then tilt
-      // toward its center. The old 0.18m stop put the camera through the bezel.
-      const zoomDistance = 0.46;
+      // Fit the entire physical CRT at every aspect ratio. A fixed close-up can
+      // place a portrait-phone camera inside the cabinet shell and crop its sides.
+      const verticalFov = (this.camera?.fov || 66) * Math.PI / 180;
+      const aspect = Math.max(0.25, Number(this.camera?.aspect) || 1);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+      const screenWidth = Math.max(0.62, Number(this.screenInteractive?.width) || 0.72);
+      const screenHeight = Math.max(0.54, Number(this.screenInteractive?.height) || 0.72);
+      const widthDistance = screenWidth / Math.max(0.01, 2 * Math.tan(horizontalFov / 2));
+      const heightDistance = screenHeight / Math.max(0.01, 2 * Math.tan(verticalFov / 2));
+      const zoomDistance = Math.max(0.96, widthDistance, heightDistance) * 1.18;
       const zoomX = target.x - Math.sin(lookYaw) * zoomDistance;
       const zoomZ = target.z - Math.cos(lookYaw) * zoomDistance;
       const screenY = Number.isFinite(target.y) ? target.y : this.player.y - 0.1;
