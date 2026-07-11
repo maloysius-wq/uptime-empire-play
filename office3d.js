@@ -3769,13 +3769,13 @@
         y: screenPose.y,
         z: centerZ + screenPose.z
       };
-      this.arcadeAnchor = { x: centerX + screenPose.x, z: centerZ + screenPose.z - 0.68, yaw: 0 };
+      this.arcadeAnchor = { x: centerX + screenPose.x, z: centerZ + screenPose.z - 0.68, yaw: Math.PI };
       this.screenInteractive = {
         position: { x: centerX + screenPose.x, y: screenPose.y, z: centerZ + screenPose.z },
         width: screenPose.width,
         height: screenPose.height,
         radius: 1.55,
-        yaw: 0
+        yaw: Math.PI
       };
       this.obstacles.length = obstacleIndex;
       this.addObstacle(centerX, centerZ + 0.02, 1.08, 1.18, 0.18);
@@ -5324,8 +5324,10 @@
       const widthDistance = screenWidth / Math.max(0.01, 2 * Math.tan(horizontalFov / 2));
       const heightDistance = screenHeight / Math.max(0.01, 2 * Math.tan(verticalFov / 2));
       const zoomDistance = Math.max(0.96, widthDistance, heightDistance) * 1.18;
-      const zoomX = target.x - Math.sin(lookYaw) * zoomDistance;
-      const zoomZ = target.z - Math.cos(lookYaw) * zoomDistance;
+      // Three's forward vector is (-sin(yaw), 0, -cos(yaw)). Move opposite
+      // that direction so the camera sits in front of the CRT and looks at it.
+      const zoomX = target.x + Math.sin(lookYaw) * zoomDistance;
+      const zoomZ = target.z + Math.cos(lookYaw) * zoomDistance;
       const screenY = Number.isFinite(target.y) ? target.y : this.player.y - 0.1;
       const lookPitch = clamp(Math.atan2(screenY - this.player.y, zoomDistance), -0.48, -0.04);
       this.arcadeTransition = {
@@ -5353,8 +5355,8 @@
       if (exitTarget && (this.collides(this.player.x, this.player.z) || this.getArcadeDistance() < 0.55)) {
         const safeYaw = Number.isFinite(exitTarget.yaw) ? exitTarget.yaw : 0;
         for (const dist of [0.95, 1.15, 1.35, 1.6]) {
-          const sx = exitTarget.x - Math.sin(safeYaw) * dist;
-          const sz = exitTarget.z - Math.cos(safeYaw) * dist;
+          const sx = exitTarget.x + Math.sin(safeYaw) * dist;
+          const sz = exitTarget.z + Math.cos(safeYaw) * dist;
           if (!this.collides(sx, sz)) {
             this.player.x = sx;
             this.player.z = sz;
