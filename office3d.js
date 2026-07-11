@@ -98,6 +98,20 @@
       };
       this.pointerLocked = false;
       this.keys = Object.create(null);
+      this.mobileControls = {
+        available: false,
+        active: false,
+        strafe: 0,
+        forward: 0,
+        movePointerId: null,
+        lookPointerId: null,
+        lastLookX: 0,
+        lastLookY: 0,
+        moveControl: null,
+        moveStick: null,
+        lookControl: null,
+        interactControl: null
+      };
       this.lastTime = performance.now();
       this.lastRenderAt = 0;
       this.nextOverlayUpdateAt = 0;
@@ -258,6 +272,13 @@
       this._boundPlacementWheel = this.handlePlacementWheel.bind(this);
       this._boundKey = this.handleKey.bind(this);
       this._boundBlur = this.handleBlur.bind(this);
+      this._boundMobileMoveDown = this.handleMobileMoveDown.bind(this);
+      this._boundMobileMoveMove = this.handleMobileMoveMove.bind(this);
+      this._boundMobileMoveEnd = this.handleMobileMoveEnd.bind(this);
+      this._boundMobileLookDown = this.handleMobileLookDown.bind(this);
+      this._boundMobileLookMove = this.handleMobileLookMove.bind(this);
+      this._boundMobileLookEnd = this.handleMobileLookEnd.bind(this);
+      this._boundMobileInteract = this.handleMobileInteract.bind(this);
       this.bindEvents();
       this.boot();
     }
@@ -312,7 +333,7 @@
 
     getRenderFrameInterval() {
       const profile = this.graphicsProfile || this.getGraphicsProfile();
-      const active = this.pointerLocked || this.placementMode || this.moveMode || this.computerTransition || this.arcadeTransition;
+      const active = this.isManualControlActive() || this.placementMode || this.moveMode || this.computerTransition || this.arcadeTransition;
       return 1000 / (active ? profile.activeFps : profile.idleFps);
     }
 
@@ -389,6 +410,11 @@
           event.preventDefault();
           return;
         }
+        if (this.mobileControls.available) {
+          this.activateMobileControls();
+          event.preventDefault();
+          return;
+        }
         if (document.pointerLockElement !== this.canvas) {
           this.canvas.requestPointerLock?.();
         }
@@ -401,6 +427,139 @@
       window.addEventListener('keyup', this._boundKey);
       window.addEventListener('blur', this._boundBlur);
       window.addEventListener('resize', this._boundResize);
+      this.bindMobileControls();
+    }
+
+    bindMobileControls() {
+      const controls = this.mobileControls;
+      controls.moveControl = document.getElementById('mobileMoveControl');
+      controls.moveStick = document.getElementById('mobileMoveStick');
+      controls.lookControl = document.getElementById('mobileLookControl');
+      controls.interactControl = document.getElementById('mobileInteractControl');
+      controls.moveControl?.addEventListener('pointerdown', this._boundMobileMoveDown);
+      controls.moveControl?.addEventListener('pointermove', this._boundMobileMoveMove);
+      controls.moveControl?.addEventListener('pointerup', this._boundMobileMoveEnd);
+      controls.moveControl?.addEventListener('pointercancel', this._boundMobileMoveEnd);
+      controls.lookControl?.addEventListener('pointerdown', this._boundMobileLookDown);
+      controls.lookControl?.addEventListener('pointermove', this._boundMobileLookMove);
+      controls.lookControl?.addEventListener('pointerup', this._boundMobileLookEnd);
+      controls.lookControl?.addEventListener('pointercancel', this._boundMobileLookEnd);
+      controls.interactControl?.addEventListener('pointerdown', this._boundMobileInteract);
+      this.syncMobileControls();
+    }
+
+    isMobileControlsAvailable() {
+      const coarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+      return !!coarsePointer && Number(window.innerWidth || 0) <= 900;
+    }
+
+    syncMobileControls() {
+      const controls = this.mobileControls;
+      controls.available = this.isMobileControlsAvailable();
+      if (!controls.available) {
+        controls.active = false;
+        this.clearMobileMove();
+      }
+      this.updateMobileControlsVisibility();
+    }
+
+    updateMobileControlsVisibility() {
+      const controls = this.mobileControls;
+      const visible = !!controls.available && !this.computerHold && !this.arcadeHold && !this.placementMode && !this.moveMode;
+      document.body?.classList.toggle('mobile-office-controls-visible', visible);
+    }
+
+    isManualControlActive() {
+      return this.pointerLocked || !!(this.mobileControls?.available && this.mobileControls.active);
+    }
+
+    activateMobileControls() {
+      if (!this.mobileControls.available || !this.loaded || this.computerHold || this.arcadeHold || this.placementMode || this.moveMode) return;
+      this.mobileControls.active = true;
+      this.updateOverlay();
+    }
+
+    clearMobileMove() {
+      const controls = this.mobileControls;
+      if (!controls) return;
+      controls.strafe = 0;
+      controls.forward = 0;
+      controls.movePointerId = null;
+      if (controls.moveStick) controls.moveStick.style.transform = 'translate(-50%, -50%)';
+    }
+
+    updateMobileMove(event) {
+      const controls = this.mobileControls;
+      const pad = controls.moveControl;
+      if (!pad) return;
+      const rect = pad.getBoundingClientRect();
+      const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
+      let dx = event.clientX - (rect.left + rect.width / 2);
+      let dy = event.clientY - (rect.top + rect.height / 2);
+      const distance = Math.hypot(dx, dy);
+      if (distance > radius) {
+        dx = dx / distance * radius;
+        dy = dy / distance * radius;
+      }
+      controls.strafe = dx / radius;
+      controls.forward = -dy / radius;
+      if (controls.moveStick) controls.moveStick.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+    }
+
+    handleMobileMoveDown(event) {
+      if (!this.mobileControls.available || event.pointerType === 'mouse') return;
+      event.preventDefault();
+      this.activateMobileControls();
+      this.mobileControls.movePointerId = event.pointerId;
+      this.mobileControls.moveControl?.setPointerCapture?.(event.pointerId);
+      this.updateMobileMove(event);
+    }
+
+    handleMobileMoveMove(event) {
+      if (event.pointerId !== this.mobileControls.movePointerId) return;
+      event.preventDefault();
+      this.updateMobileMove(event);
+    }
+
+    handleMobileMoveEnd(event) {
+      if (event.pointerId !== this.mobileControls.movePointerId) return;
+      event.preventDefault();
+      this.clearMobileMove();
+    }
+
+    handleMobileLookDown(event) {
+      if (!this.mobileControls.available || event.pointerType === 'mouse') return;
+      event.preventDefault();
+      this.activateMobileControls();
+      const controls = this.mobileControls;
+      controls.lookPointerId = event.pointerId;
+      controls.lastLookX = event.clientX;
+      controls.lastLookY = event.clientY;
+      controls.lookControl?.setPointerCapture?.(event.pointerId);
+    }
+
+    handleMobileLookMove(event) {
+      const controls = this.mobileControls;
+      if (event.pointerId !== controls.lookPointerId) return;
+      event.preventDefault();
+      this.player.yaw -= (event.clientX - controls.lastLookX) * 0.008;
+      this.player.pitch = clamp(this.player.pitch - (event.clientY - controls.lastLookY) * 0.006, -0.72, 0.72);
+      controls.lastLookX = event.clientX;
+      controls.lastLookY = event.clientY;
+    }
+
+    handleMobileLookEnd(event) {
+      if (event.pointerId !== this.mobileControls.lookPointerId) return;
+      event.preventDefault();
+      this.mobileControls.lookPointerId = null;
+    }
+
+    handleMobileInteract(event) {
+      if (!this.mobileControls.available || event.pointerType === 'mouse') return;
+      event.preventDefault();
+      this.activateMobileControls();
+      this.primeOfficeAudio();
+      this.performNearbyInteraction();
     }
 
     destroy() {
@@ -409,6 +568,16 @@
         this.canvas.removeEventListener('pointermove', this._boundPlacementPointerMove);
         this.canvas.removeEventListener('wheel', this._boundPlacementWheel);
       }
+      const controls = this.mobileControls;
+      controls.moveControl?.removeEventListener('pointerdown', this._boundMobileMoveDown);
+      controls.moveControl?.removeEventListener('pointermove', this._boundMobileMoveMove);
+      controls.moveControl?.removeEventListener('pointerup', this._boundMobileMoveEnd);
+      controls.moveControl?.removeEventListener('pointercancel', this._boundMobileMoveEnd);
+      controls.lookControl?.removeEventListener('pointerdown', this._boundMobileLookDown);
+      controls.lookControl?.removeEventListener('pointermove', this._boundMobileLookMove);
+      controls.lookControl?.removeEventListener('pointerup', this._boundMobileLookEnd);
+      controls.lookControl?.removeEventListener('pointercancel', this._boundMobileLookEnd);
+      controls.interactControl?.removeEventListener('pointerdown', this._boundMobileInteract);
       document.removeEventListener('pointerlockchange', this._boundPointer);
       document.removeEventListener('mousemove', this._boundMouseMove);
       window.removeEventListener('keydown', this._boundKey);
@@ -428,6 +597,7 @@
 
     handleBlur() {
       this.keys = Object.create(null);
+      this.clearMobileMove();
     }
 
     handlePointerLockChange() {
@@ -439,11 +609,17 @@
       if (document.pointerLockElement === this.canvas) document.exitPointerLock?.();
       this.pointerLocked = false;
       this.keys = Object.create(null);
+      this.mobileControls.active = false;
+      this.clearMobileMove();
       this.updateOverlay();
     }
 
     resumeManualControl() {
       if (!this.canvas || !this.loaded || this.computerHold || this.arcadeHold) return;
+      if (this.mobileControls.available) {
+        this.activateMobileControls();
+        return;
+      }
       if (document.pointerLockElement === this.canvas) {
         this.pointerLocked = true;
         this.updateOverlay();
@@ -1122,31 +1298,7 @@
       }
       if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e'].includes(key)) {
         if (key === 'e' && event.type === 'keydown') {
-          const robotDist = this.getRobotDistance();
-          const arcadeDist = this.getArcadeDistance();
-          const deskDist = this.getDeskDistance();
-          const choices = [];
-          if (this.onArcadeInteract && arcadeDist < 2.2) choices.push({ type: 'arcade', dist: arcadeDist });
-          if (this.onRobotInteract && robotDist < 1.45) choices.push({ type: 'robot', dist: robotDist });
-          if (this.onComputerInteract && deskDist < 1.85) choices.push({ type: 'computer', dist: deskDist });
-          choices.sort((a, b) => a.dist - b.dist);
-          const choice = choices[0];
-          if (choice?.type === 'arcade') {
-            this.onArcadeInteract();
-            event.preventDefault();
-            return;
-          }
-          if (choice?.type === 'robot') {
-            document.exitPointerLock?.();
-            this.pointerLocked = false;
-            this.speakBotLine('__personality_ready__');
-            this.onRobotInteract();
-            event.preventDefault();
-            return;
-          }
-          if (choice?.type === 'computer') {
-            this.enterComputerView();
-            this.onComputerInteract();
+          if (this.performNearbyInteraction()) {
             event.preventDefault();
             return;
           }
@@ -1154,6 +1306,34 @@
         this.keys[key] = event.type === 'keydown';
         if (this.pointerLocked || this.arcadeHold || this.computerHold) event.preventDefault();
       }
+    }
+
+    performNearbyInteraction() {
+      const robotDist = this.getRobotDistance();
+      const arcadeDist = this.getArcadeDistance();
+      const deskDist = this.getDeskDistance();
+      const choices = [];
+      if (this.onArcadeInteract && arcadeDist < 2.2) choices.push({ type: 'arcade', dist: arcadeDist });
+      if (this.onRobotInteract && robotDist < 1.45) choices.push({ type: 'robot', dist: robotDist });
+      if (this.onComputerInteract && deskDist < 1.85) choices.push({ type: 'computer', dist: deskDist });
+      choices.sort((a, b) => a.dist - b.dist);
+      const choice = choices[0];
+      if (choice?.type === 'arcade') {
+        this.onArcadeInteract();
+        return true;
+      }
+      if (choice?.type === 'robot') {
+        this.releaseManualControl();
+        this.speakBotLine('__personality_ready__');
+        this.onRobotInteract();
+        return true;
+      }
+      if (choice?.type === 'computer') {
+        this.enterComputerView();
+        this.onComputerInteract();
+        return true;
+      }
+      return false;
     }
 
     setScene({ tier = 0, decorations = [], suiteName = '', wallFinish = 'default', floorFinish = 'default', deskFinish = 'default', chairFinish = 'default', graphicsQuality = 'performance', placements = null, floorBotProfile = null, soundEnabled = true }) {
@@ -1220,15 +1400,18 @@
 
     updateOverlay(extra = '') {
       if (!this.hintEl || !this.modeEl) return;
+      this.updateMobileControlsVisibility();
       const nearArcade = this.getArcadeDistance() < 2.05;
       const nearRobot = this.getRobotDistance() < 1.45;
       const nearDesk = this.getDeskDistance() < 1.85;
-      const modeLabel = this.moveMode ? 'Move Mode' : this.placementMode ? 'Placement Mode' : this.computerHold ? 'Desk Computer' : this.arcadeHold ? 'Arcade Hold' : (this.pointerLocked ? 'Manual Control' : 'Manual Standby');
+      const touchControl = !!(this.mobileControls.available && this.mobileControls.active);
+      const manualActive = this.isManualControlActive();
+      const modeLabel = this.moveMode ? 'Move Mode' : this.placementMode ? 'Placement Mode' : this.computerHold ? 'Desk Computer' : this.arcadeHold ? 'Arcade Hold' : (touchControl ? 'Touch Control' : this.pointerLocked ? 'Manual Control' : 'Manual Standby');
       if (modeLabel !== this.lastModeLabel) {
         this.lastModeLabel = modeLabel;
         this.modeEl.textContent = modeLabel;
       }
-      if (this.canvas) this.canvas.classList.toggle('is-explore', this.pointerLocked && !this.arcadeHold && !this.computerHold && !this.placementMode && !this.moveMode);
+      if (this.canvas) this.canvas.classList.toggle('is-explore', manualActive && !this.arcadeHold && !this.computerHold && !this.placementMode && !this.moveMode);
       if (!this.loaded) return;
       const botSpeechActive = this.botSpeechText && performance.now() < this.botSpeechUntil;
       const botSpeechSuffix = botSpeechActive ? ` • ${this.botSpeechText}` : '';
@@ -1253,6 +1436,15 @@
         this.setHint(`Desk computer open • press <strong>Esc</strong> to return to the office${botSpeechSuffix}`);
       } else if (this.arcadeHold) {
         this.setHint(`Arcade session paused here • press <strong>E</strong> to resume${botSpeechSuffix}`);
+      } else if (touchControl) {
+        const target = nearRobot && (!nearArcade || this.getRobotDistance() <= this.getArcadeDistance() + 0.15)
+          ? 'floor bot'
+          : nearArcade
+            ? 'Uptime Arcade'
+            : nearDesk
+              ? 'desk computer'
+              : 'office';
+        this.setHint(`MOVE to walk, LOOK to aim, and USE near the ${target}${botSpeechSuffix}`);
       } else if (this.pointerLocked && nearRobot && (!nearArcade || this.getRobotDistance() <= this.getArcadeDistance() + 0.15)) {
         this.setHint(`WASD to move • mouse to look • Press <strong>E</strong> to configure your floor bot${botSpeechSuffix}`);
       } else if (this.pointerLocked && nearArcade) {
@@ -2673,7 +2865,7 @@
 
     updateFootstepAudio(moving = false, running = false, dt = 0.016) {
       const foot = this.footstepAudio;
-      if (!foot || this.state.soundEnabled === false || !this.pointerLocked || this.computerHold || this.arcadeHold || this.placementMode || this.moveMode) {
+      if (!foot || this.state.soundEnabled === false || !this.isManualControlActive() || this.computerHold || this.arcadeHold || this.placementMode || this.moveMode) {
         if (foot) {
           foot.stepTimer = 0;
           foot.wasMoving = false;
@@ -2890,6 +3082,7 @@
     }
 
     resize() {
+      this.syncMobileControls();
       if (!this.renderer || !this.canvas) return;
       const host = this.canvas.parentElement || this.canvas;
       const rect = host.getBoundingClientRect();
@@ -5160,7 +5353,7 @@
         if (this.arcadeTransition.t >= 1) this.arcadeTransition = null;
       } else if (this.computerHold || this.arcadeHold) {
         this.player.bob = 0;
-      } else if (this.pointerLocked) this.updateManual(dt);
+      } else if (this.isManualControlActive()) this.updateManual(dt);
       else {
         // No room autopilot: outside pointer lock, the player stays where they left off.
         this.player.bob = lerp(this.player.bob, 0, 0.12);
@@ -5184,6 +5377,10 @@
       if (this.keys.s || this.keys.arrowdown) forward -= 1;
       if (this.keys.a || this.keys.arrowleft) strafe -= 1;
       if (this.keys.d || this.keys.arrowright) strafe += 1;
+      if (this.mobileControls.active) {
+        strafe += this.mobileControls.strafe;
+        forward += this.mobileControls.forward;
+      }
       const length = Math.hypot(strafe, forward) || 1;
       strafe /= length;
       forward /= length;

@@ -7401,6 +7401,7 @@ body.visual-qa-mode {
 
 body.visual-qa-mode .world-hud,
 body.visual-qa-mode .world-quick-actions,
+body.visual-qa-mode .mobile-office-controls,
 body.visual-qa-mode .office-3d-overlay,
 body.visual-qa-mode .arcade-overlay,
 body.visual-qa-mode .stats-sidebar,
@@ -7430,4 +7431,131 @@ body.visual-qa-mode #officeScene {
 body.visual-qa-mode #office3dCanvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+/* Touch-first office walkthrough controls. They are enabled in JavaScript only
+   for compact coarse-pointer devices, keeping the desktop input surface clean. */
+.mobile-office-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 152;
+  display: none;
+  pointer-events: none;
+  touch-action: none;
+}
+
+body.mobile-office-controls-visible .mobile-office-controls {
+  display: block;
+}
+
+.mobile-move-control,
+.mobile-look-control {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  border: 1px solid rgba(136, 235, 255, 0.34);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(94, 223, 255, 0.12) 0 28%, transparent 29%),
+    rgba(4, 13, 22, 0.78);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-move-control {
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.mobile-look-controls {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.mobile-look-control {
+  position: relative;
+}
+
+.mobile-control-label,
+.mobile-look-control span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  color: rgba(222, 249, 255, 0.72);
+  font-family: var(--display-font);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.mobile-move-stick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(194, 250, 255, 0.58);
+  border-radius: 50%;
+  background: rgba(85, 219, 255, 0.24);
+  box-shadow: 0 0 20px rgba(80, 219, 255, 0.28);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.mobile-interact-control {
+  width: 74px;
+  min-height: 50px;
+  border: 1px solid rgba(137, 255, 196, 0.62);
+  border-radius: 7px;
+  color: #effff6;
+  background: rgba(12, 65, 51, 0.88);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.34), inset 0 0 20px rgba(94, 255, 186, 0.11);
+  font-family: var(--display-font);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.mobile-interact-control:active,
+.mobile-move-control:active,
+.mobile-look-control:active {
+  border-color: #d8ffff;
+  filter: brightness(1.18);
+}
+
+@media (max-width: 900px) and (pointer: coarse) {
+  body.mobile-office-controls-visible .world-quick-actions {
+    top: auto;
+    right: 14px;
+    bottom: calc(max(24px, env(safe-area-inset-bottom)) + 192px);
+  }
+
+  body.mobile-office-controls-visible .world-hud-prompt {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) and (pointer: coarse) {
+  .mobile-move-control,
+  .mobile-look-control {
+    width: 104px;
+    height: 104px;
+  }
+
+  .mobile-move-stick {
+    width: 44px;
+    height: 44px;
+  }
 }
