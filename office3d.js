@@ -63,11 +63,13 @@
   }
 
   class Office3DScene {
-    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onComputerInteract = null, onRobotInteract = null }) {
+    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onArcadeInput = null, onComputerInteract = null, onRobotInteract = null }) {
       this.canvas = canvas;
       this.hintEl = hintEl || null;
       this.modeEl = modeEl || null;
       this.onArcadeInteract = typeof onArcadeInteract === 'function' ? onArcadeInteract : null;
+      this.onArcadeInput = typeof onArcadeInput === 'function' ? onArcadeInput : null;
+      this.arcadeScreenRenderer = null;
       this.onComputerInteract = typeof onComputerInteract === 'function' ? onComputerInteract : null;
       this.onRobotInteract = typeof onRobotInteract === 'function' ? onRobotInteract : null;
       this.loaded = false;
@@ -407,6 +409,12 @@
         }
         if (this.moveMode) {
           this.handleMoveModeClick(event);
+          event.preventDefault();
+          return;
+        }
+        if (this.arcadeHold && this.onArcadeInput) {
+          const point = this.getArcadeScreenPointer(event);
+          if (point) this.onArcadeInput({ type: 'pointer', ...point });
           event.preventDefault();
           return;
         }
@@ -1257,6 +1265,10 @@
     handleKey(event) {
       const key = (event.key || '').toLowerCase();
       if (event.type === 'keydown') this.primeOfficeAudio();
+      if (this.arcadeHold && this.onArcadeInput) {
+        if (this.onArcadeInput({ type: event.type, key, event }) !== false) event.preventDefault();
+        return;
+      }
       if (this.placementMode && event.type === 'keydown' && (key === 'escape' || key === 'esc')) {
         this.cancelPlacementMode();
         event.preventDefault();
@@ -3823,7 +3835,7 @@
         });
       }
 
-      this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, assembly: displayAssembly, nextFrameAt: 0, interval: 0.34 };
+      this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, assembly: displayAssembly, nextFrameAt: 0, interval: 0.066 };
       this.dynamicDisplays.push(this.arcadeDisplay);
       return pose;
     }
@@ -3831,6 +3843,26 @@
     setArcadeScreenState(nextState = {}) {
       this.arcadeScreenState = Object.assign({ mode: 'attract', title: 'UPTIME ARCADE' }, nextState || {});
       if (this.arcadeDisplay) this.arcadeDisplay.nextFrameAt = 0;
+    }
+
+    setArcadeScreenRenderer(renderer = null) {
+      this.arcadeScreenRenderer = typeof renderer === 'function' ? renderer : null;
+      if (this.arcadeDisplay) this.arcadeDisplay.nextFrameAt = 0;
+    }
+
+    getArcadeScreenPointer(event) {
+      if (!this.arcadeDisplay?.screen || !this.camera || !this.canvas || !this.THREE) return null;
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      if (!this._arcadeRaycaster) this._arcadeRaycaster = new this.THREE.Raycaster();
+      const ndc = new this.THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      this._arcadeRaycaster.setFromCamera(ndc, this.camera);
+      const hit = this._arcadeRaycaster.intersectObject(this.arcadeDisplay.screen, false)[0];
+      if (!hit?.uv) return null;
+      return { x: 1 - hit.uv.x, y: 1 - hit.uv.y };
     }
 
     setVisualQACamera(viewName = 'arcade-front') {
@@ -5749,7 +5781,10 @@
       const minimumInterval = this.graphicsProfile?.displayInterval || 0.24;
       this.dynamicDisplays.forEach(display => {
         if (display.nextFrameAt && t < display.nextFrameAt) return;
-        display.nextFrameAt = t + Math.max(display.interval || 0.12, minimumInterval);
+        const displayInterval = display.type === 'arcade' && this.arcadeScreenRenderer
+          ? (display.interval || 0.066)
+          : Math.max(display.interval || 0.12, minimumInterval);
+        display.nextFrameAt = t + displayInterval;
         if (display.type === 'monitor') {
           const { ctx, canvas, texture, color, seed, mode, screen, index } = display;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -5798,6 +5833,17 @@
         }
         if (display.type === 'arcade') {
           const { ctx, canvas, texture, screen } = display;
+          if (this.arcadeScreenRenderer) {
+            try {
+              this.arcadeScreenRenderer(ctx, canvas.width, canvas.height, t);
+              if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.62 + Math.abs(Math.sin(t * 2.2)) * 0.10;
+              texture.needsUpdate = true;
+              return;
+            } catch (error) {
+              console.warn('Arcade screen renderer failed; restoring attract display.', error);
+              this.arcadeScreenRenderer = null;
+            }
+          }
           const state = this.arcadeScreenState || { mode: 'attract', title: 'UPTIME ARCADE' };
           const now = t * 1.45;
           ctx.clearRect(0, 0, canvas.width, canvas.height);

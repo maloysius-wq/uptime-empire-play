@@ -221,6 +221,7 @@ const HELP_SECTIONS = [
           hintEl: this.els.office3dHint,
           modeEl: this.els.officeViewModeValue,
           onArcadeInteract: () => this.openArcade(),
+          onArcadeInput: input => this.handleCabinetArcadeInput(input),
           onComputerInteract: () => this.openDeskComputer(),
           onRobotInteract: () => this.openRobotModal()
         });
@@ -2326,6 +2327,7 @@ const HELP_SECTIONS = [
         overlayOpen: false,
         holdView: false,
         currentGameId: null,
+        cabinetMenuIndex: 0,
         gamePaused: false,
         lastTs: performance.now(),
         keys: {},
@@ -2405,13 +2407,11 @@ const HELP_SECTIONS = [
       if (this.els.officeScene) this.els.officeScene.classList.add('arcade-focus');
       document.body.classList.add('arcade-active');
       this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
+      this.office3D?.setArcadeScreenRenderer((ctx, width, height, time) => this.renderCabinetArcade(ctx, width, height, time));
       this.office3D?.enterArcadeView();
-      this.arcade.showTimer = setTimeout(() => {
-        if (!this.arcade || !this.arcade.overlayOpen) return;
-        if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.remove('hidden');
-        if (this.arcade.currentGameId) this.openArcadeGame(this.arcade.currentGameId, true);
-        else this.renderArcadeMenu();
-      }, 180);
+      if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
+      if (this.arcade.currentGameId) this.openArcadeGame(this.arcade.currentGameId, true);
+      else this.renderArcadeMenu();
     },
 
     leaveArcade(holdView = false) {
@@ -2425,6 +2425,7 @@ const HELP_SECTIONS = [
       this.office3D?.setArcadeScreenState(holdView && heldGame
         ? { mode: 'paused', title: heldGame.title }
         : { mode: 'attract', title: 'UPTIME ARCADE' });
+      if (!holdView) this.office3D?.setArcadeScreenRenderer(null);
       document.body.classList.remove('arcade-active');
       if (this.els.officeScene) {
         this.els.officeScene.classList.toggle('arcade-focus', !!holdView);
@@ -2498,6 +2499,12 @@ const HELP_SECTIONS = [
       this.arcade.currentGameId = null;
       this.arcade.gamePaused = false;
       this.hideArcadeInlineConfirm();
+      if (this.arcade.overlayOpen) {
+        this.arcade.cabinetMenuIndex = Math.max(0, Math.min(this.arcade.catalog.length - 1, this.arcade.cabinetMenuIndex || 0));
+        this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
+        if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
+        return;
+      }
       this.els.arcadeGameScreen.classList.add('hidden');
       this.els.arcadeMenuScreen.classList.remove('hidden');
       const cards = this.arcade.catalog.map(game => `
@@ -2653,6 +2660,257 @@ const HELP_SECTIONS = [
     handleArcadeKeyUp(e) {
       if (!this.arcade) return;
       this.arcade.keys[e.key.toLowerCase()] = false;
+    },
+
+    handleCabinetArcadeInput(input) {
+      const arcade = this.arcade;
+      if (!arcade || !arcade.overlayOpen) return false;
+      if (input.type === 'pointer') {
+        this.handleCabinetArcadePointer(input.x, input.y);
+        return true;
+      }
+      if (input.type === 'keyup') {
+        this.handleArcadeKeyUp(input.event);
+        return true;
+      }
+      if (input.type !== 'keydown') return true;
+      const key = input.key;
+      if (key === 'escape' || key === 'esc') {
+        if (arcade.currentGameId) this.renderArcadeMenu();
+        else this.leaveArcade(false);
+        return true;
+      }
+      if (!arcade.currentGameId) {
+        if (key === 'arrowup' || key === 'w') arcade.cabinetMenuIndex = (arcade.cabinetMenuIndex + arcade.catalog.length - 1) % arcade.catalog.length;
+        if (key === 'arrowdown' || key === 's') arcade.cabinetMenuIndex = (arcade.cabinetMenuIndex + 1) % arcade.catalog.length;
+        if (key === 'enter' || key === ' ' || key === 'e') this.openArcadeGame(arcade.catalog[arcade.cabinetMenuIndex].id);
+        return true;
+      }
+      this.handleArcadeKeyDown(input.event);
+      return true;
+    },
+
+    handleCabinetArcadePointer(u, v) {
+      const arcade = this.arcade;
+      if (!arcade) return;
+      const x = Math.max(0, Math.min(512, u * 512));
+      const y = Math.max(0, Math.min(384, v * 384));
+      if (!arcade.currentGameId) {
+        const index = Math.floor((y - 86) / 43);
+        if (index >= 0 && index < arcade.catalog.length) {
+          arcade.cabinetMenuIndex = index;
+          this.openArcadeGame(arcade.catalog[index].id);
+        }
+        return;
+      }
+      const id = arcade.currentGameId;
+      const game = arcade.games[id];
+      if (!game) return;
+      if (y < 36 && x < 82) { this.renderArcadeMenu(); return; }
+      if (y < 36 && x > 420) { this.restartArcadeGame(id); return; }
+      if (id === 'bombmopper') {
+        if (y > 334 && x > 342) { game.mode = game.mode === 'flag' ? 'reveal' : 'flag'; return; }
+        const cellSize = 24, left = 136, top = 72;
+        const col = Math.floor((x - left) / cellSize), row = Math.floor((y - top) / cellSize);
+        if (col >= 0 && col < 10 && row >= 0 && row < 10) this.onBombmopperCell(row * 10 + col, false);
+        return;
+      }
+      if (id === 'stackOverflow') {
+        if (y > 334) {
+          const actions = ['new', 'undo', 'hint', 'auto'];
+          const index = Math.floor((x - 96) / 82);
+          if (actions[index]) this.handleSolitaireAction(actions[index]);
+          return;
+        }
+        if (y >= 58 && y <= 118) {
+          if (x >= 22 && x <= 74) this.handleSolitaireAction('draw');
+          else if (x >= 82 && x <= 134) this.handleSolitaireAction('selectWaste');
+          else if (x >= 254 && x <= 462) {
+            const suits = ['H', 'D', 'C', 'S'];
+            this.handleSolitaireAction('toFoundation', suits[Math.floor((x - 254) / 52)]);
+          }
+          return;
+        }
+        if (y >= 126 && y < 322) {
+          const pile = Math.floor((x - 18) / 70);
+          if (pile >= 0 && pile < 7) {
+            const cards = game.tableau[pile] || [];
+            const offset = Math.min(16, Math.max(10, (176 - 56) / Math.max(1, cards.length)));
+            const index = Math.max(0, Math.min(cards.length - 1, Math.floor((y - 126) / offset)));
+            if (cards.length) this.handleSolitaireAction('selectTableau', pile, index);
+            else this.handleSolitaireAction('toTableau', pile);
+          }
+        }
+        return;
+      }
+      if (id === 'circuitBreaker') {
+        if (y > 88 && y < 312) game.lane = Math.max(0, Math.min(2, Math.floor((x - 124) / 88)));
+        return;
+      }
+      if (id === 'ctrlAltDefeat') {
+        const actions = ['attack', 'patch', 'overclock', 'firewall'];
+        const index = Math.floor((x - 28) / 114);
+        if (y > 276 && y < 330 && actions[index]) this.handleRpgAction(actions[index]);
+        return;
+      }
+      if (id === 'mortalKonfig' && y > 310) {
+        if (x < 104) game.player.x = Math.max(54, game.player.x - 30);
+        else if (x < 204) game.player.x = Math.min(586, game.player.x + 30);
+        else if (x < 304 && game.player.y === 0) { game.player.vy = 330; game.player.y = 1; }
+        else if (x < 404) this.startFighterAttack(game, 'player', 'punch');
+        else this.startFighterAttack(game, 'player', 'kick');
+      }
+    },
+
+    renderCabinetArcade(ctx, width, height, time = 0) {
+      const sx = width / 512, sy = height / 384;
+      ctx.save();
+      ctx.setTransform(sx, 0, 0, sy, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#02050a'; ctx.fillRect(0, 0, 512, 384);
+      ctx.strokeStyle = '#45f7ff'; ctx.lineWidth = 5; ctx.strokeRect(8, 8, 496, 368);
+      ctx.strokeStyle = 'rgba(255,79,216,0.72)'; ctx.lineWidth = 2; ctx.strokeRect(16, 16, 480, 352);
+      ctx.fillStyle = 'rgba(69,247,255,0.12)';
+      for (let y = 28; y < 370; y += 12) ctx.fillRect(20, y, 472, 1);
+      if (!this.arcade?.currentGameId) this.renderCabinetArcadeMenu(ctx, time);
+      else this.renderCabinetArcadeGame(ctx, this.arcade.currentGameId, time);
+      ctx.restore();
+    },
+
+    drawCabinetText(ctx, text, x, y, size = 12, color = '#f7fbff', align = 'left') {
+      ctx.textAlign = align;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = color;
+      ctx.font = `700 ${size}px "Courier New", monospace`;
+      ctx.fillText(String(text), x, y);
+    },
+
+    renderCabinetArcadeMenu(ctx, time) {
+      const arcade = this.arcade;
+      this.drawCabinetText(ctx, 'UPTIME ARCADE', 256, 43, 25, '#57f4ff', 'center');
+      this.drawCabinetText(ctx, 'SELECT WITH ARROWS OR TAP THE CRT', 256, 66, 10, '#ffd34d', 'center');
+      arcade.catalog.forEach((game, index) => {
+        const y = 97 + index * 43;
+        const selected = index === arcade.cabinetMenuIndex;
+        if (selected) { ctx.fillStyle = 'rgba(255,79,216,0.24)'; ctx.fillRect(32, y - 16, 448, 33); }
+        this.drawCabinetText(ctx, selected ? '>' : ' ', 42, y, 17, selected ? '#ff4fd8' : '#9fe8ff');
+        this.drawCabinetText(ctx, `${String(index + 1).padStart(2, '0')} ${game.title.toUpperCase()}`, 63, y, 16, selected ? '#f7fbff' : '#a8eaff');
+        this.drawCabinetText(ctx, game.genre, 472, y, 10, game.accent, 'right');
+      });
+      const selected = arcade.catalog[arcade.cabinetMenuIndex];
+      this.drawCabinetText(ctx, selected.desc.toUpperCase(), 256, 324, 10, '#d5efff', 'center');
+      this.drawCabinetText(ctx, `HI ${this.getArcadeScore(selected.id)}   //   ENTER TO PLAY   //   ESC TO EXIT`, 256, 348, 11, '#7dff68', 'center');
+      if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, 'READY', 462, 42, 9, '#ff4fd8', 'right');
+    },
+
+    renderCabinetArcadeGame(ctx, id, time) {
+      const def = this.arcadeGameDef(id);
+      const game = this.arcade.games[id];
+      this.drawCabinetText(ctx, '< MENU', 26, 30, 10, '#a8eaff');
+      this.drawCabinetText(ctx, def.title.toUpperCase(), 256, 30, 16, def.accent, 'center');
+      this.drawCabinetText(ctx, 'RESTART >', 486, 30, 10, '#ffd34d', 'right');
+      if (id === 'bombmopper') this.renderCabinetBombmopper(ctx, game);
+      if (id === 'stackOverflow') this.renderCabinetSolitaire(ctx, game);
+      if (id === 'circuitBreaker') this.renderCabinetCircuit(ctx, game, time);
+      if (id === 'ctrlAltDefeat') this.renderCabinetRpg(ctx, game);
+      if (id === 'mortalKonfig') this.renderCabinetFighter(ctx, game);
+    },
+
+    renderCabinetBombmopper(ctx, game) {
+      if (!game) return;
+      const flags = game.cells.filter(cell => cell.flagged).length;
+      this.drawCabinetText(ctx, `SCORE ${Math.floor(game.score)}   HI ${this.getArcadeScore('bombmopper')}   BOMBS ${game.bombs - flags}   ${Math.floor(game.elapsed)}S`, 256, 53, 10, '#a8eaff', 'center');
+      const cellSize = 24, left = 136, top = 72;
+      game.cells.forEach((cell, index) => {
+        const x = left + (index % 10) * cellSize, y = top + Math.floor(index / 10) * cellSize;
+        ctx.fillStyle = cell.revealed ? (cell.mine ? '#ff5a6d' : '#173246') : '#17212d';
+        ctx.fillRect(x + 1, y + 1, cellSize - 3, cellSize - 3);
+        ctx.strokeStyle = cell.revealed ? '#4b6d82' : '#45f7ff'; ctx.lineWidth = 1; ctx.strokeRect(x + 1, y + 1, cellSize - 3, cellSize - 3);
+        if (cell.revealed && cell.mine) this.drawCabinetText(ctx, '*', x + 11, y + 12, 16, '#fff', 'center');
+        else if (cell.flagged) this.drawCabinetText(ctx, 'F', x + 11, y + 12, 12, '#ffd34d', 'center');
+        else if (cell.revealed && cell.adj) this.drawCabinetText(ctx, cell.adj, x + 11, y + 12, 12, ['#fff', '#57f4ff', '#7dff68', '#ff4fd8'][Math.min(3, cell.adj - 1)], 'center');
+      });
+      this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 323, 10, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
+      this.drawCabinetText(ctx, `MODE: ${game.mode.toUpperCase()}  //  TAP GRID TO ${game.mode === 'flag' ? 'FLAG' : 'REVEAL'}  //  TAP HERE TO TOGGLE`, 256, 346, 10, '#ffd34d', 'center');
+      if (game.over) this.drawCabinetText(ctx, 'RUN COMPLETE - TAP RESTART', 256, 366, 10, '#ff4fd8', 'center');
+    },
+
+    drawCabinetCard(ctx, card, x, y, selected = false) {
+      ctx.fillStyle = card?.faceUp ? '#e8f4ff' : '#35244e';
+      ctx.fillRect(x, y, 52, 66);
+      ctx.strokeStyle = selected ? '#ffd34d' : '#45f7ff'; ctx.lineWidth = selected ? 3 : 1; ctx.strokeRect(x, y, 52, 66);
+      if (!card?.faceUp) { this.drawCabinetText(ctx, 'SYS', x + 26, y + 31, 10, '#ff9ddd', 'center'); return; }
+      const red = card.color === 'red';
+      this.drawCabinetText(ctx, `${card.rank}${card.suit}`, x + 5, y + 11, 10, red ? '#d92d53' : '#142030');
+      this.drawCabinetText(ctx, card.suit, x + 26, y + 37, 19, red ? '#d92d53' : '#142030', 'center');
+    },
+
+    renderCabinetSolitaire(ctx, game) {
+      if (!game) return;
+      this.drawCabinetText(ctx, `SCORE ${game.score}  MOVES ${game.moves}  HI ${this.getArcadeScore('stackOverflow')}`, 256, 52, 10, '#ffb8ed', 'center');
+      if (game.stock.length) this.drawCabinetCard(ctx, { faceUp: false }, 22, 58);
+      else { ctx.strokeStyle = '#ff4fd8'; ctx.strokeRect(22, 58, 52, 66); this.drawCabinetText(ctx, 'RESET', 48, 91, 8, '#ffb8ed', 'center'); }
+      const waste = game.waste[game.waste.length - 1];
+      if (waste) this.drawCabinetCard(ctx, waste, 82, 58, this.arcade.selectedSolitaire?.source === 'waste');
+      else { ctx.strokeStyle = '#345367'; ctx.strokeRect(82, 58, 52, 66); }
+      ['H', 'D', 'C', 'S'].forEach((suit, index) => {
+        const card = game.foundations[suit][game.foundations[suit].length - 1];
+        const x = 254 + index * 52;
+        if (card) this.drawCabinetCard(ctx, card, x, 58); else { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 58, 48, 66); this.drawCabinetText(ctx, suit, x + 24, 91, 14, '#6f9bb5', 'center'); }
+      });
+      game.tableau.forEach((pile, pileIndex) => {
+        const x = 18 + pileIndex * 70;
+        if (!pile.length) { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 126, 52, 66); return; }
+        const offset = Math.min(16, Math.max(10, (176 - 56) / Math.max(1, pile.length)));
+        pile.forEach((card, index) => this.drawCabinetCard(ctx, card, x, 126 + index * offset, this.arcade.selectedSolitaire?.source === 'tableau' && this.arcade.selectedSolitaire.pile === pileIndex && this.arcade.selectedSolitaire.index === index));
+      });
+      this.drawCabinetText(ctx, (game.message || '').toUpperCase(), 256, 307, 9, '#d5efff', 'center');
+      ['NEW', 'UNDO', 'HINT', 'AUTO'].forEach((label, index) => {
+        const x = 96 + index * 82; ctx.fillStyle = 'rgba(255,79,216,0.18)'; ctx.fillRect(x, 334, 70, 24); ctx.strokeStyle = '#ff4fd8'; ctx.strokeRect(x, 334, 70, 24); this.drawCabinetText(ctx, label, x + 35, 346, 10, '#ffd0f0', 'center');
+      });
+    },
+
+    renderCabinetCircuit(ctx, game, time) {
+      if (!game) return;
+      const sector = game.sectors[game.sector];
+      ctx.fillStyle = sector.bg; ctx.fillRect(124, 58, 264, 258);
+      [168, 256, 344].forEach(x => { ctx.strokeStyle = 'rgba(69,247,255,0.24)'; ctx.beginPath(); ctx.moveTo(x, 58); ctx.lineTo(x, 316); ctx.stroke(); });
+      for (let y = 72 + (Math.floor(time * 150) % 32); y < 312; y += 32) { ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(125, y, 263, 3); }
+      this.drawCabinetText(ctx, `SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 10, '#d5efff');
+      this.drawCabinetText(ctx, `LIVES ${game.lives}`, 26, 82, 11, '#ffd34d');
+      this.drawCabinetText(ctx, `SCORE ${game.score}`, 486, 63, 10, '#d5efff', 'right');
+      game.obstacles.forEach(item => { const x = 168 + item.lane * 88; ctx.fillStyle = item.kind === 'spike' ? '#ff5a6d' : '#ff4fd8'; ctx.fillRect(x - 22, item.y * 0.75 + 62, 44, 19); });
+      game.pickups.forEach(item => { const x = 168 + item.lane * 88; ctx.fillStyle = item.kind === 'shield' ? '#45f7ff' : '#7dff68'; ctx.fillRect(x - 11, item.y * 0.75 + 62, 22, 18); });
+      const carX = 168 + game.lane * 88; ctx.fillStyle = '#ffd34d'; ctx.fillRect(carX - 24, 282, 48, 20); ctx.fillStyle = '#ff5a6d'; ctx.fillRect(carX - 13, 274, 26, 10);
+      ctx.fillStyle = '#25344a'; ctx.fillRect(124, 326, 264, 8); ctx.fillStyle = '#7dff68'; ctx.fillRect(124, 326, Math.min(264, game.distance / sector.goal * 264), 8);
+      this.drawCabinetText(ctx, 'TAP A LANE OR USE A/D', 256, 353, 10, '#7dff68', 'center');
+      if (game.over) this.drawCabinetText(ctx, game.won ? 'UPTIME HELD - RESTART TO RUN AGAIN' : 'PACKET LOSS - RESTART TO RUN AGAIN', 256, 370, 10, game.won ? '#7dff68' : '#ff5a6d', 'center');
+    },
+
+    renderCabinetRpg(ctx, game) {
+      if (!game) return;
+      const hp = (value, max, x, y, color) => { ctx.fillStyle = '#263446'; ctx.fillRect(x, y, 180, 12); ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, value / max) * 180, 12); };
+      this.drawCabinetText(ctx, `WAVE ${game.wave}/${game.maxWave}   SCORE ${game.score}   HI ${this.getArcadeScore('ctrlAltDefeat')}`, 256, 55, 10, '#ffe19a', 'center');
+      this.drawCabinetText(ctx, 'NOVA ADMIN', 58, 91, 13, '#57f4ff'); hp(game.player.hp, game.player.maxHp, 58, 102, '#57f4ff');
+      this.drawCabinetText(ctx, game.enemy.name.toUpperCase(), 454, 91, 13, game.enemy.color, 'right'); hp(game.enemy.hp, game.enemy.maxHp, 274, 102, game.enemy.color);
+      ctx.fillStyle = '#173246'; ctx.fillRect(54, 132, 100, 104); ctx.fillStyle = game.enemy.color; ctx.fillRect(358, 132, 100, 104);
+      this.drawCabinetText(ctx, `HP ${game.player.hp}/${game.player.maxHp}  PATCH ${game.player.patches}  HEAT ${game.player.heat}`, 58, 252, 9, '#a8eaff');
+      this.drawCabinetText(ctx, `HP ${Math.max(0, game.enemy.hp)}/${game.enemy.maxHp}  ATK ${game.enemy.atkMin}-${game.enemy.atkMax}`, 454, 252, 9, '#ffd5e9', 'right');
+      ['ATTACK', 'PATCH', 'OCLOCK', 'FIREWALL'].forEach((label, index) => { const x = 28 + index * 114; ctx.fillStyle = 'rgba(255,211,77,0.18)'; ctx.fillRect(x, 278, 106, 42); ctx.strokeStyle = '#ffd34d'; ctx.strokeRect(x, 278, 106, 42); this.drawCabinetText(ctx, label, x + 53, 299, 10, '#ffe39b', 'center'); });
+      this.drawCabinetText(ctx, (game.log[0] || '').toUpperCase(), 256, 344, 10, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
+      if (game.over) this.drawCabinetText(ctx, 'RUN COMPLETE - TAP RESTART', 256, 367, 10, '#ff4fd8', 'center');
+    },
+
+    renderCabinetFighter(ctx, game) {
+      if (!game) return;
+      ctx.fillStyle = '#17142d'; ctx.fillRect(22, 58, 468, 246); ctx.fillStyle = '#0d1020'; ctx.fillRect(22, 266, 468, 38);
+      const bar = (x, hp, max, color, flip = false) => { ctx.fillStyle = '#263446'; ctx.fillRect(x, 65, 166, 12); ctx.fillStyle = color; const width = Math.max(0, hp / max) * 166; ctx.fillRect(flip ? x + 166 - width : x, 65, width, 12); };
+      bar(34, game.player.hp, game.player.maxHp, '#ffd34d'); bar(312, game.enemy.hp, game.enemy.maxHp, '#ff5a6d', true);
+      this.drawCabinetText(ctx, `ROUND ${game.round}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 10, '#d5efff', 'center');
+      const fighter = (unit, color, label) => { const x = 22 + (unit.x / 640) * 468, y = 270 - unit.y * 0.48; ctx.fillStyle = unit.block > 0 ? '#45f7ff' : color; ctx.fillRect(x - 12, y - 48, 24, 32); ctx.fillRect(x - 9, y - 66, 18, 17); ctx.fillRect(x - 10, y - 16, 7, 17); ctx.fillRect(x + 3, y - 16, 7, 17); if (unit.attack) ctx.fillRect(x + unit.dir * 12, y - 40, unit.dir * 28, 8); this.drawCabinetText(ctx, label, x, y + 12, 8, '#fff', 'center'); };
+      fighter(game.player, '#ffd34d', 'ADMIN'); fighter(game.enemy, '#ff5a6d', 'KERNEL');
+      ['LEFT', 'RIGHT', 'JUMP', 'PUNCH', 'KICK'].forEach((label, index) => { const x = 14 + index * 98; ctx.fillStyle = 'rgba(255,90,109,0.18)'; ctx.fillRect(x, 320, 90, 34); ctx.strokeStyle = '#ff5a6d'; ctx.strokeRect(x, 320, 90, 34); this.drawCabinetText(ctx, label, x + 45, 337, 9, '#ffd4dc', 'center'); });
+      this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 370, 9, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
     },
 
     drawArcadeFrameBase(ctx, title, subtitle) {
@@ -3378,6 +3636,7 @@ const HELP_SECTIONS = [
         overlayOpen: false,
         holdView: false,
         currentGameId: null,
+        cabinetMenuIndex: 0,
         gamePaused: false,
         lastTs: this.arcadePerfNow(),
         keys: {},
@@ -3424,6 +3683,12 @@ const HELP_SECTIONS = [
       this.arcade.currentGameId = null;
       this.arcade.gamePaused = false;
       this.hideArcadeInlineConfirm();
+      if (this.arcade.overlayOpen) {
+        this.arcade.cabinetMenuIndex = Math.max(0, Math.min(this.arcade.catalog.length - 1, this.arcade.cabinetMenuIndex || 0));
+        this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
+        if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
+        return;
+      }
       this.els.arcadeGameScreen.classList.add('hidden');
       this.els.arcadeMenuScreen.classList.remove('hidden');
       this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
@@ -3477,6 +3742,14 @@ const HELP_SECTIONS = [
       this.arcade.holdView = true;
       this.arcade.currentGameId = id;
       this.hideArcadeInlineConfirm();
+      if (this.arcade.overlayOpen) {
+        if (!resume || !this.arcade.games[id]) this.createArcadeGame(id);
+        this.arcade.gamePaused = false;
+        this.arcade.lastTs = this.arcadePerfNow();
+        this.office3D?.setArcadeScreenState({ mode: 'game', title: gameDef.title });
+        if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
+        return;
+      }
       this.els.arcadeMenuScreen.classList.add('hidden');
       this.els.arcadeGameScreen.classList.remove('hidden');
       this.office3D?.setArcadeScreenState({ mode: 'game', title: gameDef.title });
