@@ -5300,7 +5300,11 @@
     }
 
     enterArcadeView() {
-      const target = this.screenInteractive?.position || this.arcadeAnchor || { x: this.player.x, z: this.player.z, yaw: this.player.yaw };
+      // Keep the cabinet's authored facing direction with its screen position.
+      // Using position alone lost yaw and made side approaches zoom from the side.
+      const target = this.screenInteractive
+        ? Object.assign({}, this.screenInteractive.position, { yaw: this.screenInteractive.yaw })
+        : (this.arcadeAnchor || { x: this.player.x, z: this.player.z, yaw: this.player.yaw });
       this.arcadeView = {
         x: this.player.x,
         y: this.player.y,
