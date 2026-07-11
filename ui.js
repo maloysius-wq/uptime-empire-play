@@ -4869,7 +4869,7 @@ const HELP_SECTIONS = [
       const showSideArrows = active && (normalizedZone === 'wall' || normalizedZone === 'floor');
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
-      if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && normalizedZone === 'floor'));
+      if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && (normalizedZone === 'floor' || normalizedZone === 'desk')));
       const showBackToMove = !!(active && options.fromMoveMode && normalizedZone !== 'wall');
       if (this.els.placementBackToMoveBtn) {
         this.els.placementBackToMoveBtn.classList.toggle('hidden', !showBackToMove);

@@ -3753,7 +3753,7 @@
       // source model is normalized and rotated. Keep the whole display assembly
       // recessed into that opening, not on the outermost cabinet silhouette.
       const pose = usingUploadedCabinet
-        ? { x: -0.05, y: 1.46, z: -0.2, width: 0.6, height: 0.45 }
+        ? { x: -0.045, y: 1.47, z: -0.195, width: 0.70, height: 0.525 }
         : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
       const displayAssembly = new THREE.Group();
       displayAssembly.position.set(pose.x, pose.y, pose.z);
@@ -3942,6 +3942,68 @@
         const screen = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.16, spec.h - 0.18), makeMat({ map: tex, emissive: spec.emissive || 0x61d8ff, emissiveIntensity: 0.45 }));
         screen.position.z = 0.045;
         group.add(screen);
+      } else if (id === 'framed-cert') {
+        const wood = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.040), makeMat({ color: 0x4a351f, roughness: 0.52, metalness: 0.10 }));
+        wood.position.z = 0.010;
+        group.add(wood);
+        const goldInset = new THREE.Mesh(new THREE.BoxGeometry(spec.w - 0.075, spec.h - 0.075, 0.020), makeMat({ color: 0xcaa65b, metalness: 0.44, roughness: 0.36 }));
+        goldInset.position.z = 0.038;
+        group.add(goldInset);
+        const paper = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.14, spec.h - 0.14), makeMat({ color: 0xf7f2df, roughness: 0.76 }));
+        paper.position.z = 0.053;
+        group.add(paper);
+        const tex = this.makeLabelTexture(['UPTIME NETWORK', 'CERTIFICATE', 'OPERATIONS'], { width: 768, height: 960, background: '#f7f2df', border: '#b9944d', colors: ['#31445b', '#6a5530', '#48647a'], size: 54, weight: 800 });
+        const lettering = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.20, spec.h - 0.24), makeMat({ map: tex, emissive: 0x18120a, emissiveIntensity: 0.035 }));
+        lettering.position.z = 0.060;
+        group.add(lettering);
+        const seal = new THREE.Mesh(new THREE.CircleGeometry(0.085, 20), makeMat({ color: 0xd8af58, emissive: 0x5e3f0c, emissiveIntensity: 0.12, metalness: 0.58, roughness: 0.32 }));
+        seal.position.set(0, -spec.h * 0.28, 0.070);
+        group.add(seal);
+        [-0.038, 0.038].forEach(x => {
+          const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.13, 0.010), makeMat({ color: 0x526f9f, roughness: 0.58 }));
+          ribbon.position.set(x, -spec.h * 0.39, 0.066);
+          ribbon.rotation.z = x < 0 ? -0.12 : 0.12;
+          group.add(ribbon);
+        });
+      } else if (id === 'server-poster') {
+        const paper = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.026), makeMat({ color: 0xadc9dc, roughness: 0.82 }));
+        paper.position.z = 0.014;
+        group.add(paper);
+        const titleTex = this.makeLabelTexture(['UPTIME', 'PERSONAL COMPUTER', 'SYSTEM 81'], { width: 768, height: 1024, background: '#adc9dc', border: '#17374c', colors: ['#17374c', '#17374c', '#4b6373'], size: 50, weight: 900 });
+        const title = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.10, spec.h - 0.10), makeMat({ map: titleTex, emissive: 0x123247, emissiveIntensity: 0.04 }));
+        title.position.z = 0.032;
+        group.add(title);
+        const pcColor = 0xd9d0b4;
+        const dark = 0x293945;
+        const monitor = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.42, spec.h * 0.25, 0.028), makeMat({ color: pcColor, roughness: 0.62 }));
+        monitor.position.set(-spec.w * 0.11, -spec.h * 0.02, 0.052);
+        group.add(monitor);
+        const crt = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.32, spec.h * 0.15, 0.010), makeMat({ color: 0x1e4a43, emissive: 0x1f695e, emissiveIntensity: 0.22 }));
+        crt.position.set(-spec.w * 0.11, -spec.h * 0.02, 0.070);
+        group.add(crt);
+        const neck = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.07, spec.h * 0.07, 0.020), makeMat({ color: pcColor }));
+        neck.position.set(-spec.w * 0.11, -spec.h * 0.18, 0.052);
+        group.add(neck);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.24, spec.h * 0.035, 0.020), makeMat({ color: pcColor }));
+        base.position.set(-spec.w * 0.11, -spec.h * 0.23, 0.052);
+        group.add(base);
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.19, spec.h * 0.30, 0.026), makeMat({ color: pcColor, roughness: 0.62 }));
+        tower.position.set(spec.w * 0.25, -spec.h * 0.07, 0.052);
+        group.add(tower);
+        [0.025, -0.045].forEach(y => {
+          const drive = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.11, spec.h * 0.04, 0.008), makeMat({ color: dark, emissive: 0x0a141a, emissiveIntensity: 0.08 }));
+          drive.position.set(spec.w * 0.25, y, 0.070);
+          group.add(drive);
+        });
+        const keyboard = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.50, spec.h * 0.065, 0.018), makeMat({ color: pcColor, roughness: 0.66 }));
+        keyboard.position.set(0, -spec.h * 0.34, 0.055);
+        keyboard.rotation.z = -0.04;
+        group.add(keyboard);
+        for (let i = 0; i < 7; i += 1) {
+          const key = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.045, spec.h * 0.014, 0.006), makeMat({ color: dark }));
+          key.position.set(-spec.w * 0.20 + i * spec.w * 0.065, -spec.h * 0.34, 0.067);
+          group.add(key);
+        }
       } else if (spec.moon) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(spec.w * 0.33, 0.035, 16, 48), makeMat({ color: 0x9ec4ff, emissive: 0x335588, emissiveIntensity: 0.24 }));
         ring.position.z = 0.04;
