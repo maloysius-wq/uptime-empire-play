@@ -3439,6 +3439,27 @@
       mesh.position.z -= center.z;
       mesh.position.y -= (scaledBounds.min.y + 0.015);
       mesh.rotation.y = Math.PI;
+      // These bounds are the authored sloped CRT face in arcade_model_data.js.
+      // Store the transformed result on the mesh so the live canvas uses the
+      // same four corners as the cabinet instead of a hand-tuned rectangle.
+      const crtFace = {
+        minX: -2.4907479286193848,
+        maxX: 2.4907479286193848,
+        minY: 7.702969551086426,
+        maxY: 12.556206703186035,
+        bottomZ: 1.2374701499938965,
+        topZ: 0.11435317993164062
+      };
+      const faceCenterY = (crtFace.minY + crtFace.maxY) / 2;
+      const faceCenterZ = (crtFace.bottomZ + crtFace.topZ) / 2;
+      mesh.userData.arcadeCrtFace = {
+        x: -(((crtFace.minX + crtFace.maxX) / 2) * scale),
+        y: (faceCenterY - bounds.min.y) * scale - 0.015,
+        z: -(faceCenterZ - ((bounds.min.z + bounds.max.z) / 2)) * scale,
+        width: (crtFace.maxX - crtFace.minX) * scale,
+        height: Math.hypot(crtFace.maxY - crtFace.minY, crtFace.bottomZ - crtFace.topZ) * scale,
+        tilt: Math.atan2(crtFace.bottomZ - crtFace.topZ, crtFace.maxY - crtFace.minY)
+      };
       return mesh;
     }
 
@@ -3730,7 +3751,7 @@
         holder.add(cabinet);
       }
 
-      const screenPose = this.buildArcadeScreenDisplay(holder, usingUploadedCabinet);
+      const screenPose = this.buildArcadeScreenDisplay(holder, cabinet);
       this.visualQATargets.arcade = {
         x: centerX + screenPose.x,
         y: screenPose.y,
@@ -3747,19 +3768,19 @@
       this.addContactShadow(centerX, centerZ + 0.02, 0.92, 0.70, 0.20);
     }
 
-    buildArcadeScreenDisplay(holder, usingUploadedCabinet) {
+    buildArcadeScreenDisplay(holder, cabinet) {
       const THREE = this.THREE;
-      // The converted cabinet's screen recess is centered slightly left after the
-      // source model is normalized and rotated. Keep the whole display assembly
-      // recessed into that opening, not on the outermost cabinet silhouette.
-      const pose = usingUploadedCabinet
-        ? { x: -0.075, y: 1.46, z: -0.195, width: 0.82, height: 0.615 }
+      const usingUploadedCabinet = !!cabinet;
+      const crtFace = cabinet?.userData?.arcadeCrtFace;
+      // The uploaded shell exposes its CRT as a tilted quadrilateral. The face
+      // data is measured while normalizing the mesh, so this canvas matches its
+      // white display area exactly without escaping through either cabinet side.
+      const pose = crtFace
+        ? Object.assign({}, crtFace)
         : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
       const displayAssembly = new THREE.Group();
       displayAssembly.position.set(pose.x, pose.y, pose.z);
-      // Match the cabinet's sloped CRT face: the top recedes slightly while the
-      // lower edge stays near the control deck.
-      if (usingUploadedCabinet) displayAssembly.rotation.x = 0.18;
+      if (crtFace) displayAssembly.rotation.x = pose.tilt;
       holder.add(displayAssembly);
       const canvas = makeCanvas(512, 384);
       const ctx = canvas.getContext('2d');
@@ -3777,6 +3798,9 @@
       // The physical screen faces the room's negative-Z arcade approach. Without
       // this rotation, the front camera sees the texture through its mirrored back.
       screen.rotation.y = Math.PI;
+      // Lift it a hair toward the player to prevent z-fighting with the authored
+      // white CRT plane while leaving its visible edges coincident with that face.
+      if (crtFace) screen.position.z = -0.002;
       screen.renderOrder = 10;
       displayAssembly.add(screen);
 
@@ -3943,10 +3967,19 @@
         const body = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.04), makeMat({ color: 0x111a25, emissive: 0x071824, emissiveIntensity: 0.18 }));
         body.position.z = 0.012;
         group.add(body);
-        const tex = this.makeLabelTexture(['NOC OVERVIEW', '▂▃▅▇  cpu  net  risk'], { width: 768, height: 384, background: '#061018', border: '#68dfff', colors: ['#9fe8ff', '#79ffc6'], size: 46 });
+        const isLiveDisplay = !opts.ghost;
+        const canvas = isLiveDisplay ? makeCanvas(1024, 512) : null;
+        const ctx = canvas ? canvas.getContext('2d') : null;
+        const tex = canvas
+          ? new THREE.CanvasTexture(canvas)
+          : this.makeLabelTexture(['NOC OVERVIEW', 'LIVE NODE MAP'], { width: 768, height: 384, background: '#061018', border: '#68dfff', colors: ['#9fe8ff', '#79ffc6'], size: 46 });
+        if (canvas) tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
         const screen = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.16, spec.h - 0.18), makeMat({ map: tex, emissive: spec.emissive || 0x61d8ff, emissiveIntensity: 0.45 }));
         screen.position.z = 0.045;
         group.add(screen);
+        if (canvas) {
+          this.dynamicDisplays.push({ type: 'noc', title: 'NOC OVERVIEW', canvas, ctx, texture: tex, seed: Math.random() * 1000, screen, nextFrameAt: 0, interval: 0.10 });
+        }
       } else if (id === 'framed-cert') {
         const wood = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.040), makeMat({ color: 0x4a351f, roughness: 0.52, metalness: 0.10 }));
         wood.position.z = 0.010;
@@ -4113,7 +4146,7 @@
         'desk-bonsai': { w: 0.30, d: 0.30, h: 0.34, color: 0x4ea466 },
         'projector-pad': { w: 0.34, d: 0.34, h: 0.48, color: 0x1d2631 },
         'lava-lamp': { w: 0.24, d: 0.24, h: 0.50, color: 0xff7bd8 },
-        'holo-globe': { w: 0.60, d: 0.60, h: 0.78, color: 0x7ceaff },
+        'holo-globe': { w: 0.60, d: 0.60, h: 1.08, color: 0x7ceaff },
         'led-strip': { w: 1.62, d: 0.12, h: 0.035, color: 0x6d2bff },
         'floor-runner': { w: 0.94, d: 2.36, h: 0.026, color: 0x2a3441 },
         'hex-rug': { w: 1.42, d: 1.42, h: 0.026, color: 0x30485f },
@@ -4224,11 +4257,25 @@
         const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.16, 0.34, 16, 1, true), makeMat({ color: 0x74eaff, transparent: true, opacity: 0.16, emissive: 0x45b9e8, emissiveIntensity: 0.24, depthWrite: false })); beam.position.y = 0.29; group.add(beam);
         const holo = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.012, 40, 8), makeMat({ color: 0x88ecff, emissive: 0x61dfff, emissiveIntensity: 0.56, roughness: 0.28 })); holo.scale.y = 0.65; holo.position.y = 0.43; group.add(holo);
       } else if (id === 'holo-globe') {
-        addCylinder(0.16, 0.22, 0.11, 0x192735, 0, 0.055);
-        addCylinder(0.055, 0.105, 0.28, 0x273c4c, 0, 0.22);
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), makeMat({ color: 0x7ceaff, transparent: true, opacity: 0.34, emissive: 0x55ccff, emissiveIntensity: 0.52, depthWrite: false })); orb.position.y = 0.50; group.add(orb);
-        addRing(0.23, 0.010, 0.50, 0x77e9ff, [0, 0, 0]); addRing(0.23, 0.010, 0.50, 0x77e9ff, [Math.PI / 2, 0, Math.PI / 5]);
-        addRing(0.15, 0.010, 0.50, 0xff82d7, [Math.PI / 2, 0, 0]);
+        addCylinder(0.18, 0.25, 0.12, 0x192735, 0, 0.06);
+        addCylinder(0.065, 0.12, 0.38, 0x273c4c, 0, 0.25);
+        addGlow(0.20, 0.018, 0.20, 0, 0.13, 0, 0x5fe6ff);
+        const orbital = new THREE.Group();
+        orbital.position.y = 0.73;
+        orbital.userData.spin = opts.ghost ? 0 : 0.42;
+        group.add(orbital);
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 24, 18), makeMat({ color: 0x7ceaff, transparent: true, opacity: 0.36, emissive: 0x55ccff, emissiveIntensity: 0.62, depthWrite: false }));
+        orb.scale.y = 1.18;
+        orbital.add(orb);
+        const equator = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.012, 10, 32), makeMat({ color: 0x77e9ff, emissive: 0x77e9ff, emissiveIntensity: 0.62, roughness: 0.28 }));
+        equator.rotation.x = Math.PI / 2;
+        orbital.add(equator);
+        const meridian = equator.clone();
+        meridian.rotation.set(Math.PI / 2, 0, Math.PI / 5);
+        orbital.add(meridian);
+        const accentRing = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.010, 10, 28), makeMat({ color: 0xff82d7, emissive: 0xff82d7, emissiveIntensity: 0.52, roughness: 0.28 }));
+        accentRing.rotation.set(0, Math.PI / 2, Math.PI / 6);
+        orbital.add(accentRing);
       } else if (id === 'led-strip') {
         addBox(spec.w, 0.022, spec.d, 0x1b2634, 0, 0.011);
         addGlow(spec.w - 0.08, 0.014, 0.038, 0, 0.025, 0, 0x7c4dff);
