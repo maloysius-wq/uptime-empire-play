@@ -3647,29 +3647,12 @@
 
     buildBotDock() {
       if (!this.state.decorations.includes('floor-bot')) return;
-      const THREE = this.THREE;
       const placement = this.getFloorBotDockPlacement();
       const dockWorld = this.decorPlacementToWorld('floor', placement);
       const x = dockWorld.x;
       const z = dockWorld.z;
       const rotationY = Number.isFinite(Number(dockWorld.rotationY)) ? Number(dockWorld.rotationY) : 0;
-      const dock = new THREE.Group();
-      dock.position.set(x, 0, z);
-      dock.rotation.y = rotationY;
-      dock.userData.decorId = 'floor-bot';
-      dock.userData.placementZone = 'floor';
-      this.root.add(dock);
-
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.05, 0.42), new THREE.MeshStandardMaterial({ color: 0x161e27, roughness: 0.92 }));
-      base.position.set(0, 0.025, 0);
-      dock.add(base);
-      const cradle = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.10, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a3642, roughness: 0.82, emissive: 0x143049, emissiveIntensity: 0.20 }));
-      cradle.position.set(0, 0.08, -0.12);
-      dock.add(cradle);
-      const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.40, 0.16), new THREE.MeshBasicMaterial({ color: 0x63dfff, transparent: true, opacity: 0.12, side: THREE.DoubleSide }));
-      glow.rotation.x = -Math.PI / 2;
-      glow.position.set(0, 0.028, 0.06);
-      dock.add(glow);
+      const dock = this.createPlacedPropDecoration('floor-bot', 'floor', placement, { selectable: false });
       this.registerSelectableDecor(dock, { id: 'floor-bot', zone: 'floor', placement: Object.assign({}, placement) });
 
       const patrolPoints = this.getFloorBotPatrolPoints().filter(point => !this.collides(point.x, point.z));
@@ -3720,7 +3703,7 @@
       const spec = this.getWallPlacedDecorSpec(id);
       const pos = this.wallPlacementToWorld(placement);
       const group = new THREE.Group();
-      const ghostOffset = opts.ghost ? 0.035 : 0;
+      const ghostOffset = opts.ghost ? 0.018 : 0;
       group.position.set(
         pos.x + (pos.face === 'left' ? ghostOffset : pos.face === 'right' ? -ghostOffset : 0),
         pos.y,
@@ -3733,7 +3716,21 @@
       const frame = new THREE.Mesh(new THREE.BoxGeometry(spec.w + 0.08, spec.h + 0.08, 0.035), makeMat({ color: 0x17202a, emissive: 0x071018, emissiveIntensity: 0.08 }));
       frame.position.z = -0.012;
       group.add(frame);
-      if (spec.plant) {
+      if (id === 'neon-sign') {
+        const backing = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.030), makeMat({ color: 0x130918, emissive: 0x130918, emissiveIntensity: 0.16 }));
+        backing.position.z = 0.010;
+        group.add(backing);
+        const tex = this.makeLabelTexture(['UPTIME'], { width: 1024, height: 256, background: '#130918', border: '#ff79d8', colors: ['#ff9cdd'], size: 112, glow: 'rgba(255,121,216,0.95)' });
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.10, spec.h - 0.08), makeMat({ map: tex, emissive: 0xff5dce, emissiveIntensity: 0.64, roughness: 0.28 }));
+        sign.position.z = 0.040;
+        group.add(sign);
+        [-0.60, 0, 0.60].forEach(x => {
+          const mount = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.045, 10), makeMat({ color: 0x8d4c7e, metalness: 0.52 }));
+          mount.rotation.x = Math.PI / 2;
+          mount.position.set(x, -spec.h * 0.38, 0.045);
+          group.add(mount);
+        });
+      } else if (spec.plant) {
         const backing = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.035), makeMat({ color: 0x24523d }));
         backing.position.z = 0.012;
         group.add(backing);
@@ -3771,30 +3768,58 @@
         hand.position.set(0, spec.h * 0.06, 0.082);
         group.add(hand);
       } else if (spec.shelf) {
-        const shelf = new THREE.Mesh(new THREE.BoxGeometry(spec.w, 0.06, 0.22), makeMat({ color: 0x3a2c1d }));
-        shelf.position.set(0, -spec.h * 0.20, 0.07);
-        group.add(shelf);
-        for (let i = 0; i < 4; i += 1) {
-          const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.055, 0.12, 12), makeMat({ color: 0xd7bd6a, metalness: 0.55, roughness: 0.35 }));
-          cup.position.set(-spec.w * 0.30 + i * spec.w * 0.20, -spec.h * 0.08, 0.095);
-          group.add(cup);
-        }
+        const shelfLevels = id === 'snack-shelf' ? [-0.14, 0.10] : [-0.10];
+        shelfLevels.forEach((y, level) => {
+          const shelf = new THREE.Mesh(new THREE.BoxGeometry(spec.w, 0.045, 0.22), makeMat({ color: id === 'snack-shelf' ? 0x273747 : 0x3a2c1d }));
+          shelf.position.set(0, y, 0.07);
+          group.add(shelf);
+          for (let i = 0; i < 4; i += 1) {
+            const color = id === 'snack-shelf' ? [0xf15f6d, 0xf7cd61, 0x7edc8b, 0x58d8ff][(i + level) % 4] : 0xd7bd6a;
+            const item = id === 'snack-shelf'
+              ? new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.085, 0.07), makeMat({ color }))
+              : new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.055, 0.12, 12), makeMat({ color, metalness: 0.55, roughness: 0.35 }));
+            item.position.set(-spec.w * 0.30 + i * spec.w * 0.20, y + (id === 'snack-shelf' ? 0.06 : 0.085), 0.095);
+            group.add(item);
+          }
+        });
       } else {
         const lines = spec.lines || [opts.label || id];
         const tex = this.makeLabelTexture(lines, { width: 768, height: 512, background: spec.bg, border: spec.border, colors: spec.colors, size: lines.length > 1 ? 64 : 72, glow: spec.glow || '' });
         const panel = new THREE.Mesh(new THREE.PlaneGeometry(spec.w, spec.h), makeMat({ map: tex, emissive: spec.emissive || 0x000000, emissiveIntensity: spec.emissive ? 0.25 : 0.02 }));
         panel.position.z = 0.035;
         group.add(panel);
+        if (id === 'server-poster') {
+          for (let row = 0; row < 4; row += 1) {
+            const bay = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.54, 0.075, 0.016), makeMat({ color: 0x1b2b37, emissive: row % 2 ? 0x0a2b3c : 0x210d2a, emissiveIntensity: 0.20 }));
+            bay.position.set(0, -0.21 + row * 0.12, 0.050);
+            group.add(bay);
+          }
+        }
+        if (id === 'uplink-map') {
+          [[-0.34, 0.12], [-0.10, -0.10], [0.18, 0.10], [0.37, -0.15]].forEach(([x, y], index) => {
+            const node = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), makeMat({ color: index % 2 ? 0x7bfbd1 : 0x77e7ff, emissive: index % 2 ? 0x7bfbd1 : 0x77e7ff, emissiveIntensity: 0.48 }));
+            node.position.set(x, y, 0.052);
+            group.add(node);
+          });
+        }
+        if (id === 'incident-board') {
+          [[-0.26, 0.17, 0xffce79], [0.10, 0.18, 0xff8b9a], [-0.12, -0.18, 0x8ce7ff], [0.28, -0.13, 0xb4ed8a]].forEach(([x, y, color]) => {
+            const note = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.010), makeMat({ color }));
+            note.position.set(x, y, 0.052);
+            group.add(note);
+          });
+        }
+        if (id === 'fiber-art') {
+          [-0.30, -0.15, 0, 0.15, 0.30].forEach((x, index) => {
+            const fiber = new THREE.Mesh(new THREE.TorusGeometry(0.15 + (index % 2) * 0.035, 0.012, 8, 22, Math.PI * 1.32), makeMat({ color: index % 2 ? 0xff8bdb : 0x78e9ff, emissive: index % 2 ? 0xff8bdb : 0x78e9ff, emissiveIntensity: 0.44 }));
+            fiber.position.set(x, 0, 0.055);
+            fiber.rotation.z = index * 0.6;
+            group.add(fiber);
+          });
+        }
       }
       if (opts.ghost) {
-        group.traverse(child => {
-          if (child.material) {
-            child.material = child.material.clone();
-            child.material.transparent = true;
-            child.material.opacity = 0.54;
-            child.material.depthWrite = false;
-          }
-        });
+        this.applyDecorGhost(group);
       } else {
         this.registerSelectableDecor(group, { id, zone: 'wall', placement: Object.assign({}, placement) });
       }
@@ -3805,124 +3830,204 @@
 
     getPlacedPropSpec(id) {
       const specs = {
-        'desk-mat': { kind: 'mat', w: 1.2, d: 0.5, color: 0x2a2940, emissive: 0x6e3cff, intensity: 0.18 },
-        'tower-stack': { kind: 'stack', w: 0.38, d: 0.34, h: 0.46, color: 0x202934 },
-        'aquarium': { kind: 'box', w: 0.42, d: 0.22, h: 0.22, color: 0x7ceaff, transparent: true, opacity: 0.34, emissive: 0x245f7a, intensity: 0.25 },
-        'chair-upgrade': { kind: 'halo', w: 0.68, d: 0.68, color: 0x7ceaff, emissive: 0x7ceaff, intensity: 0.32 },
-        'keyboard-glow': { kind: 'mat', w: 0.72, d: 0.24, color: 0xff6ad5, emissive: 0xff6ad5, intensity: 0.42 },
-        'mini-rack': { kind: 'rack', w: 0.34, d: 0.28, h: 0.58, color: 0x1e2630 },
-        'coffee-drone': { kind: 'cup', w: 0.28, d: 0.28, h: 0.18, color: 0xe7f1ff },
-        'desk-bonsai': { kind: 'plant', w: 0.28, d: 0.28, h: 0.26, color: 0x4ea466 },
-        'projector-pad': { kind: 'projector', w: 0.34, d: 0.34, h: 0.18, color: 0x1d2631, emissive: 0x123245, intensity: 0.22 },
-        'lava-lamp': { kind: 'lava', w: 0.24, d: 0.24, h: 0.46, color: 0xff7bd8, emissive: 0xff4bc5, intensity: 0.38 },
-        'holo-globe': { kind: 'globe', w: 0.54, d: 0.54, h: 0.74, color: 0x7ceaff, emissive: 0x58d8ff, intensity: 0.42 },
-        'led-strip': { kind: 'mat', w: 1.6, d: 0.10, color: 0x6d2bff, emissive: 0x6d2bff, intensity: 0.75 },
-        'floor-runner': { kind: 'mat', w: 0.92, d: 2.4, color: 0x2a3441 },
-        'hex-rug': { kind: 'hex', w: 1.4, d: 1.4, color: 0x30485f },
-        'light-grid': { kind: 'grid', w: 1.2, d: 1.0, color: 0x58d8ff, emissive: 0x58d8ff, intensity: 0.34 },
-        'floor-bot': { kind: 'dock', w: 0.74, d: 0.42, h: 0.16, color: 0x161e27, emissive: 0x63dfff, intensity: 0.20 },
-        'parts-bins': { kind: 'bins', w: 0.48, d: 0.36, h: 0.36, color: 0xffcf7a },
-        'retro-console': { kind: 'box', w: 0.42, d: 0.28, h: 0.16, color: 0xcfcad3 },
-        'bookcase': { kind: 'bookcase', w: 0.82, d: 0.30, h: 1.25, color: 0x2f2c26 },
-        'model-sat': { kind: 'satellite', w: 0.42, d: 0.28, h: 0.36, color: 0x7ceaff },
-        'cold-spares': { kind: 'locker', w: 0.58, d: 0.36, h: 1.05, color: 0x25313d },
+        'desk-mat': { w: 1.18, d: 0.52, h: 0.035, color: 0x24233a },
+        'tower-stack': { w: 0.48, d: 0.36, h: 0.50, color: 0x202934 },
+        'aquarium': { w: 0.48, d: 0.26, h: 0.28, color: 0x7ceaff },
+        'chair-upgrade': { w: 0.78, d: 0.78, h: 0.12, color: 0x7ceaff },
+        'keyboard-glow': { w: 0.74, d: 0.25, h: 0.05, color: 0x19222d },
+        'mini-rack': { w: 0.38, d: 0.30, h: 0.60, color: 0x1e2630 },
+        'coffee-drone': { w: 0.30, d: 0.30, h: 0.24, color: 0xe7f1ff },
+        'desk-bonsai': { w: 0.30, d: 0.30, h: 0.34, color: 0x4ea466 },
+        'projector-pad': { w: 0.34, d: 0.34, h: 0.48, color: 0x1d2631 },
+        'lava-lamp': { w: 0.24, d: 0.24, h: 0.50, color: 0xff7bd8 },
+        'holo-globe': { w: 0.60, d: 0.60, h: 0.78, color: 0x7ceaff },
+        'led-strip': { w: 1.62, d: 0.12, h: 0.035, color: 0x6d2bff },
+        'floor-runner': { w: 0.94, d: 2.36, h: 0.026, color: 0x2a3441 },
+        'hex-rug': { w: 1.42, d: 1.42, h: 0.026, color: 0x30485f },
+        'light-grid': { w: 1.22, d: 1.02, h: 0.026, color: 0x58d8ff },
+        'floor-bot': { w: 0.76, d: 0.46, h: 0.16, color: 0x161e27 },
+        'parts-bins': { w: 0.54, d: 0.40, h: 0.46, color: 0xffcf7a },
+        'retro-console': { w: 0.54, d: 0.38, h: 0.84, color: 0xcfcad3 },
+        'bookcase': { w: 0.86, d: 0.32, h: 1.28, color: 0x2f2c26 },
+        'model-sat': { w: 0.56, d: 0.38, h: 0.56, color: 0x7ceaff },
+        'cold-spares': { w: 0.62, d: 0.40, h: 1.08, color: 0x25313d },
         'pendant-light': { kind: 'pendant-light', w: 1.25, d: 1.55, h: 2.25, color: 0xffc36f, emissive: 0xffb45c, intensity: 0.65 }
       };
-      return specs[id] || { kind: 'box', w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
+      return specs[id] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
     }
 
-    createPlacedPropDecoration(id, zone, placement, opts = {}) {
+    applyDecorGhost(group) {
+      group.traverse(child => {
+        if (child.isLight) child.visible = false;
+        if (!child.material) return;
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.opacity = Math.min(0.58, child.material.opacity || 0.58);
+        child.material.depthWrite = false;
+      });
+    }
+
+    buildCanonicalPropModel(group, id, spec, opts = {}) {
       const THREE = this.THREE;
-      const safeZone = this.normalizePlacementZone(zone);
-      const spec = this.getPlacedPropSpec(id);
-      const pos = this.decorPlacementToWorld(safeZone, placement);
-      const group = new THREE.Group();
-      group.position.set(pos.x, pos.y, pos.z);
-      group.rotation.y = pos.rotationY || 0;
-      group.userData.decorId = id;
-      group.userData.placementZone = safeZone;
       const makeMat = settings => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.76, metalness: 0.04 }, settings));
-      const addFlat = (w = spec.w, d = spec.d, color = spec.color) => {
-        const mat = makeMat({ color, emissive: spec.emissive || 0x000000, emissiveIntensity: spec.intensity || 0 });
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.y = safeZone === 'desk' ? -0.013 : 0.01;
-        mesh.renderOrder = safeZone === 'desk' ? 3 : mesh.renderOrder;
-        group.add(mesh);
-        return mesh;
+      const addBox = (w, h, d, color, x = 0, y = h / 2, z = 0, material = {}) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), makeMat(Object.assign({ color }, material)));
+        mesh.position.set(x, y, z); group.add(mesh); return mesh;
       };
-      if (spec.kind === 'mat') addFlat();
-      else if (spec.kind === 'hex') {
-        const rug = new THREE.Mesh(new THREE.CircleGeometry(spec.w / 2, 6), makeMat({ color: spec.color }));
-        rug.rotation.x = -Math.PI / 2; rug.rotation.z = Math.PI / 6; rug.position.y = 0.012; group.add(rug);
-      } else if (spec.kind === 'grid') {
-        for (let ix = -1; ix <= 1; ix += 1) for (let iz = -1; iz <= 1; iz += 1) {
-          const tile = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), makeMat({ color: spec.color, emissive: spec.emissive, emissiveIntensity: spec.intensity }));
-          tile.rotation.x = -Math.PI / 2; tile.position.set(ix * 0.28, 0.012, iz * 0.24); group.add(tile);
-        }
-      } else if (spec.kind === 'halo') {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.018, 12, 32), makeMat({ color: spec.color, emissive: spec.emissive, emissiveIntensity: spec.intensity }));
-        ring.rotation.x = Math.PI / 2; ring.position.y = 0.65; group.add(ring);
-      } else if (spec.kind === 'globe') {
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.08, 18), makeMat({ color: 0x1d2631 }));
-        base.position.y = 0.04; group.add(base);
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16), makeMat({ color: spec.color, transparent: true, opacity: 0.38, emissive: spec.emissive, emissiveIntensity: spec.intensity }));
-        orb.position.y = 0.43; group.add(orb);
-      } else if (spec.kind === 'plant') {
-        const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 0.10, 12), makeMat({ color: 0x6a4a32 })); pot.position.y = 0.05; group.add(pot);
-        const crown = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), makeMat({ color: spec.color })); crown.position.y = 0.22; group.add(crown);
-      } else if (spec.kind === 'cup') {
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.04, 12), makeMat({ color: 0x1a2731 })); base.position.y = 0.02; group.add(base);
-        const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.12, 12), makeMat({ color: spec.color })); mug.position.y = 0.12; group.add(mug);
-      } else if (spec.kind === 'projector') {
-        const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.04, 20), makeMat({ color: spec.color, emissive: spec.emissive, emissiveIntensity: spec.intensity })); pad.position.y = 0.025; group.add(pad);
-        const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.12, 0.5, 16, 1, true), makeMat({ color: 0x7ceaff, transparent: true, opacity: 0.16 })); beam.position.y = 0.30; group.add(beam);
-      } else if (spec.kind === 'lava') {
+      const addCylinder = (rt, rb, h, color, x = 0, y = h / 2, z = 0, material = {}) => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 16), makeMat(Object.assign({ color }, material)));
+        mesh.position.set(x, y, z); group.add(mesh); return mesh;
+      };
+      const addGlow = (w, h, d, x = 0, y = h / 2, z = 0, color = 0x63dfff) => addBox(w, h, d, color, x, y, z, { emissive: color, emissiveIntensity: 0.62, roughness: 0.35 });
+      const addRing = (radius, tube, y, color, rotation = [Math.PI / 2, 0, 0]) => {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 10, 28), makeMat({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.32 }));
+        ring.rotation.set(rotation[0], rotation[1], rotation[2]); ring.position.y = y; group.add(ring); return ring;
+      };
+
+      if (id === 'lava-lamp') {
         this.buildAnimatedLavaLamp(group, {
           baseColor: 0xb56d38,
           metalColor: 0x283341,
-          glassColor: spec.color,
-          glowColor: spec.emissive,
-          glowIntensity: spec.intensity,
-          glassOpacity: opts.ghost ? 0.24 : 0.32,
+          glassColor: 0xff7bd8,
+          glowColor: 0xff4bc5,
+          glowIntensity: 0.38,
+          glassOpacity: 0.32,
           ghost: !!opts.ghost,
           registerAnimation: !opts.ghost,
           scale: 1
         });
-      } else if (spec.kind === 'pendant-light') {
+      } else if (id === 'pendant-light') {
         this.buildPendantLightProp(group, { ghost: !!opts.ghost });
-      } else if (spec.kind === 'stack') {
-        for (let i = 0; i < 2; i += 1) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.42, 0.34), makeMat({ color: spec.color })); t.position.set(-0.11 + i * 0.22, 0.21, 0); group.add(t); }
-      } else if (spec.kind === 'rack') {
-        const r = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, spec.d), makeMat({ color: spec.color })); r.position.y = spec.h / 2; group.add(r);
-      } else if (spec.kind === 'bins') {
-        for (let i = 0; i < 6; i += 1) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.18), makeMat({ color: [0xffcf7a, 0x58d8ff, 0x7edc8b][i % 3] })); b.position.set(-0.11 + (i % 2) * 0.22, 0.06 + Math.floor(i / 2) * 0.12, -0.09 + (i % 2) * 0.02); group.add(b); }
-      } else if (spec.kind === 'bookcase' || spec.kind === 'locker') {
-        const shelf = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, spec.d), makeMat({ color: spec.color })); shelf.position.y = spec.h / 2; group.add(shelf);
-        if (!opts.ghost) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10);
-      } else if (spec.kind === 'satellite') {
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.20, 8), makeMat({ color: 0xaeb7c4 })); stem.position.y = 0.12; group.add(stem);
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.08), makeMat({ color: spec.color })); body.position.y = 0.27; group.add(body);
-        const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.05), makeMat({ color: 0x9ec4ff, emissive: 0x4466aa, emissiveIntensity: 0.18 })); wingL.position.set(-0.18, 0.27, 0); const wingR = wingL.clone(); wingR.position.x = 0.18; group.add(wingL, wingR);
-      } else if (spec.kind === 'dock') {
-        const base = new THREE.Mesh(new THREE.BoxGeometry(spec.w, 0.05, spec.d), makeMat({ color: spec.color })); base.position.y = 0.025; group.add(base);
-        const cradle = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.10, 0.08), makeMat({ color: 0x2a3642, emissive: spec.emissive, emissiveIntensity: spec.intensity })); cradle.position.set(0, 0.08, -0.12); group.add(cradle);
-      } else {
-        const box = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, spec.d), makeMat({ color: spec.color, transparent: !!spec.transparent, opacity: spec.opacity || 1, emissive: spec.emissive || 0x000000, emissiveIntensity: spec.intensity || 0 }));
-        box.position.y = spec.h / 2; group.add(box);
-      }
-      if (opts.ghost) {
-        group.traverse(child => {
-          if (child.material) {
-            child.material = child.material.clone();
-            child.material.transparent = true;
-            child.material.opacity = Math.min(0.58, child.material.opacity || 0.58);
-            child.material.depthWrite = false;
-          }
+      } else if (id === 'desk-mat') {
+        addBox(spec.w, 0.025, spec.d, spec.color, 0, 0.012);
+        addGlow(spec.w - 0.08, 0.012, 0.018, 0, 0.026, -spec.d * 0.40, 0x8858ff);
+        addGlow(spec.w - 0.08, 0.012, 0.018, 0, 0.026, spec.d * 0.40, 0x3fe9d3);
+      } else if (id === 'tower-stack') {
+        [-0.13, 0.13].forEach((x, index) => {
+          addBox(0.22, 0.44 + index * 0.06, 0.30, 0x1e2733, x, 0.22 + index * 0.03);
+          addBox(0.17, 0.28, 0.012, 0x111820, x, 0.25 + index * 0.03, -0.157);
+          [0, 1, 2].forEach(row => addGlow(0.13, 0.022, 0.008, x, 0.15 + row * 0.08 + index * 0.03, -0.166, row === 1 ? 0xff6ed5 : 0x61dfff));
+          addCylinder(0.038, 0.038, 0.012, 0x334252, x, 0.37 + index * 0.04, -0.17).rotation.x = Math.PI / 2;
         });
+      } else if (id === 'aquarium') {
+        addBox(spec.w, 0.035, spec.d, 0x172432, 0, 0.018);
+        addBox(spec.w, 0.035, spec.d, 0x172432, 0, spec.h - 0.018);
+        [-1, 1].forEach(side => addBox(0.028, spec.h, spec.d, 0x172432, side * (spec.w / 2 - 0.014), spec.h / 2));
+        [-1, 1].forEach(side => addBox(spec.w, spec.h, 0.016, 0x7ceaff, 0, spec.h / 2, side * (spec.d / 2 - 0.008), { transparent: true, opacity: 0.28, emissive: 0x246b88, emissiveIntensity: 0.32 }));
+        addBox(spec.w - 0.07, 0.035, spec.d - 0.06, 0x2d6e75, 0, 0.058);
+        [-0.12, 0.05, 0.16].forEach((x, index) => addCylinder(0.012, 0.022, 0.12 + index * 0.02, 0x49b477, x, 0.12 + index * 0.01, 0.02));
+        [-0.10, 0.12].forEach((x, index) => { const fish = addBox(0.065, 0.026, 0.018, index ? 0xffb763 : 0x9bdcff, x, 0.16 + index * 0.04, -0.07); addBox(0.022, 0.034, 0.012, fish.material.color, x - (index ? 0.042 : -0.042), 0.16 + index * 0.04, -0.07); });
+      } else if (id === 'chair-upgrade') {
+        addCylinder(0.34, 0.38, 0.035, 0x15212d, 0, 0.018);
+        addRing(0.31, 0.024, 0.040, 0x68dfff);
+        addRing(0.23, 0.012, 0.053, 0xff78d7);
+        [-0.22, 0.22].forEach(x => addGlow(0.12, 0.026, 0.05, x, 0.05, 0, 0x68dfff));
+      } else if (id === 'keyboard-glow') {
+        addBox(spec.w, 0.026, spec.d, spec.color, 0, 0.013);
+        for (let row = 0; row < 3; row += 1) for (let col = 0; col < 11; col += 1) {
+          const hue = [0xff73d2, 0x70eaff, 0x90f06d][(col + row) % 3];
+          addBox(0.048, 0.017, 0.045, hue, -0.29 + col * 0.058, 0.033, -0.065 + row * 0.062, { emissive: hue, emissiveIntensity: 0.34, roughness: 0.42 });
+        }
+      } else if (id === 'mini-rack') {
+        [-1, 1].forEach(side => [-1, 1].forEach(depth => addBox(0.025, spec.h, 0.025, 0x263545, side * 0.17, spec.h / 2, depth * 0.13)));
+        [0.10, 0.27, 0.44].forEach((y, row) => { addBox(0.32, 0.105, 0.025, 0x0e1720, 0, y, -0.15); addGlow(0.22, 0.018, 0.008, -0.035, y, -0.164, row === 1 ? 0xff71d2 : 0x69dcff); });
+        addBox(0.34, 0.018, 0.28, 0x28394b, 0, 0.02);
+      } else if (id === 'coffee-drone') {
+        addCylinder(0.13, 0.15, 0.030, 0x17222e, 0, 0.015);
+        const mug = addCylinder(0.065, 0.072, 0.115, 0xf1f6ff, 0, 0.088, 0.01);
+        const handle = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.010, 8, 16, Math.PI), makeMat({ color: 0xf1f6ff })); handle.position.set(0.071, 0.09, 0.01); handle.rotation.y = Math.PI / 2; group.add(handle);
+        addBox(0.18, 0.025, 0.10, 0x263846, 0, 0.22);
+        [-0.14, 0.14].forEach(x => addCylinder(0.055, 0.055, 0.009, 0x62e4ff, x, 0.22, 0, { emissive: 0x62e4ff, emissiveIntensity: 0.44 }).rotation.x = Math.PI / 2);
+        void mug;
+      } else if (id === 'desk-bonsai') {
+        addCylinder(0.09, 0.12, 0.12, 0x735039, 0, 0.06);
+        addCylinder(0.026, 0.038, 0.20, 0x72523a, 0, 0.19);
+        [[0, 0.31, 0], [-0.075, 0.27, 0.02], [0.075, 0.29, -0.02], [0.02, 0.36, -0.03]].forEach(([x, y, z], index) => {
+          const crown = new THREE.Mesh(new THREE.SphereGeometry(0.085 + (index % 2) * 0.012, 12, 10), makeMat({ color: [0x4ea466, 0x67bd75, 0x2f7b4d][index % 3] })); crown.position.set(x, y, z); crown.scale.set(1.15, 0.72, 0.92); group.add(crown);
+        });
+      } else if (id === 'projector-pad') {
+        addCylinder(0.15, 0.18, 0.045, 0x172431, 0, 0.023, 0, { emissive: 0x123245, emissiveIntensity: 0.30 });
+        addCylinder(0.070, 0.095, 0.10, 0x263b4d, 0, 0.095);
+        const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.16, 0.34, 16, 1, true), makeMat({ color: 0x74eaff, transparent: true, opacity: 0.16, emissive: 0x45b9e8, emissiveIntensity: 0.24, depthWrite: false })); beam.position.y = 0.29; group.add(beam);
+        const holo = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.012, 40, 8), makeMat({ color: 0x88ecff, emissive: 0x61dfff, emissiveIntensity: 0.56, roughness: 0.28 })); holo.scale.y = 0.65; holo.position.y = 0.43; group.add(holo);
+      } else if (id === 'holo-globe') {
+        addCylinder(0.16, 0.22, 0.11, 0x192735, 0, 0.055);
+        addCylinder(0.055, 0.105, 0.28, 0x273c4c, 0, 0.22);
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), makeMat({ color: 0x7ceaff, transparent: true, opacity: 0.34, emissive: 0x55ccff, emissiveIntensity: 0.52, depthWrite: false })); orb.position.y = 0.50; group.add(orb);
+        addRing(0.23, 0.010, 0.50, 0x77e9ff, [0, 0, 0]); addRing(0.23, 0.010, 0.50, 0x77e9ff, [Math.PI / 2, 0, Math.PI / 5]);
+        addRing(0.15, 0.010, 0.50, 0xff82d7, [Math.PI / 2, 0, 0]);
+      } else if (id === 'led-strip') {
+        addBox(spec.w, 0.022, spec.d, 0x1b2634, 0, 0.011);
+        addGlow(spec.w - 0.08, 0.014, 0.038, 0, 0.025, 0, 0x7c4dff);
+        [-0.42, 0, 0.42].forEach(x => addGlow(0.18, 0.016, 0.046, x, 0.027, 0, x === 0 ? 0x68e9ff : 0xff72cf));
+      } else if (id === 'floor-runner') {
+        addBox(spec.w, 0.020, spec.d, 0x263444, 0, 0.010);
+        [-1, 1].forEach(side => addGlow(0.035, 0.012, spec.d - 0.12, side * (spec.w / 2 - 0.045), 0.024, 0, 0x4de4d0));
+        for (let z = -0.8; z <= 0.8; z += 0.4) addBox(0.62, 0.012, 0.045, 0x344a5b, 0, 0.024, z);
+      } else if (id === 'hex-rug') {
+        const rug = new THREE.Mesh(new THREE.CylinderGeometry(spec.w / 2, spec.w / 2, 0.022, 6), makeMat({ color: 0x27394a })); rug.rotation.y = Math.PI / 6; rug.position.y = 0.011; group.add(rug);
+        const inset = new THREE.Mesh(new THREE.CylinderGeometry(spec.w * 0.36, spec.w * 0.36, 0.010, 6), makeMat({ color: 0x42657c, emissive: 0x214a61, emissiveIntensity: 0.18 })); inset.rotation.y = Math.PI / 6; inset.position.y = 0.027; group.add(inset);
+        addRing(0.30, 0.010, 0.035, 0x72dfff);
+      } else if (id === 'light-grid') {
+        addBox(spec.w, 0.016, spec.d, 0x192634, 0, 0.008);
+        for (let x = -0.40; x <= 0.40; x += 0.40) for (let z = -0.32; z <= 0.32; z += 0.32) addGlow(0.26, 0.012, 0.20, x, 0.020, z, (x === 0 && z === 0) ? 0xff70d2 : 0x64e5ff);
+      } else if (id === 'floor-bot') {
+        addBox(spec.w, 0.05, spec.d, 0x161e27, 0, 0.025);
+        addBox(0.52, 0.10, 0.10, 0x2a3642, 0, 0.08, -0.13, { emissive: 0x143049, emissiveIntensity: 0.24 });
+        addGlow(0.42, 0.014, 0.17, 0, 0.057, 0.08, 0x63dfff);
+        [-0.27, 0.27].forEach(x => addGlow(0.06, 0.024, 0.06, x, 0.055, -0.12, 0x7bffc6));
+      } else if (id === 'parts-bins') {
+        [-0.24, 0.24].forEach(x => addBox(0.025, spec.h, 0.025, 0x263442, x, spec.h / 2));
+        [0.08, 0.22, 0.36].forEach((y, row) => {
+          addBox(spec.w, 0.020, spec.d, 0x324452, 0, y - 0.065);
+          [-0.12, 0.12].forEach((x, col) => addBox(0.19, 0.10, 0.18, [0xffc66f, 0x64dfff, 0x83dc90][(row + col) % 3], x, y, -0.035, { roughness: 0.58 }));
+        });
+      } else if (id === 'retro-console') {
+        addBox(spec.w, 0.52, spec.d, 0x252c40, 0, 0.26);
+        const screen = addBox(0.34, 0.24, 0.028, 0x08111a, 0, 0.53, -spec.d / 2 - 0.012, { emissive: 0x17445a, emissiveIntensity: 0.36 }); screen.rotation.x = -0.18;
+        addBox(0.42, 0.10, 0.24, 0x36425d, 0, 0.43, -0.02); group.children[group.children.length - 1].rotation.x = -0.20;
+        addCylinder(0.030, 0.030, 0.045, 0xff6acb, -0.11, 0.50, -0.09).rotation.x = Math.PI / 2;
+        [0xffd76e, 0x6de7ff, 0x80ef87].forEach((color, index) => addCylinder(0.025, 0.025, 0.018, color, 0.08 + index * 0.06, 0.49, -0.09, { emissive: color, emissiveIntensity: 0.38 }).rotation.x = Math.PI / 2);
+        addBox(0.30, 0.08, 0.30, 0x1d2434, 0, 0.04);
+      } else if (id === 'bookcase') {
+        [-1, 1].forEach(side => addBox(0.06, spec.h, spec.d, 0x322b24, side * (spec.w / 2 - 0.03), spec.h / 2));
+        [0.07, 0.38, 0.69, 1.00, 1.25].forEach((y, row) => { addBox(spec.w, 0.045, spec.d, 0x493a2c, 0, y); if (row < 4) for (let book = 0; book < 5; book += 1) addBox(0.075, 0.20 + ((book + row) % 2) * 0.05, 0.18, [0x5b82a4, 0xd06b72, 0xd4b86d, 0x60966e, 0x7968a8][(book + row) % 5], -0.28 + book * 0.13, y + 0.12, -0.02); });
+        addBox(spec.w, spec.h, 0.028, 0x2a241e, 0, spec.h / 2, spec.d / 2 - 0.014);
+      } else if (id === 'model-sat') {
+        addCylinder(0.15, 0.19, 0.08, 0x24313f, 0, 0.04);
+        addCylinder(0.026, 0.040, 0.28, 0xabb9c8, 0, 0.20);
+        addBox(0.15, 0.10, 0.10, 0x71dfff, 0, 0.37, 0, { emissive: 0x28739c, emissiveIntensity: 0.24 });
+        [-1, 1].forEach(side => { addBox(0.22, 0.026, 0.11, 0x5a8eb4, side * 0.20, 0.37, 0, { emissive: 0x24608a, emissiveIntensity: 0.22 }); addGlow(0.16, 0.010, 0.018, side * 0.20, 0.39, -0.062, 0x79e8ff); });
+        const dish = new THREE.Mesh(new THREE.SphereGeometry(0.10, 16, 10, 0, TAU, 0, Math.PI / 2), makeMat({ color: 0xe5edf5, metalness: 0.65, roughness: 0.28 })); dish.position.set(0, 0.48, 0); dish.rotation.x = -0.45; group.add(dish);
+      } else if (id === 'cold-spares') {
+        addBox(spec.w, spec.h, spec.d, 0x1d2a35, 0, spec.h / 2);
+        [-0.145, 0.145].forEach((x, door) => {
+          addBox(0.27, 0.92, 0.018, 0x2e4150, x, 0.55, -spec.d / 2 - 0.011);
+          for (let y = 0.20; y < 0.82; y += 0.10) addBox(0.16, 0.012, 0.008, 0x101a22, x, y, -spec.d / 2 - 0.024);
+          addCylinder(0.016, 0.016, 0.020, 0xc8d5df, x + (door ? -0.08 : 0.08), 0.54, -spec.d / 2 - 0.034).rotation.x = Math.PI / 2;
+        });
+        addGlow(0.40, 0.018, 0.012, 0, 0.99, -spec.d / 2 - 0.024, 0x6be2ff);
       } else {
+        addBox(spec.w, spec.h, spec.d, spec.color);
+      }
+    }
+
+    createPlacedPropDecoration(id, zone, placement, opts = {}) {
+      const safeZone = this.normalizePlacementZone(zone);
+      const spec = this.getPlacedPropSpec(id);
+      const pos = this.decorPlacementToWorld(safeZone, placement);
+      const group = new this.THREE.Group();
+      group.position.set(pos.x, pos.y, pos.z);
+      group.rotation.y = pos.rotationY || 0;
+      group.userData.decorId = id;
+      group.userData.placementZone = safeZone;
+      this.buildCanonicalPropModel(group, id, spec, opts);
+      if (opts.ghost) {
+        this.applyDecorGhost(group);
+      } else if (opts.selectable !== false) {
         this.registerSelectableDecor(group, { id, zone: safeZone, placement: Object.assign({}, placement) });
       }
+      if (!opts.ghost && (id === 'bookcase' || id === 'cold-spares')) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10);
       this.root.add(group);
       return group;
     }
@@ -4046,49 +4151,17 @@
 
     buildDecorations() {
       const items = new Set(this.state.decorations || []);
-      const room = this.room;
-      const deskWallZ = -room.depth / 2 + 0.02;
-      const leftWallX = -room.width / 2 + 0.02;
-      const rightWallX = room.width / 2 - 0.02;
-      const frontWallZ = room.depth / 2 - 0.02;
-      if (items.has('neon-sign') && !this.addManualWallPlacementIfAny('neon-sign')) this.addNeonSign(0, 2.38, deskWallZ + 0.06, 'UPTIME');
-      if (items.has('plant-wall') && !this.addManualWallPlacementIfAny('plant-wall')) this.addPlantWall(-2.55, 1.84, deskWallZ + 0.05, 1.05, 1.2);
-      if (items.has('snack-shelf') && !this.addManualDecorPlacementIfAny('snack-shelf')) this.addShelfStack(room.width / 2 - 0.52, 1.15, deskWallZ + 0.24);
-      if (items.has('holo-globe') && !this.addManualDecorPlacementIfAny('holo-globe')) this.addHoloGlobe(2.45, 0, -0.2);
-      if (items.has('lava-lamp') && !this.addManualDecorPlacementIfAny('lava-lamp')) this.addLavaLamp(-1.18, 0.82, -room.depth/2 + 0.22);
-      if (items.has('wall-monitor') && !this.addManualWallPlacementIfAny('wall-monitor')) this.addWallDisplay(-room.width / 2 + 1.75 + Math.max(0, (room.width - 7.4) * 0.18), 1.92, deskWallZ + 0.06, 'NOC OVERVIEW');
-      if (items.has('framed-cert') && !this.addManualWallPlacementIfAny('framed-cert')) this.addFramedPoster(rightWallX - 0.05, 1.78, -0.8, 0.92, 1.08, 'UPTIME CERTIFIED', '#f7f3e7', '#3a2f21', true);
-      if (items.has('server-poster') && !this.addManualWallPlacementIfAny('server-poster')) this.addFramedPoster(leftWallX + 0.05, 1.74, -0.55, 1.02, 1.26, 'RETRO SERVER', '#10151d', '#85d8ff');
-      if (items.has('moon-window') && !this.addManualWallPlacementIfAny('moon-window')) this.addMoonWindow(frontWallZ - 0.02, 1.9, -2.2, 0.56);
-      if (items.has('uplink-map') && !this.addManualWallPlacementIfAny('uplink-map')) this.addMapPanel(-2.15, 1.65, deskWallZ + 0.05);
-      if (items.has('award-shelf') && !this.addManualWallPlacementIfAny('award-shelf')) this.addAwardShelf(rightWallX - 0.1, 1.62, 0.9);
-      if (items.has('maintenance-clock') && !this.addManualWallPlacementIfAny('maintenance-clock')) this.addClock(leftWallX + 0.04, 2.15, 1.4);
-      if (items.has('fiber-art') && !this.addManualWallPlacementIfAny('fiber-art')) this.addFiberArt(leftWallX + 0.04, 1.82, -1.85);
-      if (items.has('incident-board') && !this.addManualWallPlacementIfAny('incident-board')) this.addIncidentBoard(rightWallX - 0.05, 1.74, 1.68);
-      if (items.has('desk-mat') && !this.addManualDecorPlacementIfAny('desk-mat')) this.addDeskMat();
-      if (items.has('tower-stack') && !this.addManualDecorPlacementIfAny('tower-stack')) this.addTowerStack();
-      if (items.has('aquarium') && !this.addManualDecorPlacementIfAny('aquarium')) this.addDeskAquarium();
-      if (items.has('chair-upgrade') && !this.addManualDecorPlacementIfAny('chair-upgrade')) this.addChairHalo();
-      if (items.has('keyboard-glow') && !this.addManualDecorPlacementIfAny('keyboard-glow')) this.addKeyboardGlow();
-      if (items.has('mini-rack') && !this.addManualDecorPlacementIfAny('mini-rack')) this.addMiniRack();
-      if (items.has('coffee-drone') && !this.addManualDecorPlacementIfAny('coffee-drone')) this.addCoffeeDrone();
-      if (items.has('desk-bonsai') && !this.addManualDecorPlacementIfAny('desk-bonsai')) this.addDeskBonsai();
-      if (items.has('projector-pad') && !this.addManualDecorPlacementIfAny('projector-pad')) this.addProjectorPad();
-      if (items.has('led-strip') && !this.addManualDecorPlacementIfAny('led-strip')) this.addLedStrip();
-      if (items.has('floor-runner') && !this.addManualDecorPlacementIfAny('floor-runner')) this.addFloorRunner();
-      if (items.has('hex-rug') && !this.addManualDecorPlacementIfAny('hex-rug')) this.addHexRug();
-      if (items.has('light-grid') && !this.addManualDecorPlacementIfAny('light-grid')) this.addFloorGrid();
-      if (items.has('parts-bins') && !this.addManualDecorPlacementIfAny('parts-bins')) this.addPartsBins();
-      if (items.has('retro-console') && !this.addManualDecorPlacementIfAny('retro-console')) this.addRetroConsole();
-      if (items.has('bookcase') && !this.addManualDecorPlacementIfAny('bookcase')) this.addBookcase();
-      if (items.has('model-sat') && !this.addManualDecorPlacementIfAny('model-sat')) this.addModelSatellite();
-      if (items.has('cold-spares') && !this.addManualDecorPlacementIfAny('cold-spares')) this.addColdSpares();
-      if (items.has('pendant-light') && !this.addManualDecorPlacementIfAny('pendant-light')) this.addPlacedPropDecoration('pendant-light', 'floor', this.getDefaultDecorPlacement('pendant-light', 'floor'));
       items.forEach(id => {
-        if (!DECOR_PLACEMENT_ZONES[id]) return;
-        if (id === 'floor-bot') return;
-        const { placement } = this.getManualDecorPlacement(id);
-        if (!placement) this.addFallbackDecorHitbox(id);
+        const zone = DECOR_PLACEMENT_ZONES[id];
+        if (!zone) return;
+        if (id === 'floor-bot') {
+          this.buildBotDock();
+          return;
+        }
+        const stored = ((this.state.placements || {})[zone] || {})[id];
+        const placement = stored || this.getDefaultDecorPlacement(id, zone);
+        if (zone === 'wall') this.addPlacedWallDecoration(id, placement);
+        else this.addPlacedPropDecoration(id, zone, placement);
       });
     }
 
