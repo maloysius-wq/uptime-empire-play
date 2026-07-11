@@ -82,6 +82,11 @@
     </aside>
 
     <div class="app-main">
+      <div class="mobile-terminal-status" aria-label="Terminal telemetry">
+        <div><span>Credits</span><strong id="mobileCreditsValue">0 CC</strong></div>
+        <div><span>Income / sec</span><strong id="mobileRateValue">0 CC</strong></div>
+        <div><span>Innovation</span><strong id="mobileIpValue">0 IP</strong></div>
+      </div>
       <nav class="bottom-nav card" id="mainNav">
         <div class="command-bar-head">
           <div class="command-pulse reverse" aria-hidden="true">
@@ -104,6 +109,8 @@
           <button class="nav-btn" data-panel="regions">Regions</button>
           <button class="nav-btn" data-panel="command">Command</button>
           <button class="nav-btn" data-panel="overhaul">Overhaul</button>
+          <button class="nav-btn mobile-terminal-app" data-terminal-view="achievements">Badges</button>
+          <button class="nav-btn mobile-terminal-app" data-terminal-view="console">Console</button>
         </div>
       </nav>
 
@@ -356,6 +363,7 @@
     </div>
 
     <aside class="office-sidebar card">
+      <button class="mobile-terminal-back hidden" id="mobileTerminalBack" type="button">Back to Computer</button>
       <div class="suite-tabs cardless" id="suiteTabs">
         <button class="suite-tab active" data-suite-tab="office"><span class="suite-tab-label">Office<br>Suite</span></button>
         <button class="suite-tab" data-suite-tab="achievements"><span class="suite-tab-label">Achieve-<br>ments</span></button>

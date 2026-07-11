@@ -195,6 +195,7 @@ const HELP_SECTIONS = [
     office3D: null,
     arcade: null,
     computerOpen: false,
+    mobileTerminalView: '',
     worldUtilityOpen: false,
     currentWorldUtility: 'shop',
     moveModeActive: false,
@@ -230,6 +231,7 @@ const HELP_SECTIONS = [
       this.startArcadeLoop();
       this.renderAll();
       this.startVisualQAFromQuery();
+      this.startMobileTerminalQAFromQuery();
     },
 
     cacheDom() {
@@ -241,6 +243,10 @@ const HELP_SECTIONS = [
         worldCreditsValue: $('worldCreditsValue'),
         worldRateValue: $('worldRateValue'),
         worldIncidentsValue: $('worldIncidentsValue'),
+        mobileCreditsValue: $('mobileCreditsValue'),
+        mobileRateValue: $('mobileRateValue'),
+        mobileIpValue: $('mobileIpValue'),
+        mobileTerminalBack: $('mobileTerminalBack'),
         deskComputerCloseBtn: $('deskComputerCloseBtn'),
         worldQuickActions: $('worldQuickActions'),
         worldShopBtn: $('worldShopBtn'),
@@ -410,10 +416,24 @@ const HELP_SECTIONS = [
       requestAnimationFrame(waitForScene);
     },
 
+    startMobileTerminalQAFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('qa') !== 'mobile-terminal') return;
+      document.body.classList.add('mobile-terminal-preview');
+      window.setTimeout(() => this.openDeskComputer({ panel: 'ops', forceDeskView: true }), 80);
+    },
+
     bindEvents() {
       this.els.mainNav.addEventListener('click', e => {
         const btn = e.target.closest('.nav-btn');
         if (!btn) return;
+        const terminalView = btn.dataset.terminalView;
+        if (terminalView) {
+          this.primeAudio();
+          this.playSound('ui');
+          this.openMobileTerminalApp(terminalView);
+          return;
+        }
         const targetPanel = btn.dataset.panel;
         if (!targetPanel) return;
         this.primeAudio();
@@ -421,6 +441,8 @@ const HELP_SECTIONS = [
         this.app.changePanel(targetPanel);
         requestAnimationFrame(() => this.scrollMainToTop());
       });
+
+      if (this.els.mobileTerminalBack) this.els.mobileTerminalBack.addEventListener('click', () => this.closeMobileTerminalApp());
 
       if (this.els.commandNoticeBtn) {
         this.els.commandNoticeBtn.addEventListener('click', () => {
@@ -1018,11 +1040,33 @@ const HELP_SECTIONS = [
       const computerOpen = !!this.computerOpen;
       document.body.classList.toggle('office-computer-mode', computerOpen);
       document.body.classList.toggle('office-world-mode', !computerOpen);
+      document.body.classList.toggle('mobile-terminal-app-open', computerOpen && !!this.mobileTerminalView);
       if (this.els.appShell) this.els.appShell.classList.toggle('computer-active', computerOpen);
       if (this.els.deskComputerCloseBtn) this.els.deskComputerCloseBtn.classList.toggle('hidden', !computerOpen);
+      if (this.els.mobileTerminalBack) this.els.mobileTerminalBack.classList.toggle('hidden', !(computerOpen && this.mobileTerminalView));
       if (this.els.worldHud) this.els.worldHud.classList.toggle('hidden', computerOpen);
       if (this.els.worldQuickActions) this.els.worldQuickActions.classList.toggle('hidden', computerOpen);
       if (this.office3D && this.office3D.resize) requestAnimationFrame(() => this.office3D.resize());
+    },
+
+    openMobileTerminalApp(view) {
+      if (!this.computerOpen) return;
+      const nextView = ['achievements', 'console'].includes(view) ? view : 'console';
+      this.mobileTerminalView = nextView;
+      this.app.changeSuiteTab(nextView);
+      this.syncComputerMode();
+      if (nextView === 'console') {
+        this.consolePinnedToBottom = true;
+        requestAnimationFrame(() => this.renderConsole(true));
+      }
+    },
+
+    closeMobileTerminalApp() {
+      if (!this.mobileTerminalView) return;
+      this.mobileTerminalView = '';
+      this.app.changeSuiteTab('console');
+      this.syncComputerMode();
+      requestAnimationFrame(() => this.scrollMainToTop());
     },
 
     openDeskComputer(options = {}) {
@@ -1039,6 +1083,7 @@ const HELP_SECTIONS = [
         this.office3D.enterComputerView({ exitAtDesk: !!options.forceDeskView, onComplete: finishOpen, duration: 0.52 });
       }
       this.computerOpen = true;
+      this.mobileTerminalView = '';
       if (options.panel) this.app.state.currentPanel = options.panel;
 
       // The 3D Office Suite is now the world itself, and Shop/Settings
@@ -1067,6 +1112,7 @@ const HELP_SECTIONS = [
       if (!this.computerOpen) return;
       this.pendingComputerOpenToken = null;
       this.computerOpen = false;
+      this.mobileTerminalView = '';
       this.syncComputerMode();
       const resumeAfterZoom = () => {
         if (resumeControl && !this.computerOpen && !this.worldUtilityOpen && this.office3D && this.office3D.resumeManualControl) {
@@ -1371,6 +1417,9 @@ const HELP_SECTIONS = [
       if (this.els.worldCreditsValue) this.els.worldCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
       if (this.els.worldRateValue) this.els.worldRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
       if (this.els.worldIncidentsValue) this.els.worldIncidentsValue.textContent = `${state.activeIncidents.length}`;
+      if (this.els.mobileCreditsValue) this.els.mobileCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
+      if (this.els.mobileRateValue) this.els.mobileRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
+      if (this.els.mobileIpValue) this.els.mobileIpValue.textContent = `${this.app.formatNumber(state.innovationPoints)} IP`;
     },
 
     renderGraphicsQuality() {
