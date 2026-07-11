@@ -3753,7 +3753,7 @@
       // source model is normalized and rotated. Keep the whole display assembly
       // recessed into that opening, not on the outermost cabinet silhouette.
       const pose = usingUploadedCabinet
-        ? { x: -0.045, y: 1.47, z: -0.195, width: 0.70, height: 0.525 }
+        ? { x: -0.075, y: 1.46, z: -0.195, width: 0.82, height: 0.615 }
         : { x: 0, y: 1.34, z: -0.348, width: 0.56, height: 0.42 };
       const displayAssembly = new THREE.Group();
       displayAssembly.position.set(pose.x, pose.y, pose.z);
@@ -3780,19 +3780,24 @@
       screen.renderOrder = 10;
       displayAssembly.add(screen);
 
-      const bezelMat = new THREE.MeshStandardMaterial({ color: 0x101b2a, metalness: 0.58, roughness: 0.33 });
-      const bezelZ = -0.014;
-      const bezelParts = [
-        [pose.width + 0.065, 0.032, 0, pose.height / 2 + 0.016],
-        [pose.width + 0.065, 0.032, 0, -pose.height / 2 - 0.016],
-        [0.032, pose.height + 0.065, -pose.width / 2 - 0.016, 0],
-        [0.032, pose.height + 0.065, pose.width / 2 + 0.016, 0]
-      ];
-      bezelParts.forEach(([width, height, offsetX, offsetY]) => {
-        const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.026), bezelMat);
-        part.position.set(offsetX, offsetY, bezelZ);
-        displayAssembly.add(part);
-      });
+      // The uploaded cabinet already contains a molded CRT bezel. Add our own
+      // only for the fallback cabinet so the live canvas reaches the four inner
+      // corners of the authored screen rather than creating a second frame.
+      if (!usingUploadedCabinet) {
+        const bezelMat = new THREE.MeshStandardMaterial({ color: 0x101b2a, metalness: 0.58, roughness: 0.33 });
+        const bezelZ = -0.014;
+        const bezelParts = [
+          [pose.width + 0.065, 0.032, 0, pose.height / 2 + 0.016],
+          [pose.width + 0.065, 0.032, 0, -pose.height / 2 - 0.016],
+          [0.032, pose.height + 0.065, -pose.width / 2 - 0.016, 0],
+          [0.032, pose.height + 0.065, pose.width / 2 + 0.016, 0]
+        ];
+        bezelParts.forEach(([width, height, offsetX, offsetY]) => {
+          const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.026), bezelMat);
+          part.position.set(offsetX, offsetY, bezelZ);
+          displayAssembly.add(part);
+        });
+      }
 
       this.arcadeDisplay = { type: 'arcade', canvas, ctx, texture, screen, assembly: displayAssembly, nextFrameAt: 0, interval: 0.34 };
       this.dynamicDisplays.push(this.arcadeDisplay);
@@ -3952,10 +3957,19 @@
         const paper = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.14, spec.h - 0.14), makeMat({ color: 0xf7f2df, roughness: 0.76 }));
         paper.position.z = 0.053;
         group.add(paper);
-        const tex = this.makeLabelTexture(['UPTIME NETWORK', 'CERTIFICATE', 'OPERATIONS'], { width: 768, height: 960, background: '#f7f2df', border: '#b9944d', colors: ['#31445b', '#6a5530', '#48647a'], size: 54, weight: 800 });
-        const lettering = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.20, spec.h - 0.24), makeMat({ map: tex, emissive: 0x18120a, emissiveIntensity: 0.035 }));
-        lettering.position.z = 0.060;
-        group.add(lettering);
+        const certificateTitle = this.makeLabelTexture(['CERTIFICATE OF COMPLETION'], { width: 1024, height: 128, colors: ['#31445b'], size: 46, weight: 900 });
+        const certificateName = this.makeLabelTexture(['UPTIME OPERATIONS'], { width: 768, height: 104, colors: ['#6a5530'], size: 40, weight: 800 });
+        const titlePlane = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.20, 0.13), makeMat({ map: certificateTitle, transparent: true }));
+        titlePlane.position.set(0, spec.h * 0.31, 0.060);
+        group.add(titlePlane);
+        const namePlane = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.26, 0.10), makeMat({ map: certificateName, transparent: true }));
+        namePlane.position.set(0, spec.h * 0.02, 0.060);
+        group.add(namePlane);
+        [-0.18, 0, 0.18].forEach(x => {
+          const rule = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.010, 0.008), makeMat({ color: 0xb9944d }));
+          rule.position.set(x, -spec.h * 0.13, 0.061);
+          group.add(rule);
+        });
         const seal = new THREE.Mesh(new THREE.CircleGeometry(0.085, 20), makeMat({ color: 0xd8af58, emissive: 0x5e3f0c, emissiveIntensity: 0.12, metalness: 0.58, roughness: 0.32 }));
         seal.position.set(0, -spec.h * 0.28, 0.070);
         group.add(seal);
@@ -3969,10 +3983,14 @@
         const paper = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.026), makeMat({ color: 0xadc9dc, roughness: 0.82 }));
         paper.position.z = 0.014;
         group.add(paper);
-        const titleTex = this.makeLabelTexture(['UPTIME', 'PERSONAL COMPUTER', 'SYSTEM 81'], { width: 768, height: 1024, background: '#adc9dc', border: '#17374c', colors: ['#17374c', '#17374c', '#4b6373'], size: 50, weight: 900 });
-        const title = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.10, spec.h - 0.10), makeMat({ map: titleTex, emissive: 0x123247, emissiveIntensity: 0.04 }));
-        title.position.z = 0.032;
-        group.add(title);
+        const posterTitleTex = this.makeLabelTexture(['UPTIME PERSONAL COMPUTER'], { width: 1024, height: 120, colors: ['#17374c'], size: 45, weight: 900 });
+        const posterCaptionTex = this.makeLabelTexture(['SYSTEM 81  //  8088  //  64K'], { width: 1024, height: 96, colors: ['#365769'], size: 32, weight: 800 });
+        const posterTitle = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.12, 0.13), makeMat({ map: posterTitleTex, transparent: true }));
+        posterTitle.position.set(0, spec.h * 0.40, 0.043);
+        group.add(posterTitle);
+        const posterCaption = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.12, 0.10), makeMat({ map: posterCaptionTex, transparent: true }));
+        posterCaption.position.set(0, -spec.h * 0.42, 0.043);
+        group.add(posterCaption);
         const pcColor = 0xd9d0b4;
         const dark = 0x293945;
         const monitor = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.42, spec.h * 0.25, 0.028), makeMat({ color: pcColor, roughness: 0.62 }));

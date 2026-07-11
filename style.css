@@ -7617,6 +7617,9 @@ body.mobile-office-controls-visible .mobile-office-controls {
   }
 
   body.office-computer-mode .mobile-terminal-status {
+    position: sticky;
+    top: 0;
+    z-index: 72;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
@@ -7658,9 +7661,8 @@ body.mobile-office-controls-visible .mobile-office-controls {
   }
 
   body.office-computer-mode .bottom-nav {
-    position: sticky;
-    top: 0;
-    z-index: 60;
+    position: static;
+    z-index: auto;
     padding: 7px 7px 8px;
     border-radius: 8px;
     background: rgba(8, 18, 28, 0.96);

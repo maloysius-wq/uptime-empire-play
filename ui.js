@@ -245,7 +245,7 @@ const HELP_SECTIONS = [
         worldIncidentsValue: $('worldIncidentsValue'),
         mobileCreditsValue: $('mobileCreditsValue'),
         mobileRateValue: $('mobileRateValue'),
-        mobileIpValue: $('mobileIpValue'),
+        mobileIncidentsValue: $('mobileIncidentsValue'),
         mobileTerminalBack: $('mobileTerminalBack'),
         deskComputerCloseBtn: $('deskComputerCloseBtn'),
         worldQuickActions: $('worldQuickActions'),
@@ -1419,7 +1419,7 @@ const HELP_SECTIONS = [
       if (this.els.worldIncidentsValue) this.els.worldIncidentsValue.textContent = `${state.activeIncidents.length}`;
       if (this.els.mobileCreditsValue) this.els.mobileCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
       if (this.els.mobileRateValue) this.els.mobileRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
-      if (this.els.mobileIpValue) this.els.mobileIpValue.textContent = `${this.app.formatNumber(state.innovationPoints)} IP`;
+      if (this.els.mobileIncidentsValue) this.els.mobileIncidentsValue.textContent = `${state.activeIncidents.length}`;
     },
 
     renderGraphicsQuality() {
