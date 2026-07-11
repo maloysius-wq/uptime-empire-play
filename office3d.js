@@ -5330,39 +5330,46 @@
       const zoomZ = target.z + Math.cos(lookYaw) * zoomDistance;
       const screenY = Number.isFinite(target.y) ? target.y : this.player.y - 0.1;
       const lookPitch = clamp(Math.atan2(screenY - this.player.y, zoomDistance), -0.48, -0.04);
+      // First center the player in the cabinet's standing position. Once that
+      // movement finishes, ease from the full cabinet view into the CRT view.
+      const standingDistance = Math.max(1.55, zoomDistance + 0.62);
+      const standingPose = {
+        x: target.x + Math.sin(lookYaw) * standingDistance,
+        z: target.z + Math.cos(lookYaw) * standingDistance,
+        yaw: lookYaw,
+        pitch: clamp(Math.atan2(screenY - this.player.y, standingDistance), -0.34, -0.04)
+      };
       this.arcadeTransition = {
         from: { x: this.player.x, z: this.player.z, yaw: this.player.yaw, pitch: this.player.pitch },
-        to: { x: zoomX, z: zoomZ, yaw: lookYaw, pitch: lookPitch },
+        to: standingPose,
+        next: { x: zoomX, z: zoomZ, yaw: lookYaw, pitch: lookPitch },
         t: 0,
-        duration: 0.48
+        duration: 0.42
       };
       this.updateOverlay();
     }
 
     releaseArcadeView(restorePriorView = false) {
       this.arcadeHold = false;
-      this.arcadeTransition = null;
-      if (restorePriorView && this.arcadeView) {
-        this.player.x = this.arcadeView.x;
-        this.player.y = this.arcadeView.y;
-        this.player.z = this.arcadeView.z;
-        this.player.yaw = this.arcadeView.yaw;
-        this.player.pitch = this.arcadeView.pitch;
-        this.player.bob = this.arcadeView.bob;
-        this.player.walkPhase = this.arcadeView.walkPhase;
-      }
       const exitTarget = this.screenInteractive?.position || this.arcadeAnchor;
-      if (exitTarget && (this.collides(this.player.x, this.player.z) || this.getArcadeDistance() < 0.55)) {
-        const safeYaw = Number.isFinite(exitTarget.yaw) ? exitTarget.yaw : 0;
-        for (const dist of [0.95, 1.15, 1.35, 1.6]) {
-          const sx = exitTarget.x + Math.sin(safeYaw) * dist;
-          const sz = exitTarget.z + Math.cos(safeYaw) * dist;
-          if (!this.collides(sx, sz)) {
-            this.player.x = sx;
-            this.player.z = sz;
-            break;
-          }
-        }
+      if (exitTarget) {
+        const safeYaw = Number.isFinite(exitTarget.yaw) ? exitTarget.yaw : Math.PI;
+        const screenY = Number.isFinite(exitTarget.y) ? exitTarget.y : this.player.y - 0.1;
+        const standingDistance = 1.62;
+        const destination = {
+          x: exitTarget.x + Math.sin(safeYaw) * standingDistance,
+          z: exitTarget.z + Math.cos(safeYaw) * standingDistance,
+          yaw: safeYaw,
+          pitch: clamp(Math.atan2(screenY - this.player.y, standingDistance), -0.34, -0.04)
+        };
+        this.arcadeTransition = {
+          from: { x: this.player.x, z: this.player.z, yaw: this.player.yaw, pitch: this.player.pitch },
+          to: destination,
+          t: 0,
+          duration: 0.52
+        };
+      } else {
+        this.arcadeTransition = null;
       }
       this.arcadeView = null;
       this.updateOverlay();
@@ -5520,7 +5527,12 @@
         this.player.yaw = lerp(this.arcadeTransition.from.yaw, this.arcadeTransition.to.yaw, s);
         this.player.pitch = lerp(this.arcadeTransition.from.pitch, this.arcadeTransition.to.pitch, s);
         this.player.bob = 0;
-        if (this.arcadeTransition.t >= 1) this.arcadeTransition = null;
+        if (this.arcadeTransition.t >= 1) {
+          const next = this.arcadeTransition.next;
+          this.arcadeTransition = next
+            ? { from: Object.assign({}, this.arcadeTransition.to), to: next, t: 0, duration: 0.46 }
+            : null;
+        }
       } else if (this.computerHold || this.arcadeHold) {
         this.player.bob = 0;
       } else if (this.isManualControlActive()) this.updateManual(dt);
