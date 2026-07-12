@@ -2710,7 +2710,7 @@ const HELP_SECTIONS = [
       if (y < 36 && x < 82) { this.renderArcadeMenu(); return; }
       if (y < 36 && x > 420) { this.restartArcadeGame(id); return; }
       if (id === 'bombmopper') {
-        if (y > 334 && x > 342) { game.mode = game.mode === 'flag' ? 'reveal' : 'flag'; return; }
+        if (y >= 334 && y <= 360 && x >= 340 && x <= 488) { game.mode = game.mode === 'flag' ? 'reveal' : 'flag'; return; }
         const cellSize = 24, left = 136, top = 72;
         const col = Math.floor((x - left) / cellSize), row = Math.floor((y - top) / cellSize);
         if (col >= 0 && col < 10 && row >= 0 && row < 10) this.onBombmopperCell(row * 10 + col, false);
@@ -2755,11 +2755,13 @@ const HELP_SECTIONS = [
         return;
       }
       if (id === 'mortalKonfig' && y > 310) {
-        if (x < 104) game.player.x = Math.max(54, game.player.x - 30);
-        else if (x < 204) game.player.x = Math.min(586, game.player.x + 30);
-        else if (x < 304 && game.player.y === 0) { game.player.vy = 330; game.player.y = 1; }
-        else if (x < 404) this.startFighterAttack(game, 'player', 'punch');
-        else this.startFighterAttack(game, 'player', 'kick');
+        const action = Math.max(0, Math.min(5, Math.floor((x - 10) / 82)));
+        if (action === 0) game.player.x = Math.max(54, game.player.x - 30);
+        if (action === 1) game.player.x = Math.min(586, game.player.x + 30);
+        if (action === 2 && game.player.y === 0) { game.player.vy = 330; game.player.y = 1; }
+        if (action === 3) this.startFighterAttack(game, 'player', 'punch');
+        if (action === 4) this.startFighterAttack(game, 'player', 'kick');
+        if (action === 5) { game.player.block = Math.max(game.player.block, 0.32); game.message = 'Firewall stance raised.'; }
       }
     },
 
@@ -2832,8 +2834,18 @@ const HELP_SECTIONS = [
         else if (cell.revealed && cell.adj) this.drawCabinetText(ctx, cell.adj, x + 11, y + 12, 12, ['#fff', '#57f4ff', '#7dff68', '#ff4fd8'][Math.min(3, cell.adj - 1)], 'center');
       });
       this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 323, 10, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
-      this.drawCabinetText(ctx, `MODE: ${game.mode.toUpperCase()}  //  TAP GRID TO ${game.mode === 'flag' ? 'FLAG' : 'REVEAL'}  //  TAP HERE TO TOGGLE`, 256, 346, 10, '#ffd34d', 'center');
+      this.drawCabinetText(ctx, `TAP GRID TO ${game.mode === 'flag' ? 'FLAG' : 'REVEAL'}`, 176, 346, 10, '#ffd34d', 'center');
+      ctx.fillStyle = 'rgba(255,211,77,0.16)'; ctx.fillRect(340, 334, 148, 26); ctx.strokeStyle = '#ffd34d'; ctx.strokeRect(340, 334, 148, 26);
+      this.drawCabinetText(ctx, `MODE: ${game.mode === 'flag' ? 'FLAG' : 'REVEAL'}`, 414, 347, 10, '#ffe39b', 'center');
       if (game.over) this.drawCabinetText(ctx, 'RUN COMPLETE - TAP RESTART', 256, 366, 10, '#ff4fd8', 'center');
+    },
+
+    arcadeSuitGlyph(suit) {
+      return ({ H: '\u2665', D: '\u2666', C: '\u2663', S: '\u2660' })[suit] || String(suit || '');
+    },
+
+    arcadeCardLabel(card) {
+      return card ? `${card.rank}${this.arcadeSuitGlyph(card.suit)}` : '';
     },
 
     drawCabinetCard(ctx, card, x, y, selected = false) {
@@ -2842,8 +2854,9 @@ const HELP_SECTIONS = [
       ctx.strokeStyle = selected ? '#ffd34d' : '#45f7ff'; ctx.lineWidth = selected ? 3 : 1; ctx.strokeRect(x, y, 52, 66);
       if (!card?.faceUp) { this.drawCabinetText(ctx, 'SYS', x + 26, y + 31, 10, '#ff9ddd', 'center'); return; }
       const red = card.color === 'red';
-      this.drawCabinetText(ctx, `${card.rank}${card.suit}`, x + 5, y + 11, 10, red ? '#d92d53' : '#142030');
-      this.drawCabinetText(ctx, card.suit, x + 26, y + 37, 19, red ? '#d92d53' : '#142030', 'center');
+      const suit = this.arcadeSuitGlyph(card.suit);
+      this.drawCabinetText(ctx, `${card.rank}${suit}`, x + 5, y + 11, 10, red ? '#d92d53' : '#142030');
+      this.drawCabinetText(ctx, suit, x + 26, y + 37, 19, red ? '#d92d53' : '#142030', 'center');
     },
 
     renderCabinetSolitaire(ctx, game) {
@@ -2857,7 +2870,7 @@ const HELP_SECTIONS = [
       ['H', 'D', 'C', 'S'].forEach((suit, index) => {
         const card = game.foundations[suit][game.foundations[suit].length - 1];
         const x = 254 + index * 52;
-        if (card) this.drawCabinetCard(ctx, card, x, 58); else { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 58, 48, 66); this.drawCabinetText(ctx, suit, x + 24, 91, 14, '#6f9bb5', 'center'); }
+        if (card) this.drawCabinetCard(ctx, card, x, 58); else { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 58, 48, 66); this.drawCabinetText(ctx, this.arcadeSuitGlyph(suit), x + 24, 91, 18, '#6f9bb5', 'center'); }
       });
       game.tableau.forEach((pile, pileIndex) => {
         const x = 18 + pileIndex * 70;
@@ -2895,7 +2908,7 @@ const HELP_SECTIONS = [
       this.drawCabinetText(ctx, 'NOVA ADMIN', 58, 91, 13, '#57f4ff'); hp(game.player.hp, game.player.maxHp, 58, 102, '#57f4ff');
       this.drawCabinetText(ctx, game.enemy.name.toUpperCase(), 454, 91, 13, game.enemy.color, 'right'); hp(game.enemy.hp, game.enemy.maxHp, 274, 102, game.enemy.color);
       ctx.fillStyle = '#173246'; ctx.fillRect(54, 132, 100, 104); ctx.fillStyle = game.enemy.color; ctx.fillRect(358, 132, 100, 104);
-      this.drawCabinetText(ctx, `HP ${game.player.hp}/${game.player.maxHp}  PATCH ${game.player.patches}  HEAT ${game.player.heat}`, 58, 252, 9, '#a8eaff');
+      this.drawCabinetText(ctx, `HP ${game.player.hp}/${game.player.maxHp}  PATCH ${game.player.patches}  WALL ${game.player.firewalls}  HEAT ${game.player.heat}`, 58, 252, 8, '#a8eaff');
       this.drawCabinetText(ctx, `HP ${Math.max(0, game.enemy.hp)}/${game.enemy.maxHp}  ATK ${game.enemy.atkMin}-${game.enemy.atkMax}`, 454, 252, 9, '#ffd5e9', 'right');
       ['ATTACK', 'PATCH', 'OCLOCK', 'FIREWALL'].forEach((label, index) => { const x = 28 + index * 114; ctx.fillStyle = 'rgba(255,211,77,0.18)'; ctx.fillRect(x, 278, 106, 42); ctx.strokeStyle = '#ffd34d'; ctx.strokeRect(x, 278, 106, 42); this.drawCabinetText(ctx, label, x + 53, 299, 10, '#ffe39b', 'center'); });
       this.drawCabinetText(ctx, (game.log[0] || '').toUpperCase(), 256, 344, 10, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
@@ -2910,7 +2923,7 @@ const HELP_SECTIONS = [
       this.drawCabinetText(ctx, `ROUND ${game.round}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 10, '#d5efff', 'center');
       const fighter = (unit, color, label) => { const x = 22 + (unit.x / 640) * 468, y = 270 - unit.y * 0.48; ctx.fillStyle = unit.block > 0 ? '#45f7ff' : color; ctx.fillRect(x - 12, y - 48, 24, 32); ctx.fillRect(x - 9, y - 66, 18, 17); ctx.fillRect(x - 10, y - 16, 7, 17); ctx.fillRect(x + 3, y - 16, 7, 17); if (unit.attack) ctx.fillRect(x + unit.dir * 12, y - 40, unit.dir * 28, 8); this.drawCabinetText(ctx, label, x, y + 12, 8, '#fff', 'center'); };
       fighter(game.player, '#ffd34d', 'ADMIN'); fighter(game.enemy, '#ff5a6d', 'KERNEL');
-      ['LEFT', 'RIGHT', 'JUMP', 'PUNCH', 'KICK'].forEach((label, index) => { const x = 14 + index * 98; ctx.fillStyle = 'rgba(255,90,109,0.18)'; ctx.fillRect(x, 320, 90, 34); ctx.strokeStyle = '#ff5a6d'; ctx.strokeRect(x, 320, 90, 34); this.drawCabinetText(ctx, label, x + 45, 337, 9, '#ffd4dc', 'center'); });
+      ['LEFT', 'RIGHT', 'JUMP', 'PUNCH', 'KICK', 'BLOCK'].forEach((label, index) => { const x = 10 + index * 82; ctx.fillStyle = 'rgba(255,90,109,0.18)'; ctx.fillRect(x, 320, 76, 34); ctx.strokeStyle = '#ff5a6d'; ctx.strokeRect(x, 320, 76, 34); this.drawCabinetText(ctx, label, x + 38, 337, 8, '#ffd4dc', 'center'); });
       this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 370, 9, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
     },
 
@@ -4464,14 +4477,14 @@ const HELP_SECTIONS = [
     createCircuitBreakerGame() {
       return {
         lane: 1,
-        lives: 3,
+        lives: 4,
         sector: 0,
         sectors: [
-          { name: 'BOOT', goal: 460, speed: 145, spawn: 0.86, bg: '#102142' },
-          { name: 'CACHE', goal: 560, speed: 170, spawn: 0.72, bg: '#1c214f' },
-          { name: 'PATCH', goal: 650, speed: 195, spawn: 0.62, bg: '#142e35' },
-          { name: 'FAILOVER', goal: 760, speed: 220, spawn: 0.54, bg: '#30213b' },
-          { name: 'UPTIME', goal: 880, speed: 245, spawn: 0.48, bg: '#17311f' }
+          { name: 'BOOT', goal: 850, speed: 145, spawn: 0.92, bg: '#102142' },
+          { name: 'CACHE', goal: 1050, speed: 170, spawn: 0.80, bg: '#1c214f' },
+          { name: 'PATCH', goal: 1260, speed: 195, spawn: 0.70, bg: '#142e35' },
+          { name: 'FAILOVER', goal: 1510, speed: 220, spawn: 0.62, bg: '#30213b' },
+          { name: 'UPTIME', goal: 1800, speed: 245, spawn: 0.56, bg: '#17311f' }
         ],
         distance: 0,
         totalDistance: 0,
@@ -4512,8 +4525,10 @@ const HELP_SECTIONS = [
       game.pickupTimer -= dt;
       if (game.spawnTimer <= 0) {
         const kind = ['packet', 'spike', 'drop', 'lock'][Math.floor(Math.random() * 4)];
-        game.obstacles.push({ lane: Math.floor(Math.random() * 3), y: -34, kind, hit: false });
-        game.spawnTimer = Math.max(0.28, sector.spawn + Math.random() * 0.18 - 0.06);
+        const clearLanes = [0, 1, 2].filter(lane => !game.obstacles.some(item => item.lane === lane && item.y < 118));
+        const lanes = clearLanes.length ? clearLanes : [0, 1, 2];
+        game.obstacles.push({ lane: lanes[Math.floor(Math.random() * lanes.length)], y: -34, kind, hit: false });
+        game.spawnTimer = Math.max(0.38, sector.spawn + Math.random() * 0.20 - 0.08);
       }
       if (game.pickupTimer <= 0) {
         const kind = ['boost', 'shield', 'patch'][Math.floor(Math.random() * 3)];
@@ -4525,8 +4540,8 @@ const HELP_SECTIONS = [
       game.pickups = game.pickups.filter(item => {
         if (item.lane === game.lane && item.y > 252 && item.y < 322) {
           if (item.kind === 'boost') game.boost = 3.0;
-          if (item.kind === 'shield') game.shield = 4.0;
-          if (item.kind === 'patch') game.lives = Math.min(3, game.lives + 1);
+          if (item.kind === 'shield') game.shield = 5.0;
+          if (item.kind === 'patch') game.lives = Math.min(4, game.lives + 1);
           game.fx.push({ text: item.kind.toUpperCase(), ttl: 0.8 });
           return false;
         }
@@ -4647,7 +4662,7 @@ const HELP_SECTIONS = [
       const game = {
         wave: 1,
         maxWave: 5,
-        player: { hp: 44, maxHp: 44, patches: 3, shield: 0, heat: 0 },
+        player: { hp: 56, maxHp: 56, patches: 4, firewalls: 3, shield: 0, heat: 0 },
         enemy: null,
         log: ['Ticket dungeon online. Root cause waits at wave 5.'],
         score: 0,
@@ -4660,11 +4675,11 @@ const HELP_SECTIONS = [
 
     spawnRpgEnemy(game) {
       const roster = [
-        { name: 'Null Pointer', hp: 18, atkMin: 3, atkMax: 6, color: '#45f7ff' },
-        { name: 'Cache Storm', hp: 24, atkMin: 4, atkMax: 7, color: '#ff4fd8' },
-        { name: 'Config Drift', hp: 30, atkMin: 5, atkMax: 8, color: '#ffd34d' },
-        { name: 'Deploy Freeze', hp: 38, atkMin: 6, atkMax: 10, color: '#7dff68' },
-        { name: 'Root Cause', hp: 52, atkMin: 7, atkMax: 12, color: '#ff5a6d' }
+        { name: 'Null Pointer', hp: 20, atkMin: 2, atkMax: 5, color: '#45f7ff' },
+        { name: 'Cache Storm', hp: 28, atkMin: 3, atkMax: 6, color: '#ff4fd8' },
+        { name: 'Config Drift', hp: 36, atkMin: 4, atkMax: 7, color: '#ffd34d' },
+        { name: 'Deploy Freeze', hp: 44, atkMin: 5, atkMax: 8, color: '#7dff68' },
+        { name: 'Root Cause', hp: 58, atkMin: 6, atkMax: 10, color: '#ff5a6d' }
       ];
       const def = roster[Math.min(roster.length - 1, game.wave - 1)];
       game.enemy = { ...def, maxHp: def.hp };
@@ -4679,7 +4694,7 @@ const HELP_SECTIONS = [
       const enemy = game.enemy;
       const roll = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
       if (action === 'attack') {
-        const dmg = roll(7, 11) + Math.floor(player.heat / 2);
+        const dmg = roll(8, 12) + Math.floor(player.heat / 2);
         enemy.hp -= dmg;
         game.log.unshift(`Attack hits ${enemy.name} for ${dmg}.`);
       } else if (action === 'patch') {
@@ -4688,19 +4703,25 @@ const HELP_SECTIONS = [
           this.renderCtrlAltDefeat();
           return;
         }
-        const heal = roll(10, 16);
+        const heal = roll(13, 19);
         player.hp = Math.min(player.maxHp, player.hp + heal);
         player.patches -= 1;
         player.heat = Math.max(0, player.heat - 1);
         game.log.unshift(`Patch restores ${heal} HP.`);
       } else if (action === 'overclock') {
-        const dmg = roll(13, 18) + player.heat;
+        const dmg = roll(15, 21) + player.heat;
         enemy.hp -= dmg;
         player.heat += 1;
-        player.hp = Math.max(1, player.hp - 3);
+        player.hp = Math.max(1, player.hp - 4);
         game.log.unshift(`Overclock burns ${enemy.name} for ${dmg}.`);
       } else if (action === 'firewall') {
-        player.shield = 10 + game.wave * 2;
+        if (player.firewalls <= 0) {
+          game.log.unshift('No firewall charges left this run.');
+          this.renderCtrlAltDefeat();
+          return;
+        }
+        player.firewalls -= 1;
+        player.shield = 14 + game.wave * 2;
         player.heat = Math.max(0, player.heat - 1);
         game.log.unshift(`Firewall arms ${player.shield} shield.`);
       }
@@ -4717,7 +4738,8 @@ const HELP_SECTIONS = [
         }
         game.wave += 1;
         if (game.wave % 2 === 1) player.patches = Math.min(4, player.patches + 1);
-        player.hp = Math.min(player.maxHp, player.hp + 8);
+        player.firewalls = Math.min(3, player.firewalls + 1);
+        player.hp = Math.min(player.maxHp, player.hp + 10);
         this.spawnRpgEnemy(game);
         game.log.unshift(`Wave ${game.wave} escalates: ${game.enemy.name}.`);
         this.setArcadeScore('ctrlAltDefeat', game.score);
