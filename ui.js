@@ -2359,10 +2359,20 @@ const HELP_SECTIONS = [
 
     startArcadeLoop() {
       const frame = now => {
-        if (this.arcade && this.arcade.overlayOpen && this.arcade.currentGameId && !this.arcade.gamePaused) this.updateArcade(now);
+        this.advanceArcade(now);
         window.requestAnimationFrame(frame);
       };
       window.requestAnimationFrame(frame);
+    },
+
+    // The cabinet texture can still be redrawn on a device that throttles the
+    // page animation frame. Keep one guarded clock that either path can use.
+    advanceArcade(now = this.arcadePerfNow()) {
+      if (!this.arcade || !this.arcade.overlayOpen || !this.arcade.currentGameId || this.arcade.gamePaused) return;
+      const stamp = Number(now) || this.arcadePerfNow();
+      if (stamp - (this.arcade.lastAdvanceAt || 0) < 12) return;
+      this.arcade.lastAdvanceAt = stamp;
+      this.updateArcade(stamp);
     },
 
     getArcadeScore(id) {
@@ -2693,6 +2703,11 @@ const HELP_SECTIONS = [
     handleCabinetArcadePointer(u, v) {
       const arcade = this.arcade;
       if (!arcade) return;
+      // A tap is also an explicit resume signal for mobile browsers, whose
+      // animation callbacks may have been paused while the camera transitioned.
+      arcade.gamePaused = false;
+      arcade.lastTs = this.arcadePerfNow();
+      arcade.lastAdvanceAt = 0;
       const x = Math.max(0, Math.min(512, u * 512));
       const y = Math.max(0, Math.min(384, v * 384));
       if (!arcade.currentGameId) {
@@ -2770,6 +2785,7 @@ const HELP_SECTIONS = [
     },
 
     renderCabinetArcade(ctx, width, height, time = 0) {
+      this.advanceArcade(this.arcadePerfNow());
       const sx = width / 512, sy = height / 384;
       ctx.save();
       ctx.setTransform(sx, 0, 0, sy, 0, 0);
@@ -3962,7 +3978,11 @@ const HELP_SECTIONS = [
         : 1;
       this.createArcadeGame(id, carryScore, round);
       this.arcade.gamePaused = false;
+      this.arcade.keys = {};
       this.arcade.lastTs = this.arcadePerfNow();
+      this.arcade.lastAdvanceAt = 0;
+      const title = this.arcadeGameDef(id)?.title || id;
+      this.office3D?.setArcadeScreenState({ mode: 'game', title });
       this.renderCurrentArcadeFrame(true);
     },
 
@@ -5032,13 +5052,15 @@ const HELP_SECTIONS = [
         fighter.vy -= gravity * dt;
         fighter.y = Math.max(0, fighter.y + fighter.vy * dt);
         if (fighter.y === 0 && fighter.vy < 0) fighter.vy = 0;
-        if (fighter.attack) {
-          fighter.attack.t += dt;
-          if (fighter.attack.t >= fighter.attack.duration) fighter.attack = null;
-        }
+        if (fighter.attack) fighter.attack.t += dt;
       });
       this.applyFighterHit(game, 'player');
       this.applyFighterHit(game, 'enemy');
+      // Resolve the hit window before clearing the animation. This guarantees
+      // that a fast mobile frame cannot leave a punch state hanging forever.
+      [player, enemy].forEach(fighter => {
+        if (fighter.attack && fighter.attack.t >= fighter.attack.duration) fighter.attack = null;
+      });
       if (enemy.hp <= 0) this.resetFighterRound(game, true);
       else if (player.hp <= 0) this.resetFighterRound(game, false);
     },
