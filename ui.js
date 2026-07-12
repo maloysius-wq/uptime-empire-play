@@ -2944,6 +2944,8 @@ const HELP_SECTIONS = [
 
     renderCabinetCircuit(ctx, game, time) {
       if (!game) return;
+      const difficulty = Math.max(1, Number(game.difficulty) || 1);
+      game.difficulty = difficulty;
       const sector = game.sectors[game.sector];
       const shake = game.screenShake > 0 ? Math.ceil(Math.sin(time * 90) * 5 * (game.screenShake / 0.26)) : 0;
       ctx.save();
@@ -2951,7 +2953,7 @@ const HELP_SECTIONS = [
       ctx.fillStyle = sector.bg; ctx.fillRect(124, 58, 264, 258);
       [168, 256, 344].forEach(x => { ctx.strokeStyle = 'rgba(69,247,255,0.24)'; ctx.beginPath(); ctx.moveTo(x, 58); ctx.lineTo(x, 316); ctx.stroke(); });
       for (let y = 72 + (Math.floor(time * 150) % 32); y < 312; y += 32) { ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(125, y, 263, 3); }
-      this.drawCabinetText(ctx, `LOOP ${game.loop} X${game.difficulty.toFixed(2)} SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 9, '#d5efff');
+      this.drawCabinetText(ctx, `LOOP ${game.loop} X${difficulty.toFixed(2)} SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 9, '#d5efff');
       this.drawCabinetText(ctx, `LIVES ${game.lives}`, 26, 82, 11, '#ffd34d');
       this.drawCabinetText(ctx, `SCORE ${game.score}`, 486, 63, 10, '#d5efff', 'right');
       this.drawCabinetText(ctx, `${Math.max(0, Math.ceil(game.sessionDuration - game.sessionTime))}S`, 486, 82, 11, '#7dff68', 'right');
@@ -4020,7 +4022,7 @@ const HELP_SECTIONS = [
       if (!this.arcade || !this.arcade.currentGameId || !this.arcade.overlayOpen || this.arcade.gamePaused) return;
       const dt = Math.min(0.05, (now - this.arcade.lastTs) / 1000 || 0.016);
       this.arcade.lastTs = now;
-      const id = activeGame;
+      const id = this.arcade.currentGameId;
       if (id === 'bombmopper') {
         const game = this.arcade.games.bombmopper;
         this.updateBombmopper(dt);
@@ -4669,6 +4671,12 @@ const HELP_SECTIONS = [
     updateCircuitBreaker(dt) {
       const game = this.arcade.games.circuitBreaker;
       if (!game || game.over) return;
+      // Existing cabinet sessions can survive a deploy. Normalize the new
+      // progression fields before using them so they remain playable.
+      game.difficulty = Math.max(1, Number(game.difficulty) || 1);
+      game.screenShake = Math.max(0, Number(game.screenShake) || 0);
+      game.damageFlash = Math.max(0, Number(game.damageFlash) || 0);
+      game.sectorFlash = Math.max(0, Number(game.sectorFlash) || 0);
       if (this.arcade.keys.arrowleft || this.arcade.keys.a) {
         game.lane = Math.max(0, game.lane - 1);
         this.arcade.keys.arrowleft = this.arcade.keys.a = false;
