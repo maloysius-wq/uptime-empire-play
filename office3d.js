@@ -3864,7 +3864,9 @@
       this._arcadeRaycaster.setFromCamera(ndc, this.camera);
       const hit = this._arcadeRaycaster.intersectObject(this.arcadeDisplay.screen, false)[0];
       if (!hit?.uv) return null;
-      return { x: 1 - hit.uv.x, y: 1 - hit.uv.y };
+      // The screen mesh is rotated to face the player, but its UVs already map
+      // left-to-right in the visible CRT image. Do not mirror tap coordinates.
+      return { x: hit.uv.x, y: 1 - hit.uv.y };
     }
 
     setVisualQACamera(viewName = 'arcade-front') {
