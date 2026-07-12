@@ -2657,6 +2657,15 @@ const HELP_SECTIONS = [
     handleArcadeKeyDown(e) {
       if (!this.arcade || !this.arcade.overlayOpen || !this.arcade.currentGameId) return;
       const key = e.key.toLowerCase();
+      const activeGame = this.arcade.currentGameId;
+      if (key === 'p' && (activeGame === 'circuitBreaker' || activeGame === 'mortalKonfig')) {
+        e.preventDefault();
+        this.arcade.gamePaused = !this.arcade.gamePaused;
+        this.arcade.keys.p = false;
+        this.arcade.lastTs = this.arcadePerfNow();
+        this.arcade.lastAdvanceAt = 0;
+        return;
+      }
       this.arcade.keys[key] = true;
       if (this.arcade.gamePaused) this.arcade.gamePaused = false;
       if (this.arcade.currentGameId === 'ctrlAltDefeat') {
@@ -2703,11 +2712,6 @@ const HELP_SECTIONS = [
     handleCabinetArcadePointer(u, v) {
       const arcade = this.arcade;
       if (!arcade) return;
-      // A tap is also an explicit resume signal for mobile browsers, whose
-      // animation callbacks may have been paused while the camera transitioned.
-      arcade.gamePaused = false;
-      arcade.lastTs = this.arcadePerfNow();
-      arcade.lastAdvanceAt = 0;
       const x = Math.max(0, Math.min(512, u * 512));
       const y = Math.max(0, Math.min(384, v * 384));
       if (!arcade.currentGameId) {
@@ -2723,6 +2727,17 @@ const HELP_SECTIONS = [
       const game = arcade.games[id];
       if (!game) return;
       if (y < 36 && x < 82) { this.renderArcadeMenu(); return; }
+      if ((id === 'circuitBreaker' || id === 'mortalKonfig') && y < 36 && x >= 352 && x <= 420) {
+        arcade.gamePaused = !arcade.gamePaused;
+        arcade.lastTs = this.arcadePerfNow();
+        arcade.lastAdvanceAt = 0;
+        return;
+      }
+      // Any game tap resumes after a mobile browser has throttled its normal
+      // animation callbacks, except the dedicated pause control above.
+      arcade.gamePaused = false;
+      arcade.lastTs = this.arcadePerfNow();
+      arcade.lastAdvanceAt = 0;
       if (y < 36 && x > 420) { this.restartArcadeGame(id); return; }
       if (game.over || game.won) {
         if (x >= 158 && x <= 354 && y >= 220 && y <= 260) this.restartArcadeGame(id);
@@ -2831,13 +2846,22 @@ const HELP_SECTIONS = [
       const game = this.arcade.games[id];
       this.drawCabinetText(ctx, '< MENU', 26, 30, 10, '#a8eaff');
       this.drawCabinetText(ctx, def.title.toUpperCase(), 256, 30, 16, def.accent, 'center');
+      if (id === 'circuitBreaker' || id === 'mortalKonfig') this.drawCabinetText(ctx, this.arcade.gamePaused ? 'RESUME' : 'PAUSE', 386, 30, 9, '#a8eaff', 'center');
       this.drawCabinetText(ctx, game?.won ? 'NEXT RUN >' : 'RESTART >', 486, 30, 10, '#ffd34d', 'right');
       if (id === 'bombmopper') this.renderCabinetBombmopper(ctx, game);
       if (id === 'stackOverflow') this.renderCabinetSolitaire(ctx, game);
       if (id === 'circuitBreaker') this.renderCabinetCircuit(ctx, game, time);
       if (id === 'ctrlAltDefeat') this.renderCabinetRpg(ctx, game);
       if (id === 'mortalKonfig') this.renderCabinetFighter(ctx, game);
+      if (this.arcade.gamePaused && !game?.over) this.renderCabinetPauseOverlay(ctx);
       if (game?.over || game?.won) this.renderCabinetResultOverlay(ctx, game);
+    },
+
+    renderCabinetPauseOverlay(ctx) {
+      ctx.fillStyle = 'rgba(2, 4, 10, 0.78)'; ctx.fillRect(122, 146, 268, 92);
+      ctx.strokeStyle = '#45f7ff'; ctx.lineWidth = 3; ctx.strokeRect(122, 146, 268, 92);
+      this.drawCabinetText(ctx, 'PAUSED', 256, 176, 24, '#45f7ff', 'center');
+      this.drawCabinetText(ctx, 'TAP RESUME OR PRESS P', 256, 207, 10, '#d5efff', 'center');
     },
 
     renderCabinetResultOverlay(ctx, game) {
@@ -2921,10 +2945,13 @@ const HELP_SECTIONS = [
     renderCabinetCircuit(ctx, game, time) {
       if (!game) return;
       const sector = game.sectors[game.sector];
+      const shake = game.screenShake > 0 ? Math.ceil(Math.sin(time * 90) * 5 * (game.screenShake / 0.26)) : 0;
+      ctx.save();
+      ctx.translate(shake, 0);
       ctx.fillStyle = sector.bg; ctx.fillRect(124, 58, 264, 258);
       [168, 256, 344].forEach(x => { ctx.strokeStyle = 'rgba(69,247,255,0.24)'; ctx.beginPath(); ctx.moveTo(x, 58); ctx.lineTo(x, 316); ctx.stroke(); });
       for (let y = 72 + (Math.floor(time * 150) % 32); y < 312; y += 32) { ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(125, y, 263, 3); }
-      this.drawCabinetText(ctx, `LOOP ${game.loop}  SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 10, '#d5efff');
+      this.drawCabinetText(ctx, `LOOP ${game.loop} X${game.difficulty.toFixed(2)} SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 9, '#d5efff');
       this.drawCabinetText(ctx, `LIVES ${game.lives}`, 26, 82, 11, '#ffd34d');
       this.drawCabinetText(ctx, `SCORE ${game.score}`, 486, 63, 10, '#d5efff', 'right');
       this.drawCabinetText(ctx, `${Math.max(0, Math.ceil(game.sessionDuration - game.sessionTime))}S`, 486, 82, 11, '#7dff68', 'right');
@@ -2944,6 +2971,9 @@ const HELP_SECTIONS = [
       ctx.fillStyle = '#25344a'; ctx.fillRect(124, 326, 264, 8); ctx.fillStyle = '#7dff68'; ctx.fillRect(124, 326, Math.min(264, game.sessionTime / game.sessionDuration * 264), 8);
       this.drawCabinetText(ctx, 'TAP A LANE OR USE A/D  //  SHIELD, PHASE, PATCH, SCRUB', 256, 353, 9, '#7dff68', 'center');
       if (game.over) this.drawCabinetText(ctx, 'PACKET LOSS - RESTART TO RUN AGAIN', 256, 370, 10, '#ff5a6d', 'center');
+      if (game.damageFlash > 0) { ctx.fillStyle = `rgba(255,40,60,${game.damageFlash * 1.8})`; ctx.fillRect(20, 52, 472, 310); }
+      if (game.sectorFlash > 0) { ctx.fillStyle = `rgba(125,255,104,${game.sectorFlash * 0.20})`; ctx.fillRect(124, 58, 264, 258); }
+      ctx.restore();
     },
 
     renderCabinetRpg(ctx, game) {
@@ -2983,7 +3013,7 @@ const HELP_SECTIONS = [
       ctx.fillStyle = '#17142d'; ctx.fillRect(22, 58, 468, 246); ctx.fillStyle = '#0d1020'; ctx.fillRect(22, 266, 468, 38);
       const bar = (x, hp, max, color, flip = false) => { ctx.fillStyle = '#263446'; ctx.fillRect(x, 65, 166, 12); ctx.fillStyle = color; const width = Math.max(0, hp / max) * 166; ctx.fillRect(flip ? x + 166 - width : x, 65, width, 12); };
       bar(34, game.player.hp, game.player.maxHp, '#ffd34d'); bar(312, game.enemy.hp, game.enemy.maxHp, '#ff5a6d', true);
-      this.drawCabinetText(ctx, `TIER ${game.tier}  ROUND ${game.round}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 10, '#d5efff', 'center');
+      this.drawCabinetText(ctx, `TIER ${game.tier}  ROUND ${game.round}  AI X${(game.aiSkill || 1).toFixed(2)}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 9, '#d5efff', 'center');
       const fighter = (unit, color, label) => {
         const x = 22 + (unit.x / 640) * 468;
         const y = 270 - unit.y * 0.48;
@@ -3990,7 +4020,7 @@ const HELP_SECTIONS = [
       if (!this.arcade || !this.arcade.currentGameId || !this.arcade.overlayOpen || this.arcade.gamePaused) return;
       const dt = Math.min(0.05, (now - this.arcade.lastTs) / 1000 || 0.016);
       this.arcade.lastTs = now;
-      const id = this.arcade.currentGameId;
+      const id = activeGame;
       if (id === 'bombmopper') {
         const game = this.arcade.games.bombmopper;
         this.updateBombmopper(dt);
@@ -4019,10 +4049,19 @@ const HELP_SECTIONS = [
     handleArcadeKeyDown(e) {
       if (!this.arcade || !this.arcade.overlayOpen || !this.arcade.currentGameId) return;
       const key = e.key.toLowerCase();
+      const activeGame = this.arcade.currentGameId;
+      if (key === 'p' && (activeGame === 'circuitBreaker' || activeGame === 'mortalKonfig')) {
+        e.preventDefault();
+        this.arcade.gamePaused = !this.arcade.gamePaused;
+        this.arcade.keys.p = false;
+        this.arcade.lastTs = this.arcadePerfNow();
+        this.arcade.lastAdvanceAt = 0;
+        return;
+      }
       this.arcade.keys[key] = true;
       if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'a', 'd', 'w', 'j', 'k', 'l', 'f', 'p', 'o', 'r', 'h', 'u', 'n'].includes(key)) e.preventDefault();
       if (this.arcade.gamePaused) this.arcade.gamePaused = false;
-      const id = this.arcade.currentGameId;
+      const id = activeGame;
       if (key === 'r') { this.restartArcadeGame(id); return; }
       if (id === 'bombmopper' && key === 'f') {
         const game = this.arcade.games.bombmopper;
@@ -4590,11 +4629,13 @@ const HELP_SECTIONS = [
     },
 
     createCircuitBreakerGame(carryScore = 0, loop = 1) {
+      const difficulty = 1 + (loop - 1) * 0.13;
       return {
         lane: 1,
         lives: 4,
         sector: 0,
         loop,
+        difficulty,
         nextRound: loop + 1,
         sectors: [
           { name: 'BOOT', goal: 850, speed: 145, spawn: 0.92, bg: '#102142' },
@@ -4616,6 +4657,9 @@ const HELP_SECTIONS = [
         shield: 0,
         boost: 0,
         invuln: 0,
+        screenShake: 0,
+        damageFlash: 0,
+        sectorFlash: 0,
         over: false,
         won: false,
         fx: []
@@ -4637,15 +4681,18 @@ const HELP_SECTIONS = [
       game.shield = Math.max(0, game.shield - dt);
       game.boost = Math.max(0, game.boost - dt);
       game.invuln = Math.max(0, game.invuln - dt);
+      game.screenShake = Math.max(0, game.screenShake - dt);
+      game.damageFlash = Math.max(0, game.damageFlash - dt);
+      game.sectorFlash = Math.max(0, game.sectorFlash - dt);
       game.sessionTime += dt;
       const nextSector = Math.min(game.sectors.length - 1, Math.floor(game.sessionTime / (game.sessionDuration / game.sectors.length)));
       if (nextSector !== game.sector) {
         game.sector = nextSector;
-        game.obstacles = [];
-        game.pickups = [];
+        // Sector changes alter the presentation, never erase the active run.
+        game.sectorFlash = 0.7;
         game.fx.push({ text: `SECTOR ${game.sector + 1}`, ttl: 1.1 });
       }
-      const speed = sector.speed * (game.boost > 0 ? 1.35 : 1);
+      const speed = sector.speed * game.difficulty * (game.boost > 0 ? 1.35 : 1);
       game.distance += speed * dt;
       game.totalDistance += speed * dt;
       game.score = game.carryScore + Math.floor(game.totalDistance * 1.4) + game.sector * 250 + game.lives * 35;
@@ -4656,7 +4703,7 @@ const HELP_SECTIONS = [
         const clearLanes = [0, 1, 2].filter(lane => !game.obstacles.some(item => item.lane === lane && item.y < 118));
         const lanes = clearLanes.length ? clearLanes : [0, 1, 2];
         game.obstacles.push({ lane: lanes[Math.floor(Math.random() * lanes.length)], y: -34, kind, hit: false });
-        game.spawnTimer = Math.max(0.38, sector.spawn + Math.random() * 0.20 - 0.08);
+        game.spawnTimer = Math.max(0.28, (sector.spawn + Math.random() * 0.20 - 0.08) / game.difficulty);
       }
       if (game.pickupTimer <= 0) {
         const kind = ['boost', 'shield', 'patch', 'phase', 'scrubber'][Math.floor(Math.random() * 5)];
@@ -4686,6 +4733,8 @@ const HELP_SECTIONS = [
         } else {
           game.lives -= item.kind === 'spike' ? 2 : 1;
           game.invuln = 1.0;
+          game.screenShake = 0.26;
+          game.damageFlash = 0.24;
           game.fx.push({ text: 'HIT', ttl: 0.7 });
           if (game.lives <= 0) {
             game.over = true;
@@ -4949,6 +4998,7 @@ const HELP_SECTIONS = [
         round: 1,
         tier,
         nextRound: tier + 1,
+        aiSkill: 1 + (tier - 1) * 0.16,
         score: carryScore,
         aiTimer: 0.4,
         over: false,
@@ -5006,9 +5056,10 @@ const HELP_SECTIONS = [
       }
       game.round += 1;
       game.player = { x: 150, y: 0, vy: 0, hp: 100, maxHp: 100, attack: null, block: 0, stun: 0, dir: 1 };
-      const hp = 100 + game.tier * 18 + game.round * 10;
+      const hp = 100 + game.tier * 20 + game.round * 14;
       game.enemy = { x: 500, y: 0, vy: 0, hp, maxHp: hp, attack: null, block: 0, stun: 0, dir: -1 };
-      game.message = `Round ${game.round}. First to two wins.`;
+      game.aiSkill = 1 + (game.tier - 1) * 0.16 + (game.round - 1) * 0.14;
+      game.message = `Round ${game.round}. Kernel AI x${game.aiSkill.toFixed(2)}.`;
     },
 
     updateMortalKonfig(dt) {
@@ -5020,6 +5071,7 @@ const HELP_SECTIONS = [
       const gravity = 720;
       const moveSpeed = 170;
       const jump = 330;
+      const aiSkill = game.aiSkill || (1 + (game.tier - 1) * 0.16 + (game.round - 1) * 0.14);
       player.dir = enemy.x >= player.x ? 1 : -1;
       enemy.dir = player.x >= enemy.x ? 1 : -1;
       player.block = keys.l ? 0.12 : Math.max(0, player.block - dt);
@@ -5039,12 +5091,13 @@ const HELP_SECTIONS = [
       game.aiTimer -= dt;
       if (enemy.stun <= 0) {
         const dist = Math.abs(player.x - enemy.x);
-        if (dist > 82) enemy.x += Math.sign(player.x - enemy.x) * moveSpeed * (0.66 + game.round * 0.05) * dt;
-        if (enemy.y === 0 && Math.random() < 0.004 + game.round * 0.001) { enemy.vy = jump * 0.92; enemy.y = 1; }
-        enemy.block = player.attack && dist < 95 && Math.random() < 0.55 ? 0.16 : Math.max(0, enemy.block - dt);
-        if (dist < 94 && game.aiTimer <= 0 && enemy.block <= 0) {
-          this.startFighterAttack(game, 'enemy', Math.random() < 0.42 + game.round * 0.05 ? 'kick' : 'punch');
-          game.aiTimer = Math.max(0.36, 0.88 - game.round * 0.08);
+        const preferredRange = Math.max(62, 100 - aiSkill * 13);
+        if (dist > preferredRange) enemy.x += Math.sign(player.x - enemy.x) * moveSpeed * (0.58 + aiSkill * 0.18) * dt;
+        if (enemy.y === 0 && Math.random() < 0.003 + aiSkill * 0.0015) { enemy.vy = jump * (0.84 + Math.min(0.16, aiSkill * 0.04)); enemy.y = 1; }
+        enemy.block = player.attack && dist < 108 && Math.random() < Math.min(0.82, 0.38 + aiSkill * 0.16) ? 0.18 + aiSkill * 0.02 : Math.max(0, enemy.block - dt);
+        if (dist < 104 && game.aiTimer <= 0 && enemy.block <= 0) {
+          this.startFighterAttack(game, 'enemy', Math.random() < Math.min(0.78, 0.28 + aiSkill * 0.16) ? 'kick' : 'punch');
+          game.aiTimer = Math.max(0.24, 0.92 - aiSkill * 0.16);
         }
       }
       [player, enemy].forEach(fighter => {
