@@ -2811,7 +2811,7 @@ const HELP_SECTIONS = [
       const game = this.arcade.games[id];
       this.drawCabinetText(ctx, '< MENU', 26, 30, 10, '#a8eaff');
       this.drawCabinetText(ctx, def.title.toUpperCase(), 256, 30, 16, def.accent, 'center');
-      this.drawCabinetText(ctx, 'RESTART >', 486, 30, 10, '#ffd34d', 'right');
+      this.drawCabinetText(ctx, game?.won ? 'NEXT RUN >' : 'RESTART >', 486, 30, 10, '#ffd34d', 'right');
       if (id === 'bombmopper') this.renderCabinetBombmopper(ctx, game);
       if (id === 'stackOverflow') this.renderCabinetSolitaire(ctx, game);
       if (id === 'circuitBreaker') this.renderCabinetCircuit(ctx, game, time);
@@ -2822,7 +2822,7 @@ const HELP_SECTIONS = [
     renderCabinetBombmopper(ctx, game) {
       if (!game) return;
       const flags = game.cells.filter(cell => cell.flagged).length;
-      this.drawCabinetText(ctx, `SCORE ${Math.floor(game.score)}   HI ${this.getArcadeScore('bombmopper')}   BOMBS ${game.bombs - flags}   ${Math.floor(game.elapsed)}S`, 256, 53, 10, '#a8eaff', 'center');
+      this.drawCabinetText(ctx, `SHIFT ${game.round}   SCORE ${Math.floor(game.score)}   HI ${this.getArcadeScore('bombmopper')}   BOMBS ${game.bombs - flags}   ${Math.floor(game.elapsed)}S`, 256, 53, 9, '#a8eaff', 'center');
       const cellSize = 24, left = 136, top = 72;
       game.cells.forEach((cell, index) => {
         const x = left + (index % 10) * cellSize, y = top + Math.floor(index / 10) * cellSize;
@@ -2861,7 +2861,7 @@ const HELP_SECTIONS = [
 
     renderCabinetSolitaire(ctx, game) {
       if (!game) return;
-      this.drawCabinetText(ctx, `SCORE ${game.score}  MOVES ${game.moves}  HI ${this.getArcadeScore('stackOverflow')}`, 256, 52, 10, '#ffb8ed', 'center');
+      this.drawCabinetText(ctx, `DEAL ${game.round}  SCORE ${game.score}  MOVES ${game.moves}  HI ${this.getArcadeScore('stackOverflow')}`, 256, 52, 9, '#ffb8ed', 'center');
       if (game.stock.length) this.drawCabinetCard(ctx, { faceUp: false }, 22, 58);
       else { ctx.strokeStyle = '#ff4fd8'; ctx.strokeRect(22, 58, 52, 66); this.drawCabinetText(ctx, 'RESET', 48, 91, 8, '#ffb8ed', 'center'); }
       const waste = game.waste[game.waste.length - 1];
@@ -2890,7 +2890,7 @@ const HELP_SECTIONS = [
       ctx.fillStyle = sector.bg; ctx.fillRect(124, 58, 264, 258);
       [168, 256, 344].forEach(x => { ctx.strokeStyle = 'rgba(69,247,255,0.24)'; ctx.beginPath(); ctx.moveTo(x, 58); ctx.lineTo(x, 316); ctx.stroke(); });
       for (let y = 72 + (Math.floor(time * 150) % 32); y < 312; y += 32) { ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(125, y, 263, 3); }
-      this.drawCabinetText(ctx, `SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 10, '#d5efff');
+      this.drawCabinetText(ctx, `LOOP ${game.loop}  SECTOR ${game.sector + 1}/5 ${sector.name}`, 26, 63, 10, '#d5efff');
       this.drawCabinetText(ctx, `LIVES ${game.lives}`, 26, 82, 11, '#ffd34d');
       this.drawCabinetText(ctx, `SCORE ${game.score}`, 486, 63, 10, '#d5efff', 'right');
       game.obstacles.forEach(item => { const x = 168 + item.lane * 88; ctx.fillStyle = item.kind === 'spike' ? '#ff5a6d' : '#ff4fd8'; ctx.fillRect(x - 22, item.y * 0.75 + 62, 44, 19); });
@@ -2898,21 +2898,39 @@ const HELP_SECTIONS = [
       const carX = 168 + game.lane * 88; ctx.fillStyle = '#ffd34d'; ctx.fillRect(carX - 24, 282, 48, 20); ctx.fillStyle = '#ff5a6d'; ctx.fillRect(carX - 13, 274, 26, 10);
       ctx.fillStyle = '#25344a'; ctx.fillRect(124, 326, 264, 8); ctx.fillStyle = '#7dff68'; ctx.fillRect(124, 326, Math.min(264, game.distance / sector.goal * 264), 8);
       this.drawCabinetText(ctx, 'TAP A LANE OR USE A/D', 256, 353, 10, '#7dff68', 'center');
-      if (game.over) this.drawCabinetText(ctx, game.won ? 'UPTIME HELD - RESTART TO RUN AGAIN' : 'PACKET LOSS - RESTART TO RUN AGAIN', 256, 370, 10, game.won ? '#7dff68' : '#ff5a6d', 'center');
+      if (game.over) this.drawCabinetText(ctx, 'PACKET LOSS - RESTART TO RUN AGAIN', 256, 370, 10, '#ff5a6d', 'center');
     },
 
     renderCabinetRpg(ctx, game) {
       if (!game) return;
-      const hp = (value, max, x, y, color) => { ctx.fillStyle = '#263446'; ctx.fillRect(x, y, 180, 12); ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, value / max) * 180, 12); };
-      this.drawCabinetText(ctx, `WAVE ${game.wave}/${game.maxWave}   SCORE ${game.score}   HI ${this.getArcadeScore('ctrlAltDefeat')}`, 256, 55, 10, '#ffe19a', 'center');
-      this.drawCabinetText(ctx, 'NOVA ADMIN', 58, 91, 13, '#57f4ff'); hp(game.player.hp, game.player.maxHp, 58, 102, '#57f4ff');
-      this.drawCabinetText(ctx, game.enemy.name.toUpperCase(), 454, 91, 13, game.enemy.color, 'right'); hp(game.enemy.hp, game.enemy.maxHp, 274, 102, game.enemy.color);
-      ctx.fillStyle = '#173246'; ctx.fillRect(54, 132, 100, 104); ctx.fillStyle = game.enemy.color; ctx.fillRect(358, 132, 100, 104);
-      this.drawCabinetText(ctx, `HP ${game.player.hp}/${game.player.maxHp}  PATCH ${game.player.patches}  WALL ${game.player.firewalls}  HEAT ${game.player.heat}`, 58, 252, 8, '#a8eaff');
-      this.drawCabinetText(ctx, `HP ${Math.max(0, game.enemy.hp)}/${game.enemy.maxHp}  ATK ${game.enemy.atkMin}-${game.enemy.atkMax}`, 454, 252, 9, '#ffd5e9', 'right');
-      ['ATTACK', 'PATCH', 'OCLOCK', 'FIREWALL'].forEach((label, index) => { const x = 28 + index * 114; ctx.fillStyle = 'rgba(255,211,77,0.18)'; ctx.fillRect(x, 278, 106, 42); ctx.strokeStyle = '#ffd34d'; ctx.strokeRect(x, 278, 106, 42); this.drawCabinetText(ctx, label, x + 53, 299, 10, '#ffe39b', 'center'); });
-      this.drawCabinetText(ctx, (game.log[0] || '').toUpperCase(), 256, 344, 10, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
-      if (game.over) this.drawCabinetText(ctx, 'RUN COMPLETE - TAP RESTART', 256, 367, 10, '#ff4fd8', 'center');
+      const hp = (value, max, x, y, width, color, flip = false) => {
+        ctx.fillStyle = '#263446'; ctx.fillRect(x, y, width, 12);
+        const fill = Math.max(0, value / max) * width;
+        ctx.fillStyle = color; ctx.fillRect(flip ? x + width - fill : x, y, fill, 12);
+      };
+      const sprite = (x, y, color, kind, facing = 1) => {
+        ctx.save(); ctx.translate(x, y); ctx.scale(facing, 1);
+        ctx.fillStyle = color;
+        if (kind === 'null') { ctx.fillRect(-16, -48, 32, 32); ctx.fillStyle = '#07111b'; ctx.fillRect(-10, -41, 20, 8); }
+        else if (kind === 'storm') { ctx.fillRect(-18, -42, 36, 24); ctx.fillRect(-10, -56, 20, 12); ctx.fillStyle = '#f7fbff'; ctx.fillRect(12, -38, 10, 5); }
+        else if (kind === 'freeze') { ctx.fillRect(-14, -56, 28, 40); ctx.fillStyle = '#d8ffff'; ctx.fillRect(-7, -68, 14, 12); }
+        else if (kind === 'root') { ctx.fillRect(-20, -52, 40, 36); ctx.fillStyle = '#1a0b13'; ctx.fillRect(-13, -44, 26, 8); ctx.fillStyle = color; ctx.fillRect(-8, -68, 16, 16); }
+        else { ctx.fillRect(-15, -50, 30, 34); ctx.fillStyle = '#fff1b0'; ctx.fillRect(-9, -64, 18, 14); }
+        ctx.restore();
+      };
+      this.drawCabinetText(ctx, `INCIDENT ${game.wave}  //  TURN ${game.turn}  //  SCORE ${game.score}  //  HI ${this.getArcadeScore('ctrlAltDefeat')}`, 256, 55, 9, '#ffe19a', 'center');
+      this.drawCabinetText(ctx, 'NOVA ADMIN', 42, 88, 12, '#57f4ff'); hp(game.player.hp, game.player.maxHp, 42, 99, 162, '#57f4ff');
+      this.drawCabinetText(ctx, game.enemy.name.toUpperCase(), 470, 88, 12, game.enemy.color, 'right'); hp(game.enemy.hp, game.enemy.maxHp, 308, 99, 162, game.enemy.color, true);
+      sprite(113, 216, '#57f4ff', 'admin', 1);
+      sprite(399, 216, game.enemy.color, game.enemy.sprite, -1);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(184, 145, 144, 54); ctx.strokeStyle = game.enemy.intent.color; ctx.strokeRect(184, 145, 144, 54);
+      this.drawCabinetText(ctx, 'NEXT INTENT', 256, 160, 9, '#d5efff', 'center');
+      this.drawCabinetText(ctx, `${game.enemy.intent.label} ${game.enemy.intent.damage + game.player.heat - 1}`, 256, 181, 14, game.enemy.intent.color, 'center');
+      this.drawCabinetText(ctx, `HP ${game.player.hp}/${game.player.maxHp}  PATCH ${game.player.patches}  GUARD ${game.player.guard}  HEAT ${game.player.heat}`, 42, 251, 8, '#a8eaff');
+      this.drawCabinetText(ctx, `HP ${Math.max(0, game.enemy.hp)}/${game.enemy.maxHp}  BASE ${game.enemy.attack}`, 470, 251, 8, '#ffd5e9', 'right');
+      ['STRIKE', 'PATCH', 'OVERCLOCK', 'FIREWALL'].forEach((label, index) => { const x = 28 + index * 114; ctx.fillStyle = 'rgba(255,211,77,0.18)'; ctx.fillRect(x, 278, 106, 42); ctx.strokeStyle = '#ffd34d'; ctx.strokeRect(x, 278, 106, 42); this.drawCabinetText(ctx, label, x + 53, 299, label === 'OVERCLOCK' ? 8 : 10, '#ffe39b', 'center'); });
+      this.drawCabinetText(ctx, (game.log[0] || '').toUpperCase(), 256, 344, 9, game.over ? '#ff5a6d' : '#d5efff', 'center');
+      if (game.over) this.drawCabinetText(ctx, 'RUN ENDED - TAP RESTART', 256, 367, 10, '#ff4fd8', 'center');
     },
 
     renderCabinetFighter(ctx, game) {
@@ -2920,8 +2938,45 @@ const HELP_SECTIONS = [
       ctx.fillStyle = '#17142d'; ctx.fillRect(22, 58, 468, 246); ctx.fillStyle = '#0d1020'; ctx.fillRect(22, 266, 468, 38);
       const bar = (x, hp, max, color, flip = false) => { ctx.fillStyle = '#263446'; ctx.fillRect(x, 65, 166, 12); ctx.fillStyle = color; const width = Math.max(0, hp / max) * 166; ctx.fillRect(flip ? x + 166 - width : x, 65, width, 12); };
       bar(34, game.player.hp, game.player.maxHp, '#ffd34d'); bar(312, game.enemy.hp, game.enemy.maxHp, '#ff5a6d', true);
-      this.drawCabinetText(ctx, `ROUND ${game.round}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 10, '#d5efff', 'center');
-      const fighter = (unit, color, label) => { const x = 22 + (unit.x / 640) * 468, y = 270 - unit.y * 0.48; ctx.fillStyle = unit.block > 0 ? '#45f7ff' : color; ctx.fillRect(x - 12, y - 48, 24, 32); ctx.fillRect(x - 9, y - 66, 18, 17); ctx.fillRect(x - 10, y - 16, 7, 17); ctx.fillRect(x + 3, y - 16, 7, 17); if (unit.attack) ctx.fillRect(x + unit.dir * 12, y - 40, unit.dir * 28, 8); this.drawCabinetText(ctx, label, x, y + 12, 8, '#fff', 'center'); };
+      this.drawCabinetText(ctx, `TIER ${game.tier}  ROUND ${game.round}  WINS ${game.wins}-${game.enemyWins}  SCORE ${game.score}`, 256, 93, 10, '#d5efff', 'center');
+      const fighter = (unit, color, label) => {
+        const x = 22 + (unit.x / 640) * 468;
+        const y = 270 - unit.y * 0.48;
+        const facing = unit.dir || 1;
+        const paint = unit.block > 0 ? '#45f7ff' : color;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(facing, 1);
+        ctx.fillStyle = paint;
+        // Head, visor, torso, and a grounded rear leg establish a readable stance.
+        ctx.fillRect(-10, -70, 20, 18);
+        ctx.fillStyle = '#111827'; ctx.fillRect(-7, -65, 14, 5);
+        ctx.fillStyle = paint; ctx.fillRect(-13, -51, 26, 31);
+        ctx.fillRect(-11, -20, 8, 20);
+        ctx.fillRect(4, -20, 8, 20);
+        const action = unit.attack?.kind;
+        if (action === 'punch') {
+          // Straight arm and bright fist: a very different read from a kick.
+          ctx.fillRect(10, -46, 30, 8);
+          ctx.fillStyle = '#f7fbff'; ctx.fillRect(38, -48, 8, 12);
+          ctx.fillStyle = paint; ctx.fillRect(-25, -44, 12, 8);
+        } else if (action === 'kick') {
+          // Plant one leg and throw the other low and forward with a boot.
+          ctx.fillRect(-11, -20, 9, 20);
+          ctx.fillRect(8, -25, 15, 8);
+          ctx.fillRect(20, -17, 26, 8);
+          ctx.fillStyle = '#f7fbff'; ctx.fillRect(43, -18, 10, 10);
+          ctx.fillStyle = paint; ctx.fillRect(10, -46, 16, 8);
+        } else if (unit.block > 0) {
+          ctx.fillStyle = 'rgba(69,247,255,0.30)'; ctx.fillRect(13, -60, 20, 48);
+          ctx.fillStyle = paint; ctx.fillRect(10, -48, 12, 26); ctx.fillRect(-25, -48, 12, 26);
+        } else {
+          ctx.fillRect(11, -46, 15, 8);
+          ctx.fillRect(-26, -46, 15, 8);
+        }
+        ctx.restore();
+        this.drawCabinetText(ctx, label, x, y + 13, 8, '#fff', 'center');
+      };
       fighter(game.player, '#ffd34d', 'ADMIN'); fighter(game.enemy, '#ff5a6d', 'KERNEL');
       ['LEFT', 'RIGHT', 'JUMP', 'PUNCH', 'KICK', 'BLOCK'].forEach((label, index) => { const x = 10 + index * 82; ctx.fillStyle = 'rgba(255,90,109,0.18)'; ctx.fillRect(x, 320, 76, 34); ctx.strokeStyle = '#ff5a6d'; ctx.strokeRect(x, 320, 76, 34); this.drawCabinetText(ctx, label, x + 38, 337, 8, '#ffd4dc', 'center'); });
       this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 370, 9, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
@@ -3848,12 +3903,12 @@ const HELP_SECTIONS = [
       }
     },
 
-    createArcadeGame(id) {
+    createArcadeGame(id, carryScore = 0, round = 1) {
       if (!this.arcade) return null;
       let game = null;
-      if (id === 'bombmopper') game = this.createBombmopperGame();
+      if (id === 'bombmopper') game = this.createBombmopperGame(carryScore, round);
       if (id === 'stackOverflow') {
-        game = this.createSolitaireGame();
+        game = this.createSolitaireGame(carryScore, round);
         this.arcade.solitaireUndo = [];
         this.arcade.selectedSolitaire = null;
         this.arcade.solitaireHintMove = null;
@@ -3868,7 +3923,10 @@ const HELP_SECTIONS = [
 
     restartArcadeGame(id = this.arcade?.currentGameId) {
       if (!id || !this.arcade) return;
-      this.createArcadeGame(id);
+      const prior = this.arcade.games[id];
+      const carryScore = (id === 'bombmopper' || id === 'stackOverflow') && prior?.won ? Number(prior.score || 0) : 0;
+      const round = carryScore > 0 ? Number(prior?.round || 1) + 1 : 1;
+      this.createArcadeGame(id, carryScore, round);
       this.arcade.gamePaused = false;
       this.arcade.lastTs = this.arcadePerfNow();
       this.renderCurrentArcadeFrame(true);
@@ -3972,7 +4030,7 @@ const HELP_SECTIONS = [
       ctx.fillText('PRESS ANY GAME KEY TO RESUME', 220, 202);
     },
 
-    createBombmopperGame() {
+    createBombmopperGame(carryScore = 0, round = 1) {
       const size = 10;
       const bombs = 16;
       return {
@@ -3982,10 +4040,12 @@ const HELP_SECTIONS = [
         armed: false,
         mode: 'reveal',
         elapsed: 0,
-        score: 0,
+        score: carryScore,
+        carryScore,
+        round,
         over: false,
         won: false,
-        message: 'First click is safe. Clear every non-bomb tile.',
+        message: carryScore ? `Shift ${round}. Keep the run alive.` : 'First click is safe. Clear every non-bomb tile.',
         renderPulse: 0
       };
     },
@@ -4031,7 +4091,7 @@ const HELP_SECTIONS = [
       const correctFlags = game.cells.filter(cell => cell.flagged && cell.mine).length;
       const timePenalty = Math.floor(game.elapsed * 0.7);
       const winBonus = game.won ? 900 + Math.max(0, 240 - Math.floor(game.elapsed)) * 3 : 0;
-      game.score = Math.max(0, revealed * 18 + correctFlags * 12 + winBonus - timePenalty);
+      game.score = game.carryScore + Math.max(0, revealed * 18 + correctFlags * 12 + winBonus - timePenalty);
       return game.score;
     },
 
@@ -4139,7 +4199,7 @@ const HELP_SECTIONS = [
       })));
     },
 
-    createSolitaireGame() {
+    createSolitaireGame(carryScore = 0, round = 1) {
       const deck = this.shuffleArcadeList(this.makeDeck());
       const tableau = Array.from({ length: 7 }, () => []);
       for (let pile = 0; pile < 7; pile += 1) {
@@ -4155,9 +4215,10 @@ const HELP_SECTIONS = [
         foundations: { H: [], D: [], C: [], S: [] },
         tableau,
         moves: 0,
-        score: 0,
+        score: carryScore,
+        round,
         won: false,
-        message: 'Build foundations from A to K. Empty lanes take kings.'
+        message: carryScore ? `Deal ${round}. Keep building the run.` : 'Build foundations from A to K. Empty lanes take kings.'
       };
     },
 
@@ -4479,6 +4540,7 @@ const HELP_SECTIONS = [
         lane: 1,
         lives: 4,
         sector: 0,
+        loop: 1,
         sectors: [
           { name: 'BOOT', goal: 850, speed: 145, spawn: 0.92, bg: '#102142' },
           { name: 'CACHE', goal: 1050, speed: 170, spawn: 0.80, bg: '#1c214f' },
@@ -4489,6 +4551,7 @@ const HELP_SECTIONS = [
         distance: 0,
         totalDistance: 0,
         score: 0,
+        loopBonus: 0,
         spawnTimer: 0.4,
         pickupTimer: 1.8,
         obstacles: [],
@@ -4520,7 +4583,7 @@ const HELP_SECTIONS = [
       const speed = sector.speed * (game.boost > 0 ? 1.35 : 1);
       game.distance += speed * dt;
       game.totalDistance += speed * dt;
-      game.score = Math.floor(game.totalDistance * 1.4) + game.sector * 250 + game.lives * 35;
+      game.score = Math.floor(game.totalDistance * 1.4) + game.sector * 250 + game.lives * 35 + game.loopBonus;
       game.spawnTimer -= dt;
       game.pickupTimer -= dt;
       if (game.spawnTimer <= 0) {
@@ -4566,10 +4629,16 @@ const HELP_SECTIONS = [
       game.obstacles = game.obstacles.filter(item => item.y < 390 && !item.hit);
       if (!game.over && game.distance >= sector.goal) {
         if (game.sector >= game.sectors.length - 1) {
-          game.won = true;
-          game.over = true;
-          game.score += 1200 + game.lives * 200;
-          this.setArcadeScore('circuitBreaker', game.score);
+          game.loop += 1;
+          game.sector = 0;
+          game.distance = 0;
+          game.lives = Math.min(4, game.lives + 1);
+          game.obstacles = [];
+          game.pickups = [];
+          game.shield = 0;
+          game.boost = 0;
+          game.loopBonus += 900 + game.loop * 180;
+          game.fx.push({ text: `LOOP ${game.loop}`, ttl: 1.4 });
         } else {
           game.sector += 1;
           game.distance = 0;
@@ -4661,13 +4730,12 @@ const HELP_SECTIONS = [
     createCtrlAltDefeatGame() {
       const game = {
         wave: 1,
-        maxWave: 5,
-        player: { hp: 56, maxHp: 56, patches: 4, firewalls: 3, shield: 0, heat: 0 },
+        turn: 1,
+        player: { hp: 72, maxHp: 72, patches: 3, guard: 0, heat: 0, combo: 0 },
         enemy: null,
-        log: ['Ticket dungeon online. Root cause waits at wave 5.'],
+        log: ['Incident queue online. Read the enemy intent, then make the call.'],
         score: 0,
-        over: false,
-        won: false
+        over: false
       };
       this.spawnRpgEnemy(game);
       return game;
@@ -4675,14 +4743,28 @@ const HELP_SECTIONS = [
 
     spawnRpgEnemy(game) {
       const roster = [
-        { name: 'Null Pointer', hp: 20, atkMin: 2, atkMax: 5, color: '#45f7ff' },
-        { name: 'Cache Storm', hp: 28, atkMin: 3, atkMax: 6, color: '#ff4fd8' },
-        { name: 'Config Drift', hp: 36, atkMin: 4, atkMax: 7, color: '#ffd34d' },
-        { name: 'Deploy Freeze', hp: 44, atkMin: 5, atkMax: 8, color: '#7dff68' },
-        { name: 'Root Cause', hp: 58, atkMin: 6, atkMax: 10, color: '#ff5a6d' }
+        { name: 'Null Pointer', color: '#45f7ff', sprite: 'null' },
+        { name: 'Cache Storm', color: '#ff4fd8', sprite: 'storm' },
+        { name: 'Config Drift', color: '#ffd34d', sprite: 'drift' },
+        { name: 'Deploy Freeze', color: '#7dff68', sprite: 'freeze' },
+        { name: 'Root Cause', color: '#ff5a6d', sprite: 'root' }
       ];
-      const def = roster[Math.min(roster.length - 1, game.wave - 1)];
-      game.enemy = { ...def, maxHp: def.hp };
+      const def = roster[(game.wave - 1) % roster.length];
+      const maxHp = 24 + game.wave * 9 + Math.floor(game.wave / 3) * 6;
+      const attack = 3 + Math.floor(game.wave * 0.8);
+      game.enemy = { ...def, hp: maxHp, maxHp, attack, intent: null };
+      this.rollRpgIntent(game);
+    },
+
+    rollRpgIntent(game) {
+      const enemy = game?.enemy;
+      if (!enemy) return;
+      const options = [
+        { label: 'PING', damage: enemy.attack, color: '#45f7ff' },
+        { label: 'SURGE', damage: enemy.attack + 3, color: '#ffd34d' },
+        { label: 'BREACH', damage: enemy.attack + 6, color: '#ff5a6d' }
+      ];
+      enemy.intent = options[Math.floor(Math.random() * options.length)];
     },
 
     handleRpgAction(action) {
@@ -4694,74 +4776,68 @@ const HELP_SECTIONS = [
       const enemy = game.enemy;
       const roll = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
       if (action === 'attack') {
-        const dmg = roll(8, 12) + Math.floor(player.heat / 2);
+        const dmg = roll(8, 12) + player.combo * 2;
         enemy.hp -= dmg;
-        game.log.unshift(`Attack hits ${enemy.name} for ${dmg}.`);
+        player.combo = Math.min(4, player.combo + 1);
+        game.log.unshift(`Strike lands for ${dmg}. Combo ${player.combo}.`);
       } else if (action === 'patch') {
         if (player.patches <= 0) {
-          game.log.unshift('No patches left.');
+          game.log.unshift('Patch kit empty. Defeat an incident to restock.');
           this.renderCtrlAltDefeat();
           return;
         }
-        const heal = roll(13, 19);
+        const heal = roll(16, 22);
         player.hp = Math.min(player.maxHp, player.hp + heal);
         player.patches -= 1;
-        player.heat = Math.max(0, player.heat - 1);
-        game.log.unshift(`Patch restores ${heal} HP.`);
+        player.heat = Math.max(0, player.heat - 2);
+        player.combo = 0;
+        game.log.unshift(`Patch restores ${heal} integrity.`);
       } else if (action === 'overclock') {
-        const dmg = roll(15, 21) + player.heat;
+        const dmg = roll(15, 21) + player.heat * 3;
         enemy.hp -= dmg;
         player.heat += 1;
-        player.hp = Math.max(1, player.hp - 4);
-        game.log.unshift(`Overclock burns ${enemy.name} for ${dmg}.`);
+        player.combo = 0;
+        game.log.unshift(`Overclock spikes ${enemy.name} for ${dmg}. Heat ${player.heat}.`);
       } else if (action === 'firewall') {
-        if (player.firewalls <= 0) {
-          game.log.unshift('No firewall charges left this run.');
-          this.renderCtrlAltDefeat();
-          return;
-        }
-        player.firewalls -= 1;
-        player.shield = 14 + game.wave * 2;
+        player.guard = 12 + game.wave * 2;
         player.heat = Math.max(0, player.heat - 1);
-        game.log.unshift(`Firewall arms ${player.shield} shield.`);
+        player.combo = 0;
+        game.log.unshift(`Firewall raises ${player.guard} guard.`);
+      } else {
+        return;
       }
       if (enemy.hp <= 0) {
-        game.score += game.wave * 140 + Math.max(0, player.hp) * 3 + player.patches * 20;
-        if (game.wave >= game.maxWave) {
-          game.won = true;
-          game.over = true;
-          game.score += 1000;
-          game.log.unshift('Root cause resolved. Shift saved.');
-          this.setArcadeScore('ctrlAltDefeat', game.score);
-          this.renderCtrlAltDefeat();
-          return;
-        }
+        game.score += game.wave * 180 + Math.max(0, player.hp) * 4 + player.patches * 30;
         game.wave += 1;
-        if (game.wave % 2 === 1) player.patches = Math.min(4, player.patches + 1);
-        player.firewalls = Math.min(3, player.firewalls + 1);
-        player.hp = Math.min(player.maxHp, player.hp + 10);
+        game.turn += 1;
+        if (game.wave % 3 === 1) player.patches = Math.min(4, player.patches + 1);
+        player.hp = Math.min(player.maxHp, player.hp + 12);
+        player.guard = 0;
+        player.combo = 0;
         this.spawnRpgEnemy(game);
-        game.log.unshift(`Wave ${game.wave} escalates: ${game.enemy.name}.`);
-        this.setArcadeScore('ctrlAltDefeat', game.score);
+        game.log.unshift(`Incident ${game.wave}: ${game.enemy.name} joins the queue.`);
         this.renderCtrlAltDefeat();
         return;
       }
-      let incoming = roll(enemy.atkMin, enemy.atkMax) + Math.floor(player.heat / 2);
-      if (player.shield > 0) {
-        const blocked = Math.min(player.shield, incoming);
+      let incoming = Math.max(1, enemy.intent.damage + player.heat - 1);
+      if (player.guard > 0) {
+        const blocked = Math.min(player.guard, incoming);
         incoming -= blocked;
-        player.shield -= blocked;
+        player.guard -= blocked;
         game.log.unshift(`Firewall blocks ${blocked}.`);
       }
       if (incoming > 0) {
         player.hp -= incoming;
-        game.log.unshift(`${enemy.name} hits back for ${incoming}.`);
+        game.log.unshift(`${enemy.name} uses ${enemy.intent.label} for ${incoming}.`);
       }
       if (player.hp <= 0) {
         player.hp = 0;
         game.over = true;
-        game.log.unshift('Admin down. Incident unresolved.');
+        game.log.unshift('Admin down. Run archived.');
         this.setArcadeScore('ctrlAltDefeat', game.score);
+      } else {
+        game.turn += 1;
+        this.rollRpgIntent(game);
       }
       this.renderCtrlAltDefeat();
     },
@@ -4821,6 +4897,7 @@ const HELP_SECTIONS = [
         wins: 0,
         enemyWins: 0,
         round: 1,
+        tier: 1,
         score: 0,
         aiTimer: 0.4,
         over: false,
@@ -4861,20 +4938,29 @@ const HELP_SECTIONS = [
         game.enemyWins += 1;
       }
       if (game.wins >= 2 || game.enemyWins >= 2) {
-        game.over = true;
-        game.won = game.wins >= 2;
-        if (game.won) {
-          game.score += 900;
-          this.setArcadeScore('mortalKonfig', game.score);
-          game.message = 'Configuration conquered.';
+        if (game.wins >= 2) {
+          game.tier += 1;
+          game.score += 900 + game.tier * 180;
+          game.wins = 0;
+          game.enemyWins = 0;
+          game.round = 1;
+          game.player = { x: 150, y: 0, vy: 0, hp: 100, maxHp: 100, attack: null, block: 0, stun: 0, dir: 1 };
+          const hp = 100 + game.tier * 18;
+          game.enemy = { x: 500, y: 0, vy: 0, hp, maxHp: hp, attack: null, block: 0, stun: 0, dir: -1 };
+          game.message = `Tier ${game.tier}. Kernel has learned new tricks.`;
+          return;
         } else {
+          game.over = true;
+          game.won = false;
           game.message = 'Fatal misconfig.';
+          this.setArcadeScore('mortalKonfig', game.score);
         }
         return;
       }
       game.round += 1;
       game.player = { x: 150, y: 0, vy: 0, hp: 100, maxHp: 100, attack: null, block: 0, stun: 0, dir: 1 };
-      game.enemy = { x: 500, y: 0, vy: 0, hp: 100 + game.round * 10, maxHp: 100 + game.round * 10, attack: null, block: 0, stun: 0, dir: -1 };
+      const hp = 100 + game.tier * 18 + game.round * 10;
+      game.enemy = { x: 500, y: 0, vy: 0, hp, maxHp: hp, attack: null, block: 0, stun: 0, dir: -1 };
       game.message = `Round ${game.round}. First to two wins.`;
     },
 
