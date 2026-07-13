@@ -297,20 +297,14 @@ const HELP_SECTIONS = [
         serviceList: $('serviceList'),
         incidentList: $('incidentList'),
         missionList: $('missionList'),
-        seasonCard: $('seasonCard'),
         campaignGoalList: $('campaignGoalList'),
-        quietNetworkPanel: $('quietNetworkPanel'),
+        bigBetDebtPanel: $('bigBetDebtPanel'),
         contractsList: $('contractsList'),
-        bossLadderList: $('bossLadderList'),
-        regionMasteryList: $('regionMasteryList'),
-        commandCollectionsList: $('commandCollectionsList'),
+        legacyPanel: $('legacyPanel'),
         commandNoticeBtn: $('commandNoticeBtn'),
         commandNoticeBadge: $('commandNoticeBadge'),
         helpBtn: $('helpBtn'),
         regionsList: $('regionsList'),
-        doctrineList: $('doctrineList'),
-        eraList: $('eraList'),
-        challengeList: $('challengeList'),
         achievementPanelGrid: $('achievementPanelGrid'),
         achievementRecentList: $('achievementRecentList'),
         collectionsList: $('collectionsList'),
@@ -502,33 +496,6 @@ const HELP_SECTIONS = [
       });
 
       document.addEventListener('click', e => {
-        const quietNetworkBtn = e.target.closest('[data-action="choose-quiet-network"]');
-        if (quietNetworkBtn) {
-          this.primeAudio();
-          const result = this.app.chooseQuietNetworkAlignment(quietNetworkBtn.dataset.id);
-          if (result.ok) {
-            this.playSound('prestige');
-            this.toast(`${result.alignment.name} engaged.`);
-          } else this.toast('The Quiet Network decision is not available yet.');
-          this.app.renderAll();
-          return;
-        }
-        const doctrineBtn = e.target.closest('[data-action="set-doctrine"]');
-        if (doctrineBtn) {
-          this.primeAudio();
-          this.playSound('ui');
-          this.app.setDoctrine(doctrineBtn.dataset.id);
-          this.app.renderAll();
-          return;
-        }
-        const eraBtn = e.target.closest('[data-action="set-era"]');
-        if (eraBtn) {
-          this.primeAudio();
-          this.playSound('ui');
-          this.app.setEra(eraBtn.dataset.id);
-          this.app.renderAll();
-          return;
-        }
         const challengeBtn = e.target.closest('[data-action="select-challenge"]');
         if (challengeBtn) {
           this.primeAudio();
@@ -1739,17 +1706,12 @@ const HELP_SECTIONS = [
 
     getCommandAttentionCount() {
       let count = 0;
-      const contracts = [...this.app.getContractsForSpan('daily'), ...this.app.getContractsForSpan('weekly')];
-      count += contracts.filter(contract => contract.complete && !contract.claimed).length;
-      const doctrineChoices = (DATA.doctrineDefs || []).filter(def => this.app.meetsCondition(def.unlockWhen) && def.id !== this.app.state.activeDoctrineId);
-      if (doctrineChoices.length) count += 1;
-      const eraChoices = (DATA.eraDefs || []).filter(def => this.app.meetsCondition(def.unlockWhen) && def.id !== this.app.state.activeEraId);
-      if (eraChoices.length) count += 1;
-      const freshChallenges = (DATA.challengeDefs || []).filter(def => this.app.meetsCondition(def.unlockWhen) && !this.app.state.challengeCompletions?.[def.id] && this.app.state.selectedChallengeId !== def.id && this.app.state.activeChallengeId !== def.id);
-      if (freshChallenges.length) count += 1;
-      const network = this.app.getQuietNetworkState?.();
-      const nextBeat = (DATA.quietNetworkDefs?.beats || []).find(beat => beat.stage === (network?.stage || 0) + 1);
-      if ((nextBeat && this.app.quietNetworkConditionsMet?.(nextBeat.unlockWhen)) || (network?.stage >= 5 && !network?.alignment)) count += 1;
+      const sideJob = this.app.getCurrentSideJob?.();
+      if (sideJob?.complete && !sideJob.claimed) count += 1;
+      const nextGoal = (DATA.campaignGoalDefs || []).find(goal => !this.app.isCampaignGoalComplete(goal.id));
+      if (nextGoal && this.app.canBuyCampaignGoal(nextGoal)) count += 1;
+      const campaignComplete = this.app.getCampaignGoalsCompletedCount() >= (DATA.campaignGoalDefs || []).length;
+      if (campaignComplete && !this.app.state.selectedChallengeId) count += 1;
       return count;
     },
 
@@ -1784,42 +1746,23 @@ const HELP_SECTIONS = [
       return bits.join(' • ');
     },
 
-    renderQuietNetwork() {
-      if (!this.els.quietNetworkPanel) return;
-      const defs = DATA.quietNetworkDefs || {};
-      const network = this.app.getQuietNetworkState?.() || { stage: 0, evidence: 0, alignment: null };
-      const beats = defs.beats || [];
-      const activeBeat = beats.find(beat => beat.stage === network.stage) || null;
-      const nextBeat = beats.find(beat => beat.stage === network.stage + 1) || null;
-      const alignment = this.app.getQuietNetworkAlignmentDef?.() || null;
-      const traceTarget = nextBeat?.unlockWhen?.quietEvidence || 0;
-      const traceProgress = traceTarget ? Math.min(100, (network.evidence / traceTarget) * 100) : 100;
-      const alignmentCards = network.stage >= 5 ? (defs.alignments || []).map(def => {
-        const selected = alignment?.id === def.id;
-        const unavailable = !!alignment && !selected;
-        return `
-          <article class="manager-card quiet-alignment-card ${selected ? 'done' : unavailable ? 'locked' : ''}">
-            <div class="manager-top"><div class="manager-name">${def.name}</div><span class="tag">${selected ? 'chosen' : unavailable ? 'sealed' : 'decision'}</span></div>
-            <p class="muted">${def.body}</p>
-            <div class="manager-meta"><span><strong>Effect:</strong> ${def.summary}</span></div>
-            <div class="manager-actions"><button class="buy-btn ${selected || unavailable ? 'nope' : 'can-afford'}" data-action="choose-quiet-network" data-id="${def.id}">${selected ? 'Protocol Active' : unavailable ? 'Other Path Chosen' : def.label}</button></div>
-          </article>`;
-      }).join('') : '';
-      this.els.quietNetworkPanel.innerHTML = `
-        <article class="manager-card quiet-network-card ${network.stage ? 'active' : ''}">
-          <div class="manager-top"><div class="manager-name">${network.stage ? activeBeat?.title || defs.title : 'No Active Trace'}</div><span class="tag">${network.stage ? `case ${network.stage}/${beats.length}` : 'monitoring'}</span></div>
-          <p class="muted">${network.stage ? activeBeat?.body : 'No confirmed anomaly. The incident monitor is quiet enough to be suspicious.'}</p>
-          <div class="manager-meta"><span><strong>Source:</strong> ${network.stage ? activeBeat?.source : 'PASSIVE WATCH'}</span><span><strong>Traces:</strong> ${network.evidence}</span></div>
-          ${nextBeat ? `<div class="quiet-objective"><strong>Next:</strong> ${nextBeat.objective}${traceTarget ? `<div class="progress-track slim"><div class="progress-bar quiet-progress" style="width:${traceProgress}%"></div></div>` : ''}</div>` : `<div class="quiet-objective"><strong>Status:</strong> ${alignment ? alignment.officeNote : 'Control plane open. Choose a stewardship protocol.'}</div>`}
-        </article>
-        ${alignmentCards ? `<div class="quiet-alignment-grid">${alignmentCards}</div>` : ''}`;
-    },
-
     renderCommand() {
       this.renderCommandAttention();
-      this.renderQuietNetwork();
+      const goals = DATA.campaignGoalDefs || [];
+      const debtGoal = goals.find(goal => goal.id === 'debt-free');
+      const debtCleared = !!debtGoal && this.app.isCampaignGoalComplete(debtGoal.id);
+      if (this.els.bigBetDebtPanel && debtGoal) {
+        const paid = debtCleared ? debtGoal.costCredits : Math.min(debtGoal.costCredits, this.app.state.credits);
+        const pct = Math.max(0, Math.min(100, paid / Math.max(1, debtGoal.costCredits) * 100));
+        this.els.bigBetDebtPanel.innerHTML = `
+          <article class="manager-card card big-bet-ledger ${debtCleared ? 'done' : ''}">
+            <div class="manager-top"><div class="manager-name">${debtCleared ? 'Debt Cleared' : 'Launch Debt'}</div><span class="tag">${debtCleared ? 'paid' : 'founder priority'}</span></div>
+            <p class="muted">${debtCleared ? 'The creditors are gone. Everything after this belongs to the empire.' : 'The shed was funded with one reckless loan. Clear it when the operation can finally afford to breathe.'}</p>
+            <div class="manager-meta"><span><strong>${debtCleared ? 'Paid:' : 'Available for payoff:'}</strong> ${this.app.formatNumber(paid)} / ${this.app.formatNumber(debtGoal.costCredits)} CC</span><span><strong>Research:</strong> ${debtGoal.costResearch || 0} RD</span></div>
+            <div class="progress-track slim"><div class="progress-bar mission-bar" style="width:${pct}%"></div></div>
+          </article>`;
+      }
       if (this.els.campaignGoalList) {
-        const goals = DATA.campaignGoalDefs || [];
         const completed = this.app.getCampaignGoalsCompletedCount ? this.app.getCampaignGoalsCompletedCount() : 0;
         const nextGoal = goals.find(goal => !this.app.isCampaignGoalComplete(goal.id));
         const pct = goals.length ? Math.round((completed / goals.length) * 100) : 0;
@@ -1838,7 +1781,6 @@ const HELP_SECTIONS = [
           const unlocked = this.app.campaignGoalRequirementsMet ? this.app.campaignGoalRequirementsMet(def) : true;
           const canBuy = this.app.canBuyCampaignGoal ? this.app.canBuyCampaignGoal(def) : false;
           const when = this.app.getCampaignGoalCompletionTime ? this.app.getCampaignGoalCompletionTime(def.id) : 0;
-          const quietCampaignNote = this.app.getQuietNetworkState?.().stage >= 1 ? DATA.quietNetworkDefs?.campaignNotes?.[def.id] : null;
           return `
             <article class="manager-card card campaign-goal-card ${done ? 'done' : (!unlocked ? 'locked' : '')}">
               <div class="manager-top">
@@ -1846,11 +1788,10 @@ const HELP_SECTIONS = [
                 <span class="tag">${done ? 'secured' : def.stage}</span>
               </div>
               <p class="muted">${def.desc}</p>
-              ${quietCampaignNote ? `<div class="quiet-signal-line">${quietCampaignNote}</div>` : ''}
               <div class="manager-meta"><span><strong>Cost:</strong> ${this.describeCampaignCosts(def)}</span></div>
               <div class="manager-meta"><span><strong>Reward:</strong> ${def.rewardText}</span>${when ? `<span><strong>Secured:</strong> ${new Date(when).toLocaleDateString()}</span>` : ''}</div>
               ${this.renderCampaignRequirementChips(def)}
-              <div class="manager-actions"><button class="buy-btn ${done ? 'nope' : canBuy ? 'can-afford' : 'nope'}" data-action="buy-campaign-goal" data-id="${def.id}">${done ? 'Secured' : unlocked ? 'Secure Objective' : 'Locked Route'}</button></div>
+              <div class="manager-actions"><button class="buy-btn ${done ? 'nope' : canBuy ? 'can-afford' : 'nope'}" data-action="buy-campaign-goal" data-id="${def.id}">${done ? 'Secured' : unlocked ? 'Secure Milestone' : 'Locked Milestone'}</button></div>
             </article>`;
         }).join('');
         this.els.campaignGoalList.innerHTML = summary + cards;
@@ -1865,7 +1806,6 @@ const HELP_SECTIONS = [
           const unlocked = !!this.app.state.unlockedRegions?.[region.id];
           const expanded = this.app.state.regionLevels?.[region.id] || 0;
           const projectOwned = !!this.app.state.regionProjects?.[region.id];
-          const networkNote = this.app.getQuietNetworkState?.().stage >= 3 ? DATA.quietNetworkDefs?.regionNotes?.[region.id] : null;
           return `
             <article class="manager-card card region-mastery-card ${unlocked ? '' : 'locked'}">
               <div class="manager-top">
@@ -1873,7 +1813,6 @@ const HELP_SECTIONS = [
                 <span class="tag">Lv ${mastery.level + 1}</span>
               </div>
               <p class="muted">${region.desc}</p>
-              ${networkNote ? `<div class="quiet-signal-line">${networkNote}</div>` : ''}
               <div class="progress-track slim"><div class="progress-bar mission-bar" style="width:${pct}%"></div></div>
               <div class="manager-meta"><span><strong>Mastery XP:</strong> ${currentXp} / ${nextXp}</span><span><strong>Expands:</strong> ${expanded}</span></div>
               <div class="manager-meta"><span><strong>Project:</strong> ${projectOwned ? 'built' : region.project ? 'available later' : 'none'}</span><span><strong>Scale:</strong> +${mastery.level * 6}% bonus • +${mastery.level * 4}% capacity</span></div>
@@ -1900,7 +1839,7 @@ const HELP_SECTIONS = [
       }
 
       if (this.els.contractsList) {
-        const contracts = [...this.app.getContractsForSpan('daily'), ...this.app.getContractsForSpan('weekly')];
+        const contracts = [this.app.getCurrentSideJob?.()].filter(Boolean);
         this.els.contractsList.innerHTML = contracts.map(contract => {
           const pct = Math.max(0, Math.min(100, (contract.progress / Math.max(1, contract.goalValue)) * 100));
           const contact = DATA.contractContactDefs?.[contract.id];
@@ -1959,7 +1898,7 @@ const HELP_SECTIONS = [
               <span><strong>Penalty:</strong> ${this.describeIncidentPenalties(incident)}</span>
             </div>
             <div class="progress-track slim"><div class="progress-bar mission-bar" data-incident-progress="${incident.uid}" style="width:${Math.max(0, Math.min(100, (1 - incident.remaining / incident.total) * 100))}%"></div></div>
-            ${incident.quietSignal ? `<div class="quiet-signal-line">QN prefix detected. Trace gathers evidence but resolves the incident more slowly.</div><div class="manager-actions incident-strategy-actions"><button class="soft-btn" data-action="respond-incident" data-id="${incident.uid}" data-strategy="contain">Contain</button><button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}" data-strategy="trace">Trace Signal</button><button class="soft-btn" data-action="respond-incident" data-id="${incident.uid}" data-strategy="reroute">Reroute</button></div>` : `<div class="manager-actions"><button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}" data-strategy="contain">Dispatch Response</button></div>`}
+            <div class="manager-actions"><button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}">Dispatch Response</button></div>
           </article>`).join('');
       }
 
@@ -1980,7 +1919,6 @@ const HELP_SECTIONS = [
         const reward = this.app.getQuestRewardPreview(def);
         const cooldownRemaining = this.app.getQuestCooldownRemaining(def.id);
         const canStart = this.app.getAvailableMissionTeams() >= def.teams && cooldownRemaining <= 0;
-        const quietTrace = this.app.getQuietNetworkState?.().stage >= 1 && ['research', 'security'].includes(def.kind);
         return `
           <article class="manager-card card mission-card" data-mission-def="${def.id}">
             <div class="manager-top">
@@ -1996,7 +1934,6 @@ const HELP_SECTIONS = [
               <span><strong>Teams:</strong> ${def.teams}</span>
               <span><strong>Reward:</strong> <span data-mission-reward="${def.id}">${this.describeMissionReward(reward)}</span></span>
             </div>
-            ${quietTrace ? `<div class="quiet-signal-line">Possible Quiet Network trace: completing this mission may recover a unique field record.</div>` : ''}
             <div class="lock-msg ${cooldownRemaining > 0 ? '' : 'hidden'}" data-mission-cooldown-msg="${def.id}">${cooldownRemaining > 0 ? `Cooling down for ${this.app.formatDuration(cooldownRemaining)}` : ''}</div>
             <div class="manager-actions">
               <button class="buy-btn ${canStart ? 'can-afford' : 'nope'}" data-action="start-mission" data-id="${def.id}">${cooldownRemaining > 0 ? 'Cooling Down' : 'Dispatch'}</button>
@@ -2279,16 +2216,22 @@ const HELP_SECTIONS = [
         }).join('');
       }
 
-      if (this.els.challengeList) {
+      const campaignComplete = this.app.getCampaignGoalsCompletedCount() >= (DATA.campaignGoalDefs || []).length;
+      if (this.els.legacyPanel && campaignComplete) {
         const selected = this.app.state.selectedChallengeId;
         const activeChallenge = this.app.state.activeChallengeId;
-        this.els.challengeList.innerHTML = [`<article class="manager-card card ${!selected ? 'done' : ''}"><div class="manager-top"><div class="manager-name"><span class="icon-badge">🟢</span> Normal Run</div><span class="tag">safe</span></div><p class="muted">No extra rules. Sometimes the best chaos is optional.</p><div class="manager-actions"><button class="buy-btn ${selected ? 'can-afford' : 'nope'}" data-action="select-challenge" data-id="">${selected ? 'Choose Normal Run' : 'Normal Selected'}</button></div></article>`, ...(DATA.challengeDefs || []).map(def => {
+        this.els.legacyPanel.innerHTML = [`<article class="manager-card card ${!selected ? 'done' : ''}"><div class="manager-top"><div class="manager-name"><span class="icon-badge">🟢</span> Normal Run</div><span class="tag">safe</span></div><p class="muted">Keep growing with no extra rules. The empire is yours now.</p><div class="manager-actions"><button class="buy-btn ${selected ? 'can-afford' : 'nope'}" data-action="select-challenge" data-id="">${selected ? 'Choose Normal Run' : 'Normal Selected'}</button></div></article>`, ...(DATA.challengeDefs || []).map(def => {
           const unlocked = this.app.meetsCondition(def.unlockWhen);
           const selectedHere = selected === def.id;
           const activeHere = activeChallenge === def.id;
           const clears = this.app.state.challengeCompletions?.[def.id] || 0;
           return `<article class="manager-card card ${(selectedHere || activeHere) ? 'done' : (!unlocked ? 'locked' : '')}"><div class="manager-top"><div class="manager-name"><span class="icon-badge">${def.icon}</span> ${def.name}</div><span class="tag">clears ${clears}</span></div><p class="muted">${def.desc}</p><div class="manager-meta"><span><strong>Goal:</strong> ${this.describeChallengeGoal(def.goal)}</span></div><div class="manager-meta"><span><strong>Reward:</strong> ${def.rewardText}</span></div><div class="manager-actions"><button class="buy-btn ${(unlocked && !selectedHere) ? 'can-afford' : 'nope'}" data-action="select-challenge" data-id="${def.id}">${activeHere ? 'Challenge Active This Run' : selectedHere ? 'Armed For Next Overhaul' : unlocked ? 'Arm Challenge' : 'Locked'}</button></div></article>`;
         })].join('');
+      }
+      if (this.els.legacyPanel && !campaignComplete) {
+        const completed = this.app.getCampaignGoalsCompletedCount();
+        const total = (DATA.campaignGoalDefs || []).length;
+        this.els.legacyPanel.innerHTML = `<article class="manager-card card locked"><div class="manager-top"><div class="manager-name">Founder Mode</div><span class="tag">${completed}/${total}</span></div><p class="muted">Finish the Big Bet to unlock optional challenge runs and keep building after the ending.</p></article>`;
       }
 
       const branches = [...new Set(DATA.prestigeNodeDefs.map(node => node.branch))];
@@ -2893,10 +2836,7 @@ const HELP_SECTIONS = [
       const selected = arcade.catalog[arcade.cabinetMenuIndex];
       this.drawCabinetText(ctx, selected.desc.toUpperCase(), 256, 324, 10, '#d5efff', 'center');
       this.drawCabinetText(ctx, `HI ${this.getArcadeScore(selected.id)}   //   ENTER TO PLAY   //   ESC OR TAP HERE TO EXIT`, 256, 348, 10, '#7dff68', 'center');
-      const quiet = this.app.getQuietNetworkState?.();
-      const diagnostic = quiet?.stage >= 2 ? (DATA.quietNetworkDefs?.arcadeNotes || [])[Math.floor(time / 8) % Math.max(1, (DATA.quietNetworkDefs?.arcadeNotes || []).length)] : null;
-      if (diagnostic) this.drawCabinetText(ctx, diagnostic.toUpperCase(), 256, 369, 8, '#9affb6', 'center');
-      if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, diagnostic ? 'QN-0' : 'READY', 462, 42, 9, diagnostic ? '#9affb6' : '#ff4fd8', 'right');
+      if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, 'READY', 462, 42, 9, '#ff4fd8', 'right');
     },
 
     renderCabinetArcadeGame(ctx, id, time) {
@@ -5323,7 +5263,6 @@ const HELP_SECTIONS = [
             desk: Object.assign({}, placementState.desk || {})
           },
           floorBotProfile: this.app.state.floorBotProfile,
-          quietNetwork: this.app.getQuietNetworkState?.(),
           soundEnabled: this.app.state.soundEnabled
         });
       }

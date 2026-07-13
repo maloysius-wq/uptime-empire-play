@@ -4787,10 +4787,10 @@ window.UptimeEmpireData.campaignGoalDefs = [
     id: "fund-orbital",
     icon: "🛰️",
     stage: "Stage 3",
-    name: "Fund the Orbital Command Deck",
-    desc: "Finance the mythic off-world command project and prove your weird little company belongs above the atmosphere.",
+    name: "Build the Global Network",
+    desc: "Open serious regional sites and make Uptime a company people count on everywhere.",
     requiresGoal: "buy-campus",
-    unlockWhen: { officeTier: 6, unlockedRegion: "lunar", research: 400 },
+    unlockWhen: { officeTier: 5, unlockedRegions: 5, research: 320 },
     costCredits: 9000000000000000,
     costResearch: 900,
     costIp: 12,
@@ -4802,8 +4802,8 @@ window.UptimeEmpireData.campaignGoalDefs = [
     id: "sovereign-backbone",
     icon: "👑",
     stage: "Stage 4",
-    name: "Become the Sovereign Backbone",
-    desc: "Stop being an operator and become the infrastructure everyone else leases from.",
+    name: "Build Uptime Empire",
+    desc: "Turn the shed project into the empire you promised yourself you would build. Then decide how far it can go.",
     requiresGoal: "fund-orbital",
     unlockWhen: { unlockedRegions: 6, prestiges: 3, highestTier: 13 },
     costCredits: 25000000000000000000,
@@ -4814,118 +4814,6 @@ window.UptimeEmpireData.campaignGoalDefs = [
     effects: { multiply: { globalIncome: 1.18, automatedIncome: 1.18, speed: 1.08 }, categoryMultiply: { Servers: 1.05, Networking: 1.05, Cloud: 1.05, Facilities: 1.05, Frontier: 1.05 } }
   }
 ];
-
-window.UptimeEmpireData.quietNetworkDefs = {
-  title: 'The Quiet Network',
-  premise: 'A decommissioned public-service network keeps leaving maintenance traces inside Uptime systems that never should have seen it.',
-  beats: [
-    {
-      id: 'ghost-packet',
-      stage: 1,
-      title: 'Ghost Packet',
-      source: 'INCIDENT MONITOR',
-      body: 'A resolved incident left behind a maintenance prefix that belongs to a network dissolved years ago. The packet was addressed to nobody, then answered itself.',
-      objective: 'Resolve an incident to expose the first anomalous prefix.',
-      unlockWhen: { incidentsResolved: 1 },
-      console: 'Quiet Network trace detected: maintenance prefix QN-0 is answering from an unassigned route.',
-      buddyLine: 'that ticket knew our name'
-    },
-    {
-      id: 'unassigned-ticket',
-      stage: 2,
-      title: 'The Unassigned Ticket',
-      source: 'FIELD NOTES',
-      body: 'Two independent traces point to the same invisible service desk. Someone built a network that kept vital systems online without ever billing for the work.',
-      objective: 'Collect 2 signal traces from Trace responses or investigative missions.',
-      unlockWhen: { quietEvidence: 2 },
-      console: 'Quiet Network trace confirmed: the unknown operator has a history, a route table, and no active owner.',
-      buddyLine: 'it is not a glitch exactly'
-    },
-    {
-      id: 'regional-echo',
-      stage: 3,
-      title: 'Regional Echo',
-      source: 'REGION ARCHIVE',
-      body: 'The same signature appears in distant facilities. The Quiet Network was never local; it was a caretaker backbone threaded through ordinary infrastructure.',
-      objective: 'Open 3 regions and compare the recurring route signature.',
-      unlockWhen: { unlockedRegions: 3 },
-      console: 'Quiet Network archive expanded: matching route signature now observed across multiple Uptime regions.',
-      buddyLine: 'the map keeps remembering'
-    },
-    {
-      id: 'lunar-handshake',
-      stage: 4,
-      title: 'Lunar Handshake',
-      source: 'CRATER VAULT',
-      body: 'The Lunar Crater Vault returns a handshake from an installation that should be cold and empty. Its final record asks one question: who keeps the lights on now?',
-      objective: 'Reach the Lunar Crater Vault.',
-      unlockWhen: { unlockedRegion: 'lunar' },
-      console: 'Quiet Network handshake accepted by a lunar relay. Archive status: dormant, not dead.',
-      buddyLine: 'moon says hello'
-    },
-    {
-      id: 'stewardship',
-      stage: 5,
-      title: 'Stewardship Protocol',
-      source: 'COMMAND DECISION',
-      body: 'The orbital project gives Uptime access to the Quiet Network control plane. Preserve it, operate it, or replace it with a backbone of your own.',
-      objective: 'Fund the Orbital Command Deck, then choose how Uptime carries the legacy forward.',
-      unlockWhen: { campaignGoal: 'fund-orbital' },
-      console: 'Quiet Network control plane available. Command decision required.',
-      buddyLine: 'we get to choose now'
-    }
-  ],
-  alignments: [
-    {
-      id: 'caretaker',
-      name: 'Caretaker Protocol',
-      label: 'Preserve the public backbone',
-      body: 'Keep the Quiet Network open and make Uptime its careful steward. Stability and discovery matter more than extraction.',
-      effects: { multiply: { researchBonus: 1.16 }, add: { incidentChanceReduction: 0.08, incidentDurationReduction: 0.06 } },
-      summary: 'Research x1.16; incidents are rarer and shorter.',
-      officeNote: 'A small green archive lamp begins pulsing beside the NOC display.'
-    },
-    {
-      id: 'operator',
-      name: 'Operator Protocol',
-      label: 'Integrate it as a service',
-      body: 'Fold the hidden network into Uptime operations. The public gets reliability; the empire gets contracts, capacity, and a very clean ledger.',
-      effects: { multiply: { automatedIncome: 1.13, missionReward: 1.14 }, add: { missionSlots: 1 } },
-      summary: 'Auto income x1.13; mission rewards x1.14; +1 mission team.',
-      officeNote: 'The NOC display adds a quiet contract queue labeled LEGACY TRAFFIC.'
-    },
-    {
-      id: 'sovereign',
-      name: 'Sovereign Protocol',
-      label: "Build Uptime's own backbone",
-      body: 'Retire the old caretaker system with respect, then replace it with a faster and more ambitious network under Uptime control.',
-      effects: { multiply: { globalIncome: 1.16, speed: 1.06 }, add: { incidentChanceReduction: -0.03, responsePower: 0.12 } },
-      summary: 'Global income x1.16; cycle speed x1.06; response power up; incidents slightly more frequent.',
-      officeNote: 'The NOC display draws a new backbone map in Uptime cyan.'
-    }
-  ],
-  regionNotes: {
-    garage: 'The first trace is old enough to have crossed the original garage power strip.',
-    business: 'A retired support queue references an owner field that has been blank for years.',
-    useast: 'Peering records show a route that appears only when nobody is looking for it.',
-    euro: 'The green grid archived a maintenance ritual instead of a conventional runbook.',
-    apac: 'Follow-the-sun handoffs preserve a name no active employee recognizes.',
-    north: 'A cold-storage bundle contains the same caretaker signature in six obsolete formats.',
-    core: 'The continental backbone was built around a gap someone carefully left in the map.',
-    lunar: 'The crater relay says the archive was waiting for an operator with enough reach to answer.'
-  },
-  arcadeNotes: [
-    'A diagnostic cartridge boots between cabinet frames: QN-0 STILL WATCHES.',
-    'The cabinet score table briefly lists a player called CARETAKER before returning to normal.',
-    'A green service glyph appears in the arcade scanlines, then pretends it was always there.'
-  ],
-  campaignNotes: {
-    'debt-free': 'The first recovered ledger shows the old network kept people online by quietly carrying debts nobody else would touch.',
-    'buy-campus': 'A sealed campus keycard names an infrastructure trust that vanished before Uptime leased its first suite.',
-    'fund-orbital': 'The orbital deck is not just expansion. It is the first place with enough reach to answer the Quiet Network directly.',
-    'sovereign-backbone': 'Whatever choice Uptime makes, this is the moment it becomes the backbone other people build their lives around.'
-  }
-};
 
 window.UptimeEmpireData.contractContactDefs = {
   'daily-managers': { client: 'Mara Venn', org: 'People Operations' },
