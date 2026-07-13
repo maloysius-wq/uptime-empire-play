@@ -5322,8 +5322,8 @@
       document.exitPointerLock?.();
       this.pointerLocked = false;
       const lookYaw = Number.isFinite(target.yaw) ? target.yaw : this.player.yaw;
-      // Fit the entire physical CRT at every aspect ratio. A fixed close-up can
-      // place a portrait-phone camera inside the cabinet shell and crop its sides.
+      // Fit the physical CRT with a very small safety margin. This gives the
+      // playable display the largest possible view without clipping its corners.
       const verticalFov = (this.camera?.fov || 66) * Math.PI / 180;
       const aspect = Math.max(0.25, Number(this.camera?.aspect) || 1);
       const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
@@ -5331,7 +5331,7 @@
       const screenHeight = Math.max(0.54, Number(this.screenInteractive?.height) || 0.72);
       const widthDistance = screenWidth / Math.max(0.01, 2 * Math.tan(horizontalFov / 2));
       const heightDistance = screenHeight / Math.max(0.01, 2 * Math.tan(verticalFov / 2));
-      const zoomDistance = Math.max(0.96, widthDistance, heightDistance) * 1.18;
+      const zoomDistance = Math.max(0.66, widthDistance, heightDistance) * 1.055;
       // Three's forward vector is (-sin(yaw), 0, -cos(yaw)). Move opposite
       // that direction so the camera sits in front of the CRT and looks at it.
       const zoomX = target.x + Math.sin(lookYaw) * zoomDistance;

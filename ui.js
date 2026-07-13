@@ -3830,7 +3830,7 @@ const HELP_SECTIONS = [
         try { return JSON.parse(window.localStorage.getItem('uptime_empire_arcade_scores_v1') || '{}') || {}; } catch (_e) { return {}; }
       })();
       const catalog = [
-        { id: 'bombmopper', title: 'Bombmopper', badge: 'BM', cabinet: '01', genre: 'GRID SWEEP', difficulty: 'TACTICAL', controls: 'Click reveal, F flag mode, right-click flag', accent: '#45f7ff', accentSoft: 'rgba(69,247,255,0.18)', desc: 'Sweep a volatile server floor. First click is safe, flags matter, chain clears pay out.' },
+        { id: 'bombmopper', title: 'Bombmopper', badge: 'BM', cabinet: '01', genre: 'GRID SWEEP', difficulty: 'TACTICAL', controls: 'Click reveal, hold or right-click to flag', accent: '#45f7ff', accentSoft: 'rgba(69,247,255,0.18)', desc: 'Sweep a volatile server floor. First click is safe, flags matter, chain clears pay out.' },
         { id: 'stackOverflow', title: 'Stack Overflow', badge: 'SO', cabinet: '02', genre: 'KLONDIKE', difficulty: 'PATIENT', controls: 'Draw, click cards, Auto, Undo, Hint', accent: '#ff4fd8', accentSoft: 'rgba(255,79,216,0.17)', desc: 'A full click-to-move Klondike table dressed like a late-night terminal panic.' },
         { id: 'circuitBreaker', title: 'Circuit Breaker', badge: 'CB', cabinet: '03', genre: 'LANE RUNNER', difficulty: 'FAST', controls: 'A/D or arrows steer, R restarts', accent: '#7dff68', accentSoft: 'rgba(125,255,104,0.16)', desc: 'Dodge bad packets, grab shields, and keep the uptime car alive through five sectors.' },
         { id: 'ctrlAltDefeat', title: 'Ctrl+Alt+Defeat', badge: 'CAD', cabinet: '04', genre: 'SYSADMIN RPG', difficulty: 'BOSS RUSH', controls: 'A attack, P patch, O overclock, F firewall', accent: '#ffd34d', accentSoft: 'rgba(255,211,77,0.18)', desc: 'A compact turn-based run with five escalating incidents and a final root-cause duel.' },
@@ -3994,6 +3994,14 @@ const HELP_SECTIONS = [
     bindArcadeDomGame(id) {
       if (!this.els.arcadeDomGame) return;
       if (id === 'bombmopper') {
+        let longPressTimer = null;
+        let longPressIndex = null;
+        let suppressBombClick = false;
+        const cancelBombLongPress = () => {
+          if (longPressTimer) clearTimeout(longPressTimer);
+          longPressTimer = null;
+          longPressIndex = null;
+        };
         this.els.arcadeDomGame.addEventListener('click', e => {
           const action = e.target.closest('[data-bomb-action]');
           if (action) {
@@ -4007,12 +4015,39 @@ const HELP_SECTIONS = [
           }
           const cell = e.target.closest('[data-bomb-index]');
           if (!cell) return;
+          if (suppressBombClick) {
+            suppressBombClick = false;
+            e.preventDefault();
+            return;
+          }
           this.onBombmopperCell(Number(cell.dataset.bombIndex), false);
         });
+        this.els.arcadeDomGame.addEventListener('pointerdown', e => {
+          const cell = e.target.closest('[data-bomb-index]');
+          if (!cell || e.button !== 0) return;
+          cancelBombLongPress();
+          longPressIndex = Number(cell.dataset.bombIndex);
+          longPressTimer = setTimeout(() => {
+            const index = longPressIndex;
+            cancelBombLongPress();
+            if (!Number.isFinite(index)) return;
+            suppressBombClick = true;
+            this.onBombmopperCell(index, true);
+            // A held mouse press can emit a context menu after the flag action.
+            setTimeout(() => { suppressBombClick = false; }, 750);
+          }, 420);
+        });
+        this.els.arcadeDomGame.addEventListener('pointerup', cancelBombLongPress);
+        this.els.arcadeDomGame.addEventListener('pointercancel', cancelBombLongPress);
+        this.els.arcadeDomGame.addEventListener('pointerleave', cancelBombLongPress);
         this.els.arcadeDomGame.addEventListener('contextmenu', e => {
           const cell = e.target.closest('[data-bomb-index]');
           if (!cell) return;
           e.preventDefault();
+          if (suppressBombClick) {
+            suppressBombClick = false;
+            return;
+          }
           this.onBombmopperCell(Number(cell.dataset.bombIndex), true);
         });
       }
@@ -4197,7 +4232,7 @@ const HELP_SECTIONS = [
         round,
         over: false,
         won: false,
-        message: carryScore ? `Shift ${round}. Keep the run alive.` : 'First click is safe. Clear every non-bomb tile.',
+        message: carryScore ? `Shift ${round}. Keep the run alive.` : 'First click is safe. Hold or right-click tiles to flag hazards.',
         renderPulse: 0
       };
     },
