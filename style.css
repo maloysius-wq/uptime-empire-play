@@ -8339,6 +8339,11 @@ body.office-computer-mode {
   --idle-primary: #2995ff;
   --idle-accent: #65c985;
   --idle-dark-button: #1d2124;
+  --idle-control: rgba(246, 249, 247, 0.78);
+  --idle-card: rgba(237, 243, 239, 0.62);
+  --idle-workspace: rgba(246, 249, 247, 0.38);
+  --idle-terminal: rgba(210, 221, 216, 0.82);
+  --idle-shell-shadow: 0 18px 55px rgba(26, 38, 34, 0.12);
   padding: 0 !important;
   overflow: hidden !important;
   color: var(--idle-text) !important;
@@ -8347,31 +8352,63 @@ body.office-computer-mode {
 }
 
 body.office-computer-mode[data-ui-skin="noc"] {
-  --idle-page: #f3f7f8;
-  --idle-shell: #edf5f7;
-  --idle-top: #dcebef;
-  --idle-panel-strong: rgba(203, 221, 226, 0.84);
-  --idle-accent: #42a8c6;
+  --idle-page: #091720;
+  --idle-shell: rgba(13, 32, 43, 0.94);
+  --idle-top: rgba(23, 53, 68, 0.86);
+  --idle-sidebar: rgba(12, 34, 46, 0.78);
+  --idle-panel: rgba(32, 70, 86, 0.42);
+  --idle-panel-strong: rgba(34, 72, 88, 0.72);
+  --idle-text: #e7f7fb;
+  --idle-muted: #91b2bd;
+  --idle-border: rgba(106, 210, 238, 0.20);
+  --idle-primary: #238fbe;
+  --idle-accent: #63d3ec;
+  --idle-dark-button: #117c9a;
+  --idle-control: rgba(21, 54, 68, 0.82);
+  --idle-card: rgba(31, 68, 82, 0.48);
+  --idle-workspace: rgba(10, 31, 42, 0.34);
+  --idle-terminal: rgba(20, 52, 64, 0.84);
+  --idle-shell-shadow: 0 20px 62px rgba(0, 9, 14, 0.48), 0 0 34px rgba(66, 168, 198, 0.10);
 }
 
 body.office-computer-mode[data-ui-skin="codefall"] {
-  --idle-page: #f4f7f5;
-  --idle-shell: #edf5ef;
-  --idle-top: #d8e6dc;
-  --idle-panel-strong: rgba(201, 216, 207, 0.88);
-  --idle-accent: #55c77a;
+  --idle-page: #dce7e0;
+  --idle-shell: rgba(229, 239, 232, 0.88);
+  --idle-top: rgba(197, 215, 202, 0.82);
+  --idle-sidebar: rgba(241, 247, 243, 0.66);
+  --idle-panel: rgba(224, 236, 227, 0.50);
+  --idle-panel-strong: rgba(184, 204, 190, 0.68);
+  --idle-text: #17251c;
+  --idle-muted: #687a6e;
+  --idle-border: rgba(42, 91, 58, 0.16);
+  --idle-primary: #269554;
+  --idle-accent: #43bd6c;
+  --idle-dark-button: #17221b;
+  --idle-control: rgba(233, 242, 235, 0.72);
+  --idle-card: rgba(215, 230, 219, 0.52);
+  --idle-workspace: rgba(231, 240, 234, 0.30);
+  --idle-terminal: rgba(188, 210, 194, 0.74);
+  --idle-shell-shadow: 0 18px 58px rgba(25, 56, 35, 0.18);
 }
 
 body.office-computer-mode[data-ui-skin="crt"] {
-  --idle-page: #f6f2e9;
-  --idle-shell: #f3ecdc;
-  --idle-top: #e9ddc3;
-  --idle-sidebar: rgba(255, 252, 245, 0.72);
-  --idle-panel-strong: rgba(221, 206, 175, 0.84);
-  --idle-text: #29231b;
-  --idle-muted: #807464;
-  --idle-border: rgba(76, 54, 25, 0.14);
-  --idle-accent: #d8922f;
+  --idle-page: #120c04;
+  --idle-shell: rgba(27, 18, 6, 0.97);
+  --idle-top: rgba(54, 36, 11, 0.92);
+  --idle-sidebar: rgba(31, 21, 8, 0.84);
+  --idle-panel: rgba(69, 46, 13, 0.42);
+  --idle-panel-strong: rgba(70, 47, 14, 0.72);
+  --idle-text: #ffe3a8;
+  --idle-muted: #c09a61;
+  --idle-border: rgba(255, 184, 77, 0.22);
+  --idle-primary: #c77820;
+  --idle-accent: #ffb84d;
+  --idle-dark-button: #a65d16;
+  --idle-control: rgba(58, 38, 11, 0.88);
+  --idle-card: rgba(67, 44, 12, 0.54);
+  --idle-workspace: rgba(31, 20, 7, 0.38);
+  --idle-terminal: rgba(66, 43, 12, 0.84);
+  --idle-shell-shadow: 0 20px 65px rgba(0, 0, 0, 0.56), 0 0 30px rgba(255, 184, 77, 0.08);
   --cyan: #d8922f;
   --green: #ba7923;
 }
@@ -8398,10 +8435,71 @@ body.office-computer-mode .app-shell {
   outline: 0 !important;
   color: var(--idle-text) !important;
   background: var(--idle-shell) !important;
-  box-shadow: 0 18px 55px rgba(26, 38, 34, 0.12) !important;
+  box-shadow: var(--idle-shell-shadow) !important;
 }
 
 body.office-computer-mode .app-shell::before { display: none !important; }
+
+body.office-computer-mode[data-ui-skin="codefall"] .app-shell::before {
+  content: "01    NODE    UP    CC    RACK    TIME    IP    10\A RACK    CC    01    NODE    UP    TIME    10    IP\A UP    TIME    RACK    01    NODE    CC    IP    10\A NODE    10    CC    TIME    IP    UP    RACK    01\A IP    UP    NODE    RACK    10    TIME    01    CC\A TIME    01    RACK    IP    CC    NODE    10    UP\A CC    NODE    TIME    10    UP    IP    RACK    01\A 10    RACK    IP    NODE    01    CC    UP    TIME\A NODE    UP    01    TIME    RACK    10    CC    IP\A RACK    TIME    CC    UP    IP    01    NODE    10\A UP    IP    NODE    10    TIME    RACK    01    CC\A 01    CC    RACK    NODE    UP    TIME    10    IP\A TIME    NODE    10    IP    CC    RACK    UP    01\A IP    01    UP    RACK    NODE    10    TIME    CC\A CC    TIME    NODE    01    IP    UP    RACK    10\A 10    UP    RACK    CC    TIME    NODE    IP    01";
+  position: absolute;
+  inset: 78px 0 0 150px;
+  z-index: 1;
+  padding: 10px 24px;
+  display: block !important;
+  overflow: hidden;
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  pointer-events: none;
+  color: rgba(30, 116, 59, 0.13);
+  background: transparent !important;
+  box-shadow: none !important;
+  font: 10px/42px "Courier New", monospace;
+  font-weight: 400;
+  text-align: left;
+  white-space: pre-wrap;
+  word-spacing: 25px;
+  animation: idleCodeDrift 14s linear infinite;
+}
+
+body.office-computer-mode .app-shell::after {
+  content: "";
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  pointer-events: none;
+  opacity: 0;
+  transform: none;
+}
+
+body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
+  opacity: 0.30;
+  background: linear-gradient(180deg, transparent 0, rgba(99, 211, 236, 0.34) 48%, transparent 100%);
+  animation: idleNocScanner 6s ease-in-out infinite;
+}
+
+body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
+  opacity: 0.15;
+  background: repeating-linear-gradient(180deg, transparent 0 3px, rgba(255, 184, 77, 0.32) 3px 4px);
+  animation: idleCrtScan 8s linear infinite;
+}
+
+@keyframes idleNocScanner {
+  0%, 100% { transform: translateY(-96%); }
+  50% { transform: translateY(96%); }
+}
+
+@keyframes idleCrtScan {
+  from { background-position: 0 0; }
+  to { background-position: 0 80px; }
+}
+
+@keyframes idleCodeDrift {
+  from { transform: translateY(-24px); }
+  to { transform: translateY(18px); }
+}
 
 body.office-computer-mode .idle-skin-canvas {
   position: absolute !important;
@@ -8411,7 +8509,7 @@ body.office-computer-mode .idle-skin-canvas {
   z-index: 0 !important;
   opacity: 0 !important;
 }
-body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 1 !important; }
+body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 0.58 !important; }
 
 body.office-computer-mode .stats-sidebar {
   grid-area: telemetry !important;
@@ -8503,7 +8601,7 @@ body.office-computer-mode .app-main {
   grid-template-rows: auto minmax(0, 1fr) auto !important;
   gap: 0 !important;
   overflow: hidden !important;
-  background: transparent !important;
+  background: var(--idle-workspace) !important;
 }
 body.office-computer-mode .mobile-terminal-status { display: none !important; }
 
@@ -8624,7 +8722,7 @@ body.office-computer-mode .big-btn {
   border: 1px solid var(--idle-border) !important;
   border-radius: 8px !important;
   color: var(--idle-text) !important;
-  background: rgba(255, 255, 255, 0.82) !important;
+  background: var(--idle-control) !important;
   box-shadow: none !important;
   font-size: 0.76rem !important;
   font-weight: 500 !important;
@@ -8692,7 +8790,7 @@ body.office-computer-mode .status-pill {
   border: 0 !important;
   border-radius: 999px !important;
   color: var(--idle-primary) !important;
-  background: rgba(255, 255, 255, 0.72) !important;
+  background: var(--idle-control) !important;
   box-shadow: none !important;
   font-size: 0.65rem !important;
   font-weight: 400 !important;
@@ -8848,7 +8946,7 @@ body.office-computer-mode .manager-card,
 body.office-computer-mode .region-card,
 body.office-computer-mode .tree-card {
   color: var(--idle-text) !important;
-  background: rgba(255, 255, 255, 0.26) !important;
+  background: var(--idle-card) !important;
   border-color: var(--idle-border) !important;
 }
 body.office-computer-mode .manager-card .muted,
@@ -8860,7 +8958,7 @@ body.office-computer-mode .prestige-summary {
   border: 1px solid var(--idle-border) !important;
   border-radius: 6px !important;
   color: var(--idle-text) !important;
-  background: var(--idle-panel-strong) !important;
+  background: var(--idle-terminal) !important;
 }
 body.office-computer-mode .prestige-summary .mega { color: var(--idle-text) !important; }
 
@@ -8900,7 +8998,7 @@ body.office-computer-mode .terminal-dock {
   border-top: 1px solid var(--idle-accent) !important;
   border-radius: 0 !important;
   color: var(--idle-text) !important;
-  background: var(--idle-panel-strong) !important;
+  background: var(--idle-terminal) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
@@ -8945,13 +9043,33 @@ body.office-computer-mode .desk-computer-close {
   border: 1px solid var(--idle-border) !important;
   border-radius: 7px !important;
   color: var(--idle-muted) !important;
-  background: rgba(255,255,255,0.72) !important;
+  background: var(--idle-control) !important;
   box-shadow: none !important;
   min-width: 38px !important;
   min-height: 30px !important;
   font-size: 0 !important;
 }
 body.office-computer-mode .desk-computer-close::after { content: "Exit"; font-size: 0.65rem; }
+
+body.office-computer-mode[data-ui-skin="noc"] .ue-topbar,
+body.office-computer-mode[data-ui-skin="noc"] .bottom-nav,
+body.office-computer-mode[data-ui-skin="noc"] .workspace-metric-strip > div,
+body.office-computer-mode[data-ui-skin="noc"] .command-metric-grid .stat,
+body.office-computer-mode[data-ui-skin="noc"] .terminal-dock {
+  backdrop-filter: blur(9px) saturate(1.18) !important;
+}
+
+body.office-computer-mode[data-ui-skin="crt"] .ue-brand-copy strong,
+body.office-computer-mode[data-ui-skin="crt"] .workspace-eyeline,
+body.office-computer-mode[data-ui-skin="crt"] .workspace-section-title,
+body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
+  text-shadow: 0 0 8px rgba(255, 184, 77, 0.30);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.office-computer-mode .app-shell::before,
+  body.office-computer-mode .app-shell::after { animation: none !important; }
+}
 
 @media (max-width: 760px) {
   body.office-computer-mode { overflow: hidden !important; }
@@ -8965,6 +9083,7 @@ body.office-computer-mode .desk-computer-close::after { content: "Exit"; font-si
     border: 0 !important;
     border-radius: 0 !important;
   }
+  body.office-computer-mode[data-ui-skin="codefall"] .app-shell::before { inset: 132px 0 0; }
   body.office-computer-mode .ue-topbar {
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 10px !important;

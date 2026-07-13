@@ -437,8 +437,16 @@ const HELP_SECTIONS = [
     startMobileTerminalQAFromQuery() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('qa') !== 'mobile-terminal') return;
+      const requestedSkin = params.get('skin');
+      if ((DATA.uiSkinDefs || []).some(def => def.id === requestedSkin)) this.app.state.uiSkin = requestedSkin;
       document.body.classList.add('mobile-terminal-preview');
-      window.setTimeout(() => this.openDeskComputer({ panel: 'infrastructure', forceDeskView: true }), 80);
+      window.setTimeout(() => {
+        this.computerOpen = true;
+        this.mobileTerminalView = '';
+        this.app.state.currentPanel = 'infrastructure';
+        this.syncComputerMode();
+        this.renderAll();
+      }, 80);
     },
 
     bindEvents() {
@@ -1946,13 +1954,13 @@ const HELP_SECTIONS = [
         if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
           canvas.width = Math.round(width * dpr);
           canvas.height = Math.round(height * dpr);
-          this.codefallDrops = Array.from({ length: Math.ceil(width / 20) }, () => Math.random() * -height / 20);
+          this.codefallDrops = Array.from({ length: Math.ceil(width / 20) }, () => Math.random() * height / 20);
         }
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
         ctx.font = '12px monospace';
-        ctx.fillStyle = 'rgba(42, 132, 76, 0.10)';
+        ctx.fillStyle = 'rgba(30, 116, 59, 0.20)';
         this.codefallDrops.forEach((drop, column) => {
           ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
           this.codefallDrops[column] = drop * 20 > height && Math.random() > 0.97 ? 0 : drop + 0.45;
