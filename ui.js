@@ -299,6 +299,7 @@ const HELP_SECTIONS = [
         missionList: $('missionList'),
         seasonCard: $('seasonCard'),
         campaignGoalList: $('campaignGoalList'),
+        quietNetworkPanel: $('quietNetworkPanel'),
         contractsList: $('contractsList'),
         bossLadderList: $('bossLadderList'),
         regionMasteryList: $('regionMasteryList'),
@@ -501,6 +502,17 @@ const HELP_SECTIONS = [
       });
 
       document.addEventListener('click', e => {
+        const quietNetworkBtn = e.target.closest('[data-action="choose-quiet-network"]');
+        if (quietNetworkBtn) {
+          this.primeAudio();
+          const result = this.app.chooseQuietNetworkAlignment(quietNetworkBtn.dataset.id);
+          if (result.ok) {
+            this.playSound('prestige');
+            this.toast(`${result.alignment.name} engaged.`);
+          } else this.toast('The Quiet Network decision is not available yet.');
+          this.app.renderAll();
+          return;
+        }
         const doctrineBtn = e.target.closest('[data-action="set-doctrine"]');
         if (doctrineBtn) {
           this.primeAudio();
@@ -756,9 +768,10 @@ const HELP_SECTIONS = [
       this.els.incidentList.addEventListener('click', e => {
         const btn = e.target.closest('button[data-action="respond-incident"]');
         if (!btn) return;
-        const result = this.app.respondToIncident(btn.dataset.id);
+        const result = this.app.respondToIncident(btn.dataset.id, btn.dataset.strategy || 'contain');
         if (result.ok) {
-          this.toast(result.resolved ? (result.boss ? 'Boss incident resolved.' : 'Incident resolved.') : 'Response team dispatched.');
+          const actionLabel = result.strategy === 'trace' ? 'Signal trace running.' : result.strategy === 'reroute' ? 'Traffic rerouted.' : 'Response team dispatched.';
+          this.toast(result.resolved ? (result.boss ? 'Boss incident resolved.' : 'Incident resolved.') : actionLabel);
           this.spawnPurchaseBurst(btn, result.resolved ? (result.boss ? 'boss' : 'fixed') : 'patch');
           this.playSound(result.resolved ? 'achievement' : 'run');
         }
@@ -1734,6 +1747,9 @@ const HELP_SECTIONS = [
       if (eraChoices.length) count += 1;
       const freshChallenges = (DATA.challengeDefs || []).filter(def => this.app.meetsCondition(def.unlockWhen) && !this.app.state.challengeCompletions?.[def.id] && this.app.state.selectedChallengeId !== def.id && this.app.state.activeChallengeId !== def.id);
       if (freshChallenges.length) count += 1;
+      const network = this.app.getQuietNetworkState?.();
+      const nextBeat = (DATA.quietNetworkDefs?.beats || []).find(beat => beat.stage === (network?.stage || 0) + 1);
+      if ((nextBeat && this.app.quietNetworkConditionsMet?.(nextBeat.unlockWhen)) || (network?.stage >= 5 && !network?.alignment)) count += 1;
       return count;
     },
 
@@ -1768,8 +1784,40 @@ const HELP_SECTIONS = [
       return bits.join(' • ');
     },
 
+    renderQuietNetwork() {
+      if (!this.els.quietNetworkPanel) return;
+      const defs = DATA.quietNetworkDefs || {};
+      const network = this.app.getQuietNetworkState?.() || { stage: 0, evidence: 0, alignment: null };
+      const beats = defs.beats || [];
+      const activeBeat = beats.find(beat => beat.stage === network.stage) || null;
+      const nextBeat = beats.find(beat => beat.stage === network.stage + 1) || null;
+      const alignment = this.app.getQuietNetworkAlignmentDef?.() || null;
+      const traceTarget = nextBeat?.unlockWhen?.quietEvidence || 0;
+      const traceProgress = traceTarget ? Math.min(100, (network.evidence / traceTarget) * 100) : 100;
+      const alignmentCards = network.stage >= 5 ? (defs.alignments || []).map(def => {
+        const selected = alignment?.id === def.id;
+        const unavailable = !!alignment && !selected;
+        return `
+          <article class="manager-card quiet-alignment-card ${selected ? 'done' : unavailable ? 'locked' : ''}">
+            <div class="manager-top"><div class="manager-name">${def.name}</div><span class="tag">${selected ? 'chosen' : unavailable ? 'sealed' : 'decision'}</span></div>
+            <p class="muted">${def.body}</p>
+            <div class="manager-meta"><span><strong>Effect:</strong> ${def.summary}</span></div>
+            <div class="manager-actions"><button class="buy-btn ${selected || unavailable ? 'nope' : 'can-afford'}" data-action="choose-quiet-network" data-id="${def.id}">${selected ? 'Protocol Active' : unavailable ? 'Other Path Chosen' : def.label}</button></div>
+          </article>`;
+      }).join('') : '';
+      this.els.quietNetworkPanel.innerHTML = `
+        <article class="manager-card quiet-network-card ${network.stage ? 'active' : ''}">
+          <div class="manager-top"><div class="manager-name">${network.stage ? activeBeat?.title || defs.title : 'No Active Trace'}</div><span class="tag">${network.stage ? `case ${network.stage}/${beats.length}` : 'monitoring'}</span></div>
+          <p class="muted">${network.stage ? activeBeat?.body : 'No confirmed anomaly. The incident monitor is quiet enough to be suspicious.'}</p>
+          <div class="manager-meta"><span><strong>Source:</strong> ${network.stage ? activeBeat?.source : 'PASSIVE WATCH'}</span><span><strong>Traces:</strong> ${network.evidence}</span></div>
+          ${nextBeat ? `<div class="quiet-objective"><strong>Next:</strong> ${nextBeat.objective}${traceTarget ? `<div class="progress-track slim"><div class="progress-bar quiet-progress" style="width:${traceProgress}%"></div></div>` : ''}</div>` : `<div class="quiet-objective"><strong>Status:</strong> ${alignment ? alignment.officeNote : 'Control plane open. Choose a stewardship protocol.'}</div>`}
+        </article>
+        ${alignmentCards ? `<div class="quiet-alignment-grid">${alignmentCards}</div>` : ''}`;
+    },
+
     renderCommand() {
       this.renderCommandAttention();
+      this.renderQuietNetwork();
       if (this.els.campaignGoalList) {
         const goals = DATA.campaignGoalDefs || [];
         const completed = this.app.getCampaignGoalsCompletedCount ? this.app.getCampaignGoalsCompletedCount() : 0;
@@ -1790,6 +1838,7 @@ const HELP_SECTIONS = [
           const unlocked = this.app.campaignGoalRequirementsMet ? this.app.campaignGoalRequirementsMet(def) : true;
           const canBuy = this.app.canBuyCampaignGoal ? this.app.canBuyCampaignGoal(def) : false;
           const when = this.app.getCampaignGoalCompletionTime ? this.app.getCampaignGoalCompletionTime(def.id) : 0;
+          const quietCampaignNote = this.app.getQuietNetworkState?.().stage >= 1 ? DATA.quietNetworkDefs?.campaignNotes?.[def.id] : null;
           return `
             <article class="manager-card card campaign-goal-card ${done ? 'done' : (!unlocked ? 'locked' : '')}">
               <div class="manager-top">
@@ -1797,6 +1846,7 @@ const HELP_SECTIONS = [
                 <span class="tag">${done ? 'secured' : def.stage}</span>
               </div>
               <p class="muted">${def.desc}</p>
+              ${quietCampaignNote ? `<div class="quiet-signal-line">${quietCampaignNote}</div>` : ''}
               <div class="manager-meta"><span><strong>Cost:</strong> ${this.describeCampaignCosts(def)}</span></div>
               <div class="manager-meta"><span><strong>Reward:</strong> ${def.rewardText}</span>${when ? `<span><strong>Secured:</strong> ${new Date(when).toLocaleDateString()}</span>` : ''}</div>
               ${this.renderCampaignRequirementChips(def)}
@@ -1815,6 +1865,7 @@ const HELP_SECTIONS = [
           const unlocked = !!this.app.state.unlockedRegions?.[region.id];
           const expanded = this.app.state.regionLevels?.[region.id] || 0;
           const projectOwned = !!this.app.state.regionProjects?.[region.id];
+          const networkNote = this.app.getQuietNetworkState?.().stage >= 3 ? DATA.quietNetworkDefs?.regionNotes?.[region.id] : null;
           return `
             <article class="manager-card card region-mastery-card ${unlocked ? '' : 'locked'}">
               <div class="manager-top">
@@ -1822,6 +1873,7 @@ const HELP_SECTIONS = [
                 <span class="tag">Lv ${mastery.level + 1}</span>
               </div>
               <p class="muted">${region.desc}</p>
+              ${networkNote ? `<div class="quiet-signal-line">${networkNote}</div>` : ''}
               <div class="progress-track slim"><div class="progress-bar mission-bar" style="width:${pct}%"></div></div>
               <div class="manager-meta"><span><strong>Mastery XP:</strong> ${currentXp} / ${nextXp}</span><span><strong>Expands:</strong> ${expanded}</span></div>
               <div class="manager-meta"><span><strong>Project:</strong> ${projectOwned ? 'built' : region.project ? 'available later' : 'none'}</span><span><strong>Scale:</strong> +${mastery.level * 6}% bonus • +${mastery.level * 4}% capacity</span></div>
@@ -1851,6 +1903,7 @@ const HELP_SECTIONS = [
         const contracts = [...this.app.getContractsForSpan('daily'), ...this.app.getContractsForSpan('weekly')];
         this.els.contractsList.innerHTML = contracts.map(contract => {
           const pct = Math.max(0, Math.min(100, (contract.progress / Math.max(1, contract.goalValue)) * 100));
+          const contact = DATA.contractContactDefs?.[contract.id];
           const rewardBits = [];
           if (contract.reward.credits) rewardBits.push(`${this.app.formatNumber(contract.reward.credits)} CC`);
           if (contract.reward.research) rewardBits.push(`${contract.reward.research} RD`);
@@ -1863,6 +1916,7 @@ const HELP_SECTIONS = [
                 <span class="tag">${contract.span}</span>
               </div>
               <p class="muted">${contract.desc}</p>
+              ${contact ? `<div class="manager-meta contract-contact"><span><strong>Requester:</strong> ${contact.client}</span><span>${contact.org}</span></div>` : ''}
               <div class="manager-meta"><span><strong>Progress:</strong> ${contract.goalValue >= 1000 ? `${this.app.formatNumber(contract.progress)} / ${this.app.formatNumber(contract.goalValue)}` : `${Math.floor(contract.progress)} / ${contract.goalValue}`}</span><span><strong>Reward:</strong> ${rewardBits.join(' • ')}</span></div>
               <div class="progress-track slim"><div class="progress-bar mission-bar" style="width:${pct}%"></div></div>
               <div class="manager-actions">
@@ -1905,9 +1959,7 @@ const HELP_SECTIONS = [
               <span><strong>Penalty:</strong> ${this.describeIncidentPenalties(incident)}</span>
             </div>
             <div class="progress-track slim"><div class="progress-bar mission-bar" data-incident-progress="${incident.uid}" style="width:${Math.max(0, Math.min(100, (1 - incident.remaining / incident.total) * 100))}%"></div></div>
-            <div class="manager-actions">
-              <button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}">Dispatch Response</button>
-            </div>
+            ${incident.quietSignal ? `<div class="quiet-signal-line">QN prefix detected. Trace gathers evidence but resolves the incident more slowly.</div><div class="manager-actions incident-strategy-actions"><button class="soft-btn" data-action="respond-incident" data-id="${incident.uid}" data-strategy="contain">Contain</button><button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}" data-strategy="trace">Trace Signal</button><button class="soft-btn" data-action="respond-incident" data-id="${incident.uid}" data-strategy="reroute">Reroute</button></div>` : `<div class="manager-actions"><button class="buy-btn can-afford" data-action="respond-incident" data-id="${incident.uid}" data-strategy="contain">Dispatch Response</button></div>`}
           </article>`).join('');
       }
 
@@ -1928,6 +1980,7 @@ const HELP_SECTIONS = [
         const reward = this.app.getQuestRewardPreview(def);
         const cooldownRemaining = this.app.getQuestCooldownRemaining(def.id);
         const canStart = this.app.getAvailableMissionTeams() >= def.teams && cooldownRemaining <= 0;
+        const quietTrace = this.app.getQuietNetworkState?.().stage >= 1 && ['research', 'security'].includes(def.kind);
         return `
           <article class="manager-card card mission-card" data-mission-def="${def.id}">
             <div class="manager-top">
@@ -1943,6 +1996,7 @@ const HELP_SECTIONS = [
               <span><strong>Teams:</strong> ${def.teams}</span>
               <span><strong>Reward:</strong> <span data-mission-reward="${def.id}">${this.describeMissionReward(reward)}</span></span>
             </div>
+            ${quietTrace ? `<div class="quiet-signal-line">Possible Quiet Network trace: completing this mission may recover a unique field record.</div>` : ''}
             <div class="lock-msg ${cooldownRemaining > 0 ? '' : 'hidden'}" data-mission-cooldown-msg="${def.id}">${cooldownRemaining > 0 ? `Cooling down for ${this.app.formatDuration(cooldownRemaining)}` : ''}</div>
             <div class="manager-actions">
               <button class="buy-btn ${canStart ? 'can-afford' : 'nope'}" data-action="start-mission" data-id="${def.id}">${cooldownRemaining > 0 ? 'Cooling Down' : 'Dispatch'}</button>
@@ -2319,7 +2373,7 @@ const HELP_SECTIONS = [
       if (this.els.commandCollectionsList) this.els.commandCollectionsList.innerHTML = markup;
     },
 
-    initArcade() {
+    legacyInitArcade() {
       const storedScores = (() => {
         try { return JSON.parse(window.localStorage.getItem('uptime_empire_arcade_scores_v1') || '{}') || {}; } catch (_e) { return {}; }
       })();
@@ -2504,7 +2558,7 @@ const HELP_SECTIONS = [
       }
     },
 
-    renderArcadeMenu() {
+    legacyRenderArcadeMenu() {
       if (!this.arcade || !this.els.arcadeMenuScreen || !this.els.arcadeGameScreen) return;
       this.arcade.currentGameId = null;
       this.arcade.gamePaused = false;
@@ -2535,7 +2589,7 @@ const HELP_SECTIONS = [
       if (leaveBtn) leaveBtn.addEventListener('click', () => this.leaveArcade(false));
     },
 
-    openArcadeGame(id, resume = false) {
+    legacyOpenArcadeGame(id, resume = false) {
       if (!this.arcade || !this.els.arcadeMenuScreen || !this.els.arcadeGameScreen) return;
       this.arcade.overlayOpen = true;
       this.arcade.holdView = true;
@@ -2559,7 +2613,7 @@ const HELP_SECTIONS = [
       this.renderCurrentArcadeFrame(true);
     },
 
-    bindArcadeDomGame(id) {
+    legacyBindArcadeDomGame(id) {
       if (!this.els.arcadeDomGame) return;
       if (id === 'bombmopper') {
         this.els.arcadeDomGame.addEventListener('click', e => {
@@ -2622,7 +2676,7 @@ const HELP_SECTIONS = [
       }
     },
 
-    createArcadeGame(id) {
+    legacyCreateArcadeGame(id) {
       if (id === 'bombmopper') {
         if (typeof this.arcade.bombmopperCarryScore !== 'number') this.arcade.bombmopperCarryScore = 0;
         this.arcade.games[id] = this.createBombmopperGame(this.arcade.bombmopperCarryScore || 0);
@@ -2633,7 +2687,7 @@ const HELP_SECTIONS = [
       if (id === 'mortalKonfig') this.arcade.games[id] = this.createMortalKonfigGame();
     },
 
-    updateArcade(now) {
+    legacyUpdateArcade(now) {
       if (!this.arcade || !this.arcade.currentGameId || !this.arcade.overlayOpen || this.arcade.gamePaused) return;
       const dt = Math.min(0.05, (now - this.arcade.lastTs) / 1000 || 0.016);
       this.arcade.lastTs = now;
@@ -2644,7 +2698,7 @@ const HELP_SECTIONS = [
       if (id === 'mortalKonfig') { this.updateMortalKonfig(dt); this.renderMortalKonfig(); }
     },
 
-    renderCurrentArcadeFrame(force = false) {
+    legacyRenderCurrentArcadeFrame(force = false) {
       if (!this.arcade || !this.arcade.currentGameId) return;
       const id = this.arcade.currentGameId;
       if (id === 'bombmopper') this.renderBombmopper();
@@ -2654,7 +2708,7 @@ const HELP_SECTIONS = [
       if (id === 'mortalKonfig') this.renderMortalKonfig();
     },
 
-    handleArcadeKeyDown(e) {
+    legacyHandleArcadeKeyDown(e) {
       if (!this.arcade || !this.arcade.overlayOpen || !this.arcade.currentGameId) return;
       const key = e.key.toLowerCase();
       const activeGame = this.arcade.currentGameId;
@@ -2676,7 +2730,7 @@ const HELP_SECTIONS = [
       e.preventDefault();
     },
 
-    handleArcadeKeyUp(e) {
+    legacyHandleArcadeKeyUp(e) {
       if (!this.arcade) return;
       this.arcade.keys[e.key.toLowerCase()] = false;
     },
@@ -2838,7 +2892,10 @@ const HELP_SECTIONS = [
       const selected = arcade.catalog[arcade.cabinetMenuIndex];
       this.drawCabinetText(ctx, selected.desc.toUpperCase(), 256, 324, 10, '#d5efff', 'center');
       this.drawCabinetText(ctx, `HI ${this.getArcadeScore(selected.id)}   //   ENTER TO PLAY   //   ESC OR TAP HERE TO EXIT`, 256, 348, 10, '#7dff68', 'center');
-      if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, 'READY', 462, 42, 9, '#ff4fd8', 'right');
+      const quiet = this.app.getQuietNetworkState?.();
+      const diagnostic = quiet?.stage >= 2 ? (DATA.quietNetworkDefs?.arcadeNotes || [])[Math.floor(time / 8) % Math.max(1, (DATA.quietNetworkDefs?.arcadeNotes || []).length)] : null;
+      if (diagnostic) this.drawCabinetText(ctx, diagnostic.toUpperCase(), 256, 369, 8, '#9affb6', 'center');
+      if (Math.floor(time * 1.4) % 2) this.drawCabinetText(ctx, diagnostic ? 'QN-0' : 'READY', 462, 42, 9, diagnostic ? '#9affb6' : '#ff4fd8', 'right');
     },
 
     renderCabinetArcadeGame(ctx, id, time) {
@@ -3060,7 +3117,7 @@ const HELP_SECTIONS = [
       this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 370, 9, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
     },
 
-    drawArcadeFrameBase(ctx, title, subtitle) {
+    legacyDrawArcadeFrameBase(ctx, title, subtitle) {
       if (!ctx || !this.els.arcadeCanvas) return;
       ctx.clearRect(0, 0, this.els.arcadeCanvas.width, this.els.arcadeCanvas.height);
       const grad = ctx.createLinearGradient(0, 0, 0, this.els.arcadeCanvas.height);
@@ -3072,16 +3129,16 @@ const HELP_SECTIONS = [
       ctx.fillStyle = '#b5e8ff'; ctx.font = '12px monospace'; ctx.fillText(subtitle, 18, 48);
     },
 
-    drawArcadePauseOverlay(ctx) {
+    legacyDrawArcadePauseOverlay(ctx) {
       ctx.fillStyle = 'rgba(3,6,10,0.72)'; ctx.fillRect(150, 130, 340, 90);
       ctx.fillStyle = '#fff0cb'; ctx.font = 'bold 22px monospace'; ctx.fillText('PAUSED', 270, 165);
       ctx.font = '13px monospace'; ctx.fillStyle = '#b5e8ff'; ctx.fillText('Press a game button to resume later.', 188, 190);
     },
 
-    cardColor(card) { return (card.suit === '♥' || card.suit === '♦') ? 'red' : ''; },
+    legacyCardColor(card) { return (card.suit === '♥' || card.suit === '♦') ? 'red' : ''; },
     cardLabel(card) { return `${card.rank}${card.suit}`; },
 
-    createBombmopperGame(baseScore = 0) {
+    legacyCreateBombmopperGame(baseScore = 0) {
       const mineCount = 14;
       const total = 100;
       const mines = new Set();
@@ -3142,7 +3199,7 @@ const HELP_SECTIONS = [
       });
     },
 
-    onBombmopperCell(index, flag) {
+    legacyOnBombmopperCell(index, flag) {
       if (this.arcade.gamePaused) this.arcade.gamePaused = false;
       const game = this.arcade.games.bombmopper;
       if (!game || game.over || game.won) return;
@@ -3179,7 +3236,7 @@ const HELP_SECTIONS = [
       this.renderBombmopper();
     },
 
-    updateBombmopper(dt) {
+    legacyUpdateBombmopper(dt) {
       const game = this.arcade?.games?.bombmopper;
       if (!game || game.over || game.won || !game.started) return;
       const prevSecond = Math.floor(game.elapsed || 0);
@@ -3188,7 +3245,7 @@ const HELP_SECTIONS = [
       if (prevSecond !== nextSecond) this.renderBombmopper();
     },
 
-    renderBombmopper() {
+    legacyRenderBombmopper() {
       this.els.arcadeCanvas.classList.add('hidden');
       this.els.arcadeDomGame.classList.remove('hidden');
       const game = this.arcade.games.bombmopper;
@@ -3209,7 +3266,7 @@ const HELP_SECTIONS = [
       this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls arcade-bomb-status"><div class="muted">Score ${Math.max(0, Math.floor(game.score || 0))}</div><div class="arcade-bomb-face-wrap"><button class="arcade-face-btn" type="button" data-bomb-restart>${face}</button></div><div class="muted">Hi ${best} • Bombs ${bombsLeft} • Time ${Math.floor(game.elapsed)}s</div></div><div class="arcade-bomb-wrap"><div class="arcade-bomb-grid">${content}</div>${overlay}</div>`;
     },
 
-    makeDeck() {
+    legacyMakeDeck() {
       const suits = ['♠','♥','♦','♣'];
       const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
       const deck = [];
@@ -3221,17 +3278,17 @@ const HELP_SECTIONS = [
       return deck;
     },
 
-    createSolitaireGame() {
+    legacyCreateSolitaireGame() {
       const deck = this.makeDeck();
       const tableaus = Array.from({ length: 7 }, (_, pileIndex) => Array.from({ length: pileIndex + 1 }, (_, idx) => ({ ...deck.pop(), faceUp: idx === pileIndex })));
       return { tableaus, foundations: { '♠': [], '♥': [], '♦': [], '♣': [] }, draw: deck, waste: [], score: 0, won: false, over: false, loseReason: '' };
     },
 
-    snapshotSolitaire(game) {
+    legacySnapshotSolitaire(game) {
       return JSON.parse(JSON.stringify(game));
     },
 
-    pushSolitaireUndo(game) {
+    legacyPushSolitaireUndo(game) {
       if (!this.arcade) return;
       this.arcade.solitaireUndo = this.arcade.solitaireUndo || [];
       this.arcade.solitaireUndo.push(this.snapshotSolitaire(game));
@@ -3262,7 +3319,7 @@ const HELP_SECTIONS = [
       return this.canPlaceOnFoundation(card, game.foundations[suit]) ? suit : null;
     },
 
-    trySolitaireAutoFoundation(source, pile, index) {
+    legacyTrySolitaireAutoFoundation(source, pile, index) {
       const game = this.arcade.games.stackOverflow;
       if (!game || game.over || game.won) return false;
       const card = this.getSolitaireCardFromSource(game, source, pile, index);
@@ -3332,14 +3389,14 @@ const HELP_SECTIONS = [
       game.score = Math.max(0, game.score - 1);
     },
 
-    canPlaceOnTableau(card, target) {
+    legacyCanPlaceOnTableau(card, target) {
       if (!target) return card.rank === 'K';
       const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
       const color = c => (c.suit === '♥' || c.suit === '♦') ? 'r' : 'b';
       return color(card) !== color(target) && ranks.indexOf(card.rank) === ranks.indexOf(target.rank) - 1;
     },
 
-    canPlaceOnFoundation(card, pile) {
+    legacyCanPlaceOnFoundation(card, pile) {
       const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
       if (!pile.length) return card.rank === 'A';
       const top = pile[pile.length - 1];
@@ -3358,7 +3415,7 @@ const HELP_SECTIONS = [
       if (this.els.arcadeDomGame) this.els.arcadeDomGame.querySelectorAll('.arcade-drop-target').forEach(el => el.classList.remove('arcade-drop-target'));
     },
 
-    handleSolitaireAction(action, pile, index) {
+    legacyHandleSolitaireAction(action, pile, index) {
       if (this.arcade.gamePaused) this.arcade.gamePaused = false;
       const game = this.arcade.games.stackOverflow;
       if (!game || game.won || game.over) return;
@@ -3487,7 +3544,7 @@ const HELP_SECTIONS = [
       this.renderSolitaire();
     },
 
-    renderSolitaire() {
+    legacyRenderSolitaire() {
       this.els.arcadeCanvas.classList.add('hidden');
       this.els.arcadeDomGame.classList.remove('hidden');
       const game = this.arcade.games.stackOverflow;
@@ -3527,7 +3584,7 @@ const HELP_SECTIONS = [
       this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls"><div class="muted">Score ${game.score}</div><div class="manager-actions arcade-inline-actions"><button class="soft-btn" data-sol-action="new">New Game</button><button class="soft-btn" data-sol-action="undo">Undo</button><button class="soft-btn" data-sol-action="hint">Hint (-15)</button></div></div>${this.arcade.gamePaused ? '<div class="help-callout">Paused exactly where you left it. Click or drag a card to resume.</div>' : ''}<div class="arcade-solitaire-board tall"><div class="arcade-solitaire-top"><div class="arcade-stock-waste"><div class="arcade-pile arcade-stock" data-sol-action="draw">${game.draw.length ? `<div class="arcade-card back"><span class="arcade-card-back-label">DRAW</span></div>` : '<div class="muted">reset stock</div>'}</div><div class="arcade-pile arcade-waste ${isHintTo('waste', 0) ? 'arcade-hint-target' : ''}">${wasteCard}</div></div><div class="arcade-solitaire-foundations">${foundationCells}</div></div><div class="arcade-solitaire-bottom"><div class="arcade-solitaire-spacer"></div><div class="arcade-solitaire-layout">${tableauHtml}</div></div>${overlay}</div>`;
     },
 
-    createCircuitBreakerGame() {
+    legacyCreateCircuitBreakerGame() {
       return {
         lane: 1,
         distance: 0,
@@ -3550,7 +3607,7 @@ const HELP_SECTIONS = [
       };
     },
 
-    updateCircuitBreaker(dt) {
+    legacyUpdateCircuitBreaker(dt) {
       const g = this.arcade.games.circuitBreaker;
       if (!g || g.over) return;
       const level = g.levels[g.level];
@@ -3613,7 +3670,7 @@ const HELP_SECTIONS = [
       if (g.over) this.setArcadeScore('circuitBreaker', g.score);
     },
 
-    renderCircuitBreaker() {
+    legacyRenderCircuitBreaker() {
       this.els.arcadeCanvas.classList.remove('hidden');
       this.els.arcadeDomGame.classList.add('hidden');
       const ctx = this.els.arcadeCanvas.getContext('2d');
@@ -3651,13 +3708,13 @@ const HELP_SECTIONS = [
       if (this.arcade.gamePaused && !g.over) this.drawArcadePauseOverlay(ctx);
     },
 
-    createCtrlAltDefeatGame() { return { floor: 1, player: { hp: 34, maxHp: 34, patch: 3 }, enemy: null, log: ['Nova Admin enters the ticket dungeon.'], over: false, score: 0 }; },
-    spawnRpgEnemy(game) {
+    legacyCreateCtrlAltDefeatGame() { return { floor: 1, player: { hp: 34, maxHp: 34, patch: 3 }, enemy: null, log: ['Nova Admin enters the ticket dungeon.'], over: false, score: 0 }; },
+    legacySpawnRpgEnemy(game) {
       const roster = [ { name: 'Null Rat', hp: 12, atk: 4, color: '#ff8ea5' }, { name: 'Kernel Wraith', hp: 18, atk: 5, color: '#9fd8ff' }, { name: 'Patch Pixie', hp: 15, atk: 3, color: '#c6ff9e' }, { name: 'Segfault Ogre', hp: 24, atk: 6, color: '#ffcf7f' } ];
       game.enemy = { ...roster[Math.min(roster.length - 1, game.floor - 1)] };
     },
     updateCtrlAltDefeat(dt) { const g = this.arcade.games.ctrlAltDefeat; if (!g || g.over) return; if (!g.enemy) this.spawnRpgEnemy(g); },
-    handleRpgAction(action) {
+    legacyHandleRpgAction(action) {
       if (this.arcade.gamePaused) this.arcade.gamePaused = false;
       const g = this.arcade.games.ctrlAltDefeat;
       if (!g || g.over) return;
@@ -3670,17 +3727,17 @@ const HELP_SECTIONS = [
       if (g.player.hp <= 0) { g.player.hp = 0; g.over = true; this.setArcadeScore('ctrlAltDefeat', g.score); }
       this.renderCtrlAltDefeat();
     },
-    renderCtrlAltDefeat() {
+    legacyRenderCtrlAltDefeat() {
       this.els.arcadeCanvas.classList.add('hidden');
       this.els.arcadeDomGame.classList.remove('hidden');
       const g = this.arcade.games.ctrlAltDefeat; if (!g.enemy) this.spawnRpgEnemy(g);
       this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls"><div class="muted">A = attack • P = patch • O = overclock</div><div class="muted">Score ${g.score}</div></div>${this.arcade.gamePaused ? '<div class="help-callout">Paused exactly where you left it. Press a button to resume.</div>' : ''}<div class="help-grid"><div class="help-chip"><strong>Nova Admin</strong><br>HP ${g.player.hp}/${g.player.maxHp}<br>Patches ${g.player.patch}</div><div class="help-chip"><strong>${g.enemy.name}</strong><br>HP ${Math.max(0, g.enemy.hp)}<br>Threat ${g.floor}</div></div><div class="manager-actions"><button class="soft-btn" data-rpg-action="attack">Attack</button><button class="soft-btn" data-rpg-action="patch">Patch</button><button class="soft-btn" data-rpg-action="overclock">Overclock</button></div><div class="stack" style="margin-top:12px;">${g.log.slice(0,6).map(line => `<div class="help-chip">${line}</div>`).join('')}</div>${g.over ? '<div class="help-callout" style="margin-top:12px;">Ctrl+Alt+Defeat run ended. Your highscore is safe.</div>' : ''}`;
     },
 
-    createMortalKonfigGame() {
+    legacyCreateMortalKonfigGame() {
       return { playerX: 140, enemyX: 500, playerY: 0, enemyY: 0, playerVy: 0, enemyVy: 0, playerHp: 100, enemyHp: 100, roundWins: 0, over: false, enemyCooldown: 0, score: 0, playerState: 'idle', enemyState: 'idle', playerStateUntil: 0, enemyStateUntil: 0, playerAttackHit: false, enemyAttackHit: false, difficulty: 1 };
     },
-    updateMortalKonfig(dt) {
+    legacyUpdateMortalKonfig(dt) {
       const g = this.arcade.games.mortalKonfig; if (!g || g.over) return;
       const now = performance.now();
       const gravity = 900;
@@ -3749,7 +3806,7 @@ const HELP_SECTIONS = [
       else { ctx.fillRect(14, -42, 12, 6); ctx.fillRect(-26, -42, 12, 6); }
       ctx.restore();
     },
-    renderMortalKonfig() {
+    legacyRenderMortalKonfig() {
       this.els.arcadeCanvas.classList.remove('hidden');
       this.els.arcadeDomGame.classList.add('hidden');
       const ctx = this.els.arcadeCanvas.getContext('2d');
@@ -5230,6 +5287,7 @@ const HELP_SECTIONS = [
             desk: Object.assign({}, placementState.desk || {})
           },
           floorBotProfile: this.app.state.floorBotProfile,
+          quietNetwork: this.app.getQuietNetworkState?.(),
           soundEnabled: this.app.state.soundEnabled
         });
       }

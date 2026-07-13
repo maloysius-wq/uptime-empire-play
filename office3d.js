@@ -1348,7 +1348,7 @@
       return false;
     }
 
-    setScene({ tier = 0, decorations = [], suiteName = '', wallFinish = 'default', floorFinish = 'default', deskFinish = 'default', chairFinish = 'default', graphicsQuality = 'performance', placements = null, floorBotProfile = null, soundEnabled = true }) {
+    setScene({ tier = 0, decorations = [], suiteName = '', wallFinish = 'default', floorFinish = 'default', deskFinish = 'default', chairFinish = 'default', graphicsQuality = 'performance', placements = null, floorBotProfile = null, quietNetwork = null, soundEnabled = true }) {
       this.state.tier = tier;
       this.state.decorations = Array.isArray(decorations) ? decorations.filter(Boolean) : [];
       this.state.suiteName = suiteName || this.state.suiteName;
@@ -1377,6 +1377,7 @@
         desk: clonePlacementZone('desk')
       };
       if (floorBotProfile) this.state.floorBotProfile = Object.assign({}, this.state.floorBotProfile || {}, floorBotProfile);
+      this.state.quietNetwork = quietNetwork ? Object.assign({}, quietNetwork) : { stage: 0, alignment: null };
       this.state.soundEnabled = soundEnabled !== false;
       this.setGraphicsQuality(graphicsQuality);
       this.syncServerAmbienceAudio();
@@ -1390,6 +1391,7 @@
         floorFinish: this.state.floorFinish,
         deskFinish: this.state.deskFinish,
         chairFinish: this.state.chairFinish,
+        quietNetwork: this.state.quietNetwork,
         placements: this.state.placements,
         floorBotProfile: this.state.floorBotProfile,
         soundEnabled: this.state.soundEnabled
@@ -5943,6 +5945,14 @@
         for (let i=0;i<22;i++){ const px=430+((i*31+Math.sin(time*0.7+i)*18)%520); const py=128+((i*19+Math.cos(time*0.9+i*0.7)*24)%300); ctx.fillStyle=dotColors[i%dotColors.length]; ctx.globalAlpha=0.45+0.5*Math.abs(Math.sin(time*1.4+i)); ctx.fillRect(px,py,10,10); ctx.globalAlpha=1; }
         for (let i=0;i<4;i++){ ctx.fillStyle=barColors[(i+2)%barColors.length]; ctx.fillRect(742,152+i*52, 100 + Math.sin(time+i)*80, 10); }
         ctx.fillStyle='rgba(255,255,255,0.82)'; ctx.font='600 18px Arial'; ctx.fillText(`Live refresh ${Math.floor(t*10)%10}`,816,94);
+        const quiet = this.state.quietNetwork || { stage: 0, alignment: null };
+        if (quiet.stage > 0) {
+          const quietColor = quiet.alignment === 'caretaker' ? '#7fffd1' : quiet.alignment === 'operator' ? '#70dbff' : quiet.alignment === 'sovereign' ? '#ffcf7a' : '#9affb6';
+          ctx.fillStyle='rgba(6,20,20,0.78)'; ctx.fillRect(650,360,330,86);
+          ctx.strokeStyle=quietColor; ctx.lineWidth=2; ctx.strokeRect(650,360,330,86);
+          ctx.fillStyle=quietColor; ctx.font='800 19px Arial'; ctx.fillText('QUIET NETWORK',668,387);
+          ctx.fillStyle='rgba(233,255,248,0.90)'; ctx.font='600 15px Arial'; ctx.fillText(quiet.alignment ? `${quiet.alignment.toUpperCase()} PROTOCOL` : `TRACE ${quiet.stage}/5 // LISTENING`,668,415);
+        }
         const scanY=118+((t*110)%330); ctx.fillStyle='rgba(127,255,209,0.14)'; ctx.fillRect(24,scanY,canvas.width-48,10);
         if (screen && screen.material) screen.material.emissiveIntensity = 0.42 + Math.abs(Math.sin(time*1.2))*0.12;
         texture.needsUpdate=true;

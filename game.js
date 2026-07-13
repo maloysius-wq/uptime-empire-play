@@ -20,6 +20,32 @@
     };
   }
 
+  function freshQuietNetworkState() {
+    return {
+      stage: 0,
+      alignment: null,
+      evidence: 0,
+      findings: {}
+    };
+  }
+
+  function normalizeQuietNetworkState(source = {}) {
+    const fresh = freshQuietNetworkState();
+    const defs = DATA.quietNetworkDefs || {};
+    const validAlignments = new Set((defs.alignments || []).map(def => def.id));
+    const maxStage = (defs.beats || []).length;
+    const findings = {};
+    Object.entries(source.findings || {}).forEach(([id, value]) => {
+      if (value) findings[id] = typeof value === 'number' ? value : Date.now();
+    });
+    return {
+      stage: Math.max(0, Math.min(maxStage, Math.floor(Number(source.stage) || 0))),
+      alignment: validAlignments.has(source.alignment) ? source.alignment : null,
+      evidence: Math.max(0, Math.floor(Number(source.evidence) || 0)),
+      findings
+    };
+  }
+
   function numericMap(source = {}) {
     const out = {};
     Object.entries(source || {}).forEach(([key, value]) => {
@@ -246,6 +272,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       bossCatalog: {},
       campaignGoals: {},
       campaignGoalMoments: {},
+      quietNetwork: freshQuietNetworkState(),
       missionSlots: 1,
       activeMissions: [],
       missionCooldowns: {},
@@ -305,6 +332,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       return [region.id, { xp: Number(saved.xp || 0), level: Number(saved.level || 0) }];
     }));
     merged.bossCatalog = numericMap(loaded.bossCatalog || {});
+    merged.quietNetwork = normalizeQuietNetworkState(loaded.quietNetwork || {});
 
     merged.purchasedCosmetics = Object.keys(DATA.cosmetics).reduce((acc, category) => {
       acc[category] = Object.assign({}, fresh.purchasedCosmetics[category] || { default: true }, (loaded.purchasedCosmetics || {})[category] || {});
@@ -550,6 +578,74 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       return DATA.challengeDefs?.find(def => def.id === this.state.selectedChallengeId) || null;
     },
 
+    getQuietNetworkState() {
+      if (!this.state.quietNetwork) this.state.quietNetwork = freshQuietNetworkState();
+      return this.state.quietNetwork;
+    },
+
+    getQuietNetworkBeat(stage = this.getQuietNetworkState().stage) {
+      return (DATA.quietNetworkDefs?.beats || []).find(beat => beat.stage === stage) || null;
+    },
+
+    getQuietNetworkAlignmentDef(id = this.getQuietNetworkState().alignment) {
+      return (DATA.quietNetworkDefs?.alignments || []).find(def => def.id === id) || null;
+    },
+
+    quietNetworkConditionsMet(condition = {}) {
+      const standard = Object.assign({}, condition);
+      const quietEvidence = standard.quietEvidence;
+      const campaignGoal = standard.campaignGoal;
+      delete standard.quietEvidence;
+      delete standard.campaignGoal;
+      if (Object.keys(standard).length && !this.meetsCondition(standard)) return false;
+      if (quietEvidence && this.getQuietNetworkState().evidence < quietEvidence) return false;
+      if (campaignGoal && !this.isCampaignGoalComplete(campaignGoal)) return false;
+      return true;
+    },
+
+    recordQuietNetworkFinding(id, source = 'field trace', silent = false) {
+      const network = this.getQuietNetworkState();
+      if (network.stage < 1 || !id || network.findings[id]) return false;
+      network.findings[id] = Date.now();
+      network.evidence += 1;
+      this.pushConsoleLog(`Quiet Network finding archived from ${source}. Trace count ${network.evidence}.`, 'system');
+      if (!silent && window.UptimeEmpireUI) {
+        window.UptimeEmpireUI.toast('Quiet Network trace archived.');
+        window.UptimeEmpireUI.showBuddyLine('trace saved');
+      }
+      this.advanceQuietNetwork(silent);
+      return true;
+    },
+
+    advanceQuietNetwork(silent = false) {
+      const network = this.getQuietNetworkState();
+      const nextBeat = this.getQuietNetworkBeat(network.stage + 1);
+      if (!nextBeat || !this.quietNetworkConditionsMet(nextBeat.unlockWhen)) return false;
+      network.stage = nextBeat.stage;
+      this.pushConsoleLog(nextBeat.console, 'system');
+      if (!silent && window.UptimeEmpireUI) {
+        window.UptimeEmpireUI.toast(`Quiet Network: ${nextBeat.title}`);
+        window.UptimeEmpireUI.showBuddyLine(nextBeat.buddyLine || 'new signal');
+        window.UptimeEmpireUI.playSound('achievement');
+      }
+      return true;
+    },
+
+    chooseQuietNetworkAlignment(id) {
+      const network = this.getQuietNetworkState();
+      const alignment = this.getQuietNetworkAlignmentDef(id);
+      if (!alignment || network.stage < 5 || network.alignment) return { ok: false };
+      network.alignment = alignment.id;
+      this.recomputeBonuses();
+      this.pushConsoleLog(`Quiet Network stewardship chosen: ${alignment.name}.`, 'system');
+      if (window.UptimeEmpireUI) {
+        window.UptimeEmpireUI.toast(`${alignment.name} engaged.`);
+        window.UptimeEmpireUI.showBuddyLine('protocol chosen');
+        window.UptimeEmpireUI.playSound('prestige');
+      }
+      return { ok: true, alignment };
+    },
+
     getChallengeCompletionCount() {
       return Object.values(this.state.challengeCompletions || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
     },
@@ -671,6 +767,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       (DATA.campaignGoalDefs || []).forEach(goal => {
         if (this.state.campaignGoals?.[goal.id]) this.applyEffectBundleToTarget(goal.effects || {}, target);
       });
+      const quietAlignment = this.getQuietNetworkAlignmentDef();
+      if (quietAlignment?.effects) this.applyEffectBundleToTarget(quietAlignment.effects, target);
       const season = this.getCurrentSeasonDef();
       if (season?.effects) this.applyEffectBundleToTarget(season.effects, target);
       const doctrine = this.getActiveDoctrineDef();
@@ -985,6 +1083,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       gen.running = false;
       gen.progress = 0;
       this.syncManagerCount();
+      const arrival = DATA.managerArrivalLines?.[id];
+      if (arrival) this.pushConsoleLog(`${def.managerName}: ${arrival}`, 'system');
       this.updateAchievements();
       return { ok: true, cost };
     },
@@ -1304,6 +1404,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         bossCatalog: Object.assign({}, this.state.bossCatalog),
         campaignGoals: Object.assign({}, this.state.campaignGoals),
         campaignGoalMoments: Object.assign({}, this.state.campaignGoalMoments),
+        quietNetwork: deepClone(this.getQuietNetworkState()),
         floorBotProfile: deepClone(this.state.floorBotProfile),
         stats: Object.assign({}, this.state.stats, { prestiges: this.state.stats.prestiges + 1 })
       };
@@ -1327,6 +1428,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.bossCatalog = preserved.bossCatalog;
       this.state.campaignGoals = preserved.campaignGoals;
       this.state.campaignGoalMoments = preserved.campaignGoalMoments;
+      this.state.quietNetwork = preserved.quietNetwork;
       this.state.floorBotProfile = preserved.floorBotProfile;
       this.state.stats = preserved.stats;
       this.recomputeBonuses();
@@ -1385,6 +1487,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.campaignGoals[id] = stamp;
       this.state.campaignGoalMoments[id] = stamp;
       this.recomputeBonuses();
+      this.advanceQuietNetwork();
       const completed = this.getCampaignGoalsCompletedCount();
       this.pushConsoleLog(`${def.name} complete. Career route ${completed}/${(DATA.campaignGoalDefs || []).length}.`, 'system');
       if (window.UptimeEmpireUI) {
@@ -1680,6 +1783,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (mission.reward.ipFragments) this.addIpFragments(mission.reward.ipFragments);
       if (mission.reward.incidentShield) this.state.incidentShieldRemaining += mission.reward.incidentShield;
       this.state.stats.missionsCompleted += 1;
+      if (['research', 'security'].includes(mission.kind)) this.recordQuietNetworkFinding(`mission:${mission.id}`, mission.name, silent);
       if (!silent && window.UptimeEmpireUI) {
         window.UptimeEmpireUI.toast(`${mission.name} complete.`);
         window.UptimeEmpireUI.showBuddyLine('quest done');
@@ -1755,8 +1859,11 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         remaining: duration,
         penalties,
         tags: def.tags || [],
-        boss: !!def.boss
+        boss: !!def.boss,
+        quietSignal: this.getQuietNetworkState().stage >= 1 && this.getQuietNetworkState().stage < 5 && Math.random() < 0.46,
+        traceSelected: false
       };
+      if (incident.quietSignal) incident.desc = `${incident.desc} A QN maintenance prefix keeps returning after every timeout.`;
       this.state.activeIncidents.push(incident);
       if (window.UptimeEmpireUI) {
         window.UptimeEmpireUI.toast(`${def.name} detected.`);
@@ -1775,15 +1882,19 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (!this.state.nextIncidentAt || now >= this.state.nextIncidentAt) this.spawnIncident();
     },
 
-    respondToIncident(uid) {
+    respondToIncident(uid, strategy = 'contain') {
       const incident = this.state.activeIncidents.find(item => item.uid === uid);
       if (!incident) return { ok: false };
-      incident.remaining -= (incident.boss ? 9 : 12) + this.state.multipliers.responsePower * (incident.boss ? 38 : 45);
+      const base = (incident.boss ? 9 : 12) + this.state.multipliers.responsePower * (incident.boss ? 38 : 45);
+      const trace = strategy === 'trace' && incident.quietSignal;
+      const reroute = strategy === 'reroute';
+      incident.remaining -= base * (trace ? 0.76 : reroute ? 1.24 : 1);
+      if (trace) incident.traceSelected = true;
       if (incident.remaining <= 0) {
         this.resolveIncident(uid);
-        return { ok: true, resolved: true, boss: incident.boss };
+        return { ok: true, resolved: true, boss: incident.boss, strategy };
       }
-      return { ok: true, resolved: false, boss: incident.boss };
+      return { ok: true, resolved: false, boss: incident.boss, strategy };
     },
 
     resolveIncident(uid, silent = false) {
@@ -1798,6 +1909,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       }
       this.addResearch(researchReward);
       if (incident.boss) this.addIpFragments(Math.max(1, Math.round(incident.severity / 1.8)) + Math.floor(this.getBossRankValue(incident.typeId) / 2));
+      if (incident.traceSelected) this.recordQuietNetworkFinding(`incident:${incident.typeId}`, `${incident.name} trace`, silent);
       if (!silent && window.UptimeEmpireUI) {
         window.UptimeEmpireUI.toast(`${incident.name} resolved.`);
         window.UptimeEmpireUI.showBuddyLine(incident.boss ? 'boss down' : 'fixed it');
@@ -1831,6 +1943,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
           window.UptimeEmpireUI.playSound('achievement');
         }
       });
+      this.advanceQuietNetwork();
     },
 
     tickGenerators(dt) {
@@ -1860,7 +1973,10 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         if (window.UptimeEmpireUI) {
           window.UptimeEmpireUI.updateBuddy();
           if (Math.random() > 0.55) {
-            const lines = DATA.buddyLines;
+            const activeBeat = this.getQuietNetworkBeat();
+            const lines = activeBeat && Math.random() < 0.30
+              ? [activeBeat.buddyLine || 'the signal is still there']
+              : DATA.buddyLines;
             window.UptimeEmpireUI.showBuddyLine(lines[Math.floor(Math.random() * lines.length)]);
           }
         }

@@ -1706,6 +1706,60 @@ button {
   margin-top: 4px;
 }
 
+.quiet-network-section {
+  border-color: rgba(101, 240, 160, 0.22);
+  background: linear-gradient(135deg, rgba(52, 126, 102, 0.16), rgba(17, 33, 47, 0.78) 56%, rgba(21, 38, 58, 0.88));
+}
+
+.quiet-network-card.active {
+  border-color: rgba(101, 240, 160, 0.38);
+  box-shadow: inset 3px 0 0 rgba(101, 240, 160, 0.72);
+}
+
+.quiet-objective,
+.quiet-signal-line {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-left: 2px solid rgba(101, 240, 160, 0.75);
+  background: rgba(7, 17, 25, 0.46);
+  color: #bfe9d0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.quiet-signal-line {
+  border-left-color: rgba(112, 219, 255, 0.84);
+  color: #bcecff;
+}
+
+.quiet-progress {
+  background: linear-gradient(90deg, #69f0a0, #70dbff);
+}
+
+.quiet-alignment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quiet-alignment-card {
+  min-width: 0;
+}
+
+.incident-strategy-actions {
+  align-items: stretch;
+}
+
+.incident-strategy-actions button {
+  flex: 1 1 110px;
+}
+
+@media (max-width: 760px) {
+  .quiet-alignment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .big-btn.danger {
   background: linear-gradient(180deg, #ff6f6f, #d43e3e);
   border-color: rgba(255,255,255,0.16);
