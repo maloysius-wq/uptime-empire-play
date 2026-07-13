@@ -56,18 +56,19 @@
   <div class="app-shell" id="appShell">
     <canvas class="idle-skin-canvas" id="idleSkinCanvas" aria-hidden="true"></canvas>
     <aside class="stats-sidebar">
-      <header class="topbar card stats-card">
-        <div class="stats-header-row">
-          <div>
-            <div class="eyebrow">Uptime Empire // Live</div>
-            <p class="muted">The numbers that matter right now.</p>
+      <header class="topbar card stats-card ue-topbar">
+        <div class="ue-brand">
+          <div class="ue-brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="ue-brand-copy">
+            <strong>UPTIME EMPIRE</strong>
+            <span>Founder console / Shed 01</span>
           </div>
         </div>
         <div class="stats-grid telemetry-grid primary">
           <div class="stat"><span>Credits</span><strong id="creditsValue">0</strong></div>
-          <div class="stat"><span>Passive / sec</span><strong id="passiveIpsValue">0</strong></div>
-          <div class="stat"><span>Empire Capacity</span><strong id="capacityValue">0 / 0</strong></div>
-          <div class="stat"><span>Available Teams</span><strong id="missionTeamsValue">0</strong></div>
+          <div class="stat"><span>Passive</span><strong id="passiveIpsValue">0</strong></div>
+          <div class="stat"><span>Capacity</span><strong id="capacityValue">0 / 0</strong></div>
+          <div class="stat"><span>Teams available</span><strong id="missionTeamsValue">0</strong></div>
           <div class="stat"><span>System Health</span><strong id="telemetryHealthValue">Nominal</strong></div>
         </div>
         <details class="telemetry-details">
@@ -109,11 +110,11 @@
           <button class="soft-btn command-help-btn" id="helpBtn">Help</button>
         </div>
         <div class="nav-grid">
-          <button class="nav-btn active" data-panel="command">Command Center</button>
-          <button class="nav-btn" data-panel="infrastructure">Infrastructure</button>
-          <button class="nav-btn" data-panel="people">People &amp; Ops</button>
-          <button class="nav-btn" data-panel="network">Network</button>
-          <button class="nav-btn" data-panel="progress">Progress</button>
+          <button class="nav-btn active" data-panel="command"><span class="nav-symbol" aria-hidden="true">&#9638;</span>Command</button>
+          <button class="nav-btn" data-panel="infrastructure"><span class="nav-symbol" aria-hidden="true">&#9673;</span>Infrastructure</button>
+          <button class="nav-btn" data-panel="people"><span class="nav-symbol" aria-hidden="true">&#9826;</span>People &amp; Ops</button>
+          <button class="nav-btn" data-panel="network"><span class="nav-symbol" aria-hidden="true">&#8853;</span>Network</button>
+          <button class="nav-btn" data-panel="progress"><span class="nav-symbol" aria-hidden="true">&#9737;</span>Progress</button>
         </div>
       </nav>
 
@@ -132,27 +133,39 @@
         <section class="panel" id="panel-ops">
           <div class="section-head card">
             <div>
+              <span class="workspace-eyeline">BUILD / AUTOMATE / SCALE</span>
               <h2>Infrastructure</h2>
-              <p class="muted">Scale hardware, hire each fleet's manager in place, and tune the empire.</p>
+              <p class="muted">Hardware and its upgrades live together, ordered by what matters now.</p>
             </div>
             <div class="purchase-mode" id="purchaseModeWrap"></div>
           </div>
-          <div id="opsList" class="stack"></div>
+          <div class="workspace-metric-strip">
+            <div><span>Used capacity</span><strong id="infraUsedCapacity">0</strong></div>
+            <div><span>Free capacity</span><strong id="infraFreeCapacity">0</strong></div>
+            <div><span>Automated income</span><strong id="infraAutomatedIncome">0</strong></div>
+            <div><span>Best ROI</span><strong id="infraBestRoi">Home Lab</strong></div>
+          </div>
+          <section class="plain-section">
+            <h3 class="workspace-section-title"><span>Active fleet</span><small>Sorted by value</small></h3>
+            <div id="opsList" class="stack"></div>
+          </section>
         </section>
 
         <section class="panel" id="panel-missions">
           <div class="section-head card">
             <div>
+              <span class="workspace-eyeline">PEOPLE / MISSIONS / RESILIENCE</span>
               <h2>People &amp; Ops</h2>
-              <p class="muted">Dispatch teams, resolve incidents, and manage the people and services behind the machines.</p>
+              <p class="muted">Everything involving people or active attention shares one calm workspace.</p>
             </div>
           </div>
-          <div class="stats-grid compact mission-top-grid">
-            <div class="stat"><span>Available Teams</span><strong id="missionTeamsPanelValue">0</strong></div>
-            <div class="stat"><span>Research Data</span><strong id="missionResearchValue">0</strong></div>
-            <div class="stat"><span>Active Incidents</span><strong id="activeIncidentsValue">0</strong></div>
-            <div class="stat"><span>Incident Shield</span><strong id="incidentShieldValue">0</strong></div>
+          <div class="workspace-metric-strip mission-top-grid">
+            <div><span>Managers</span><strong id="peopleManagersValue">0</strong></div>
+            <div><span>Mission teams</span><strong id="missionTeamsPanelValue">0</strong></div>
+            <div><span>Specialists</span><strong id="peopleSpecialistsValue">0</strong></div>
+            <div><span>Incidents</span><strong id="activeIncidentsValue">0</strong></div>
           </div>
+          <div class="hidden"><span id="missionResearchValue">0</span><span id="incidentShieldValue">0</span></div>
           <div class="split-stack mission-layout">
             <div class="card section-card">
               <div class="mini-head">
@@ -174,47 +187,28 @@
         <section class="panel active" id="panel-command">
           <div class="section-head card">
             <div>
+              <span class="workspace-eyeline">MONDAY / FOUNDER SHIFT</span>
               <h2>Command Center</h2>
-              <p class="muted">A clear view of the empire, the next useful moves, and the Big Bet.</p>
+              <p class="muted">One glance tells you what needs attention and what moves the empire forward.</p>
             </div>
           </div>
           <div class="command-metric-grid">
-            <div class="stat"><span>Research</span><strong id="commandMetricResearch">0 RD</strong></div>
             <div class="stat"><span>Innovation</span><strong id="commandMetricInnovation">0 IP</strong></div>
+            <div class="stat"><span>Research</span><strong id="commandMetricResearch">0 RD</strong></div>
             <div class="stat"><span>Next Overhaul</span><strong id="commandMetricOverhaul">0 IP</strong></div>
             <div class="stat"><span>Launch Debt</span><strong id="commandMetricDebt">Open</strong></div>
           </div>
+          <div class="health-strip"><strong>SYSTEM STATUS</strong><div id="opsIncidentSummary" class="inline-status-grid"></div></div>
           <div class="command-overview-grid">
-            <div class="card section-card workspace-section">
-              <div class="mini-head"><h3>Next Best Moves</h3><p class="muted">Three useful directions, based on the current run.</p></div>
+            <div class="section-card workspace-section plain-section">
+              <div class="mini-head"><h3>Next Best Moves</h3><span class="workspace-badge">3 ready</span></div>
               <div id="commandActionList" class="mini-stack"></div>
             </div>
-            <div class="card section-card workspace-section">
-              <div class="mini-head"><h3>System Status</h3><p class="muted">Current operational pressure without opening another workspace.</p></div>
-              <div id="opsIncidentSummary" class="inline-status-grid"></div>
+            <div class="command-side-column">
+              <section class="plain-section"><div class="mini-head"><h3>The Big Bet</h3><span class="workspace-badge">Long game</span></div><div id="bigBetDebtPanel" class="mini-stack"></div><div id="campaignGoalList" class="mini-stack"></div></section>
+              <section class="plain-section"><div class="mini-head"><h3>Side Job</h3><span class="muted">Optional</span></div><div id="contractsList" class="mini-stack"></div></section>
+              <section class="plain-section"><div class="mini-head"><h3>Recent</h3></div><div id="legacyPanel" class="mini-stack"></div></section>
             </div>
-          </div>
-          <div class="card section-card">
-            <div class="mini-head">
-              <h3>The Big Bet</h3>
-              <p class="muted">One clear climb. Each milestone survives Overhaul and leaves the empire stronger than before.</p>
-            </div>
-            <div id="bigBetDebtPanel" class="mini-stack"></div>
-            <div id="campaignGoalList" class="mini-stack"></div>
-          </div>
-          <div class="card section-card">
-            <div class="mini-head">
-              <h3>Side Job</h3>
-              <p class="muted">One useful request at a time. Do it for the reward, or keep building your own thing.</p>
-            </div>
-            <div id="contractsList" class="mini-stack"></div>
-          </div>
-          <div class="card section-card">
-            <div class="mini-head">
-              <h3>Legacy</h3>
-              <p class="muted">Trophies, optional Founder Mode challenges, and the parts of the empire that exist because you kept going.</p>
-            </div>
-            <div id="legacyPanel" class="mini-stack"></div>
           </div>
         </section>
 
@@ -271,6 +265,7 @@
         <section class="panel" id="panel-regions">
           <div class="section-head card">
             <div>
+              <span class="workspace-eyeline">REGIONS / CAPACITY / PROJECTS</span>
               <h2>Network</h2>
               <p class="muted">Unlock capacity, expand footprints, and stack regional bonuses.</p>
             </div>
@@ -304,6 +299,7 @@
         <section class="panel" id="panel-overhaul">
           <div class="section-head card">
             <div>
+              <span class="workspace-eyeline">OVERHAUL / LEGACY / STYLE</span>
               <h2>Progress</h2>
               <p class="muted">Reset the empire, keep the know-how, come back louder.</p>
             </div>
@@ -566,7 +562,7 @@
   <script src="assets/scifi_floor_tile_data.js?v=81e439523cca"></script>
   <script src="assets/circuit_wall_texture_data.js?v=68b42bfca2f4"></script>
   <script src="office3d.js?v=8f94414afbb0"></script>
-  <script src="ui.js?v=dea46a7830a4"></script>
+  <script src="ui.js?v=abd4e704c08b"></script>
 
   <div class="modal-backdrop hidden" id="robotModal">
     <div class="modal card modal-narrow">

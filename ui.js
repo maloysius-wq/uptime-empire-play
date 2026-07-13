@@ -286,6 +286,12 @@ const HELP_SECTIONS = [
         securityValue: $('securityValue'),
         offlineValue: $('offlineValue'),
         telemetryHealthValue: $('telemetryHealthValue'),
+        infraUsedCapacity: $('infraUsedCapacity'),
+        infraFreeCapacity: $('infraFreeCapacity'),
+        infraAutomatedIncome: $('infraAutomatedIncome'),
+        infraBestRoi: $('infraBestRoi'),
+        peopleManagersValue: $('peopleManagersValue'),
+        peopleSpecialistsValue: $('peopleSpecialistsValue'),
         missionTeamsPanelValue: $('missionTeamsPanelValue'),
         missionResearchValue: $('missionResearchValue'),
         activeIncidentsValue: $('activeIncidentsValue'),
@@ -560,12 +566,7 @@ const HELP_SECTIONS = [
         this.els.terminalDockExpandBtn.addEventListener('click', () => {
           this.primeAudio();
           this.playSound('ui');
-          if (window.matchMedia('(max-width: 1219px)').matches) this.openMobileTerminalApp('console');
-          else {
-            this.app.changeSuiteTab('console');
-            this.consolePinnedToBottom = true;
-            requestAnimationFrame(() => this.renderConsole(true));
-          }
+          this.openMobileTerminalApp('console');
         });
       }
 
@@ -1447,6 +1448,18 @@ const HELP_SECTIONS = [
       this.els.missionResearchValue.textContent = `${this.app.formatNumber(state.research)} RD`;
       this.els.activeIncidentsValue.textContent = `${state.activeIncidents.length}`;
       this.els.incidentShieldValue.textContent = state.incidentShieldRemaining > 0 ? this.app.formatDuration(state.incidentShieldRemaining) : 'None';
+      if (this.els.infraUsedCapacity) this.els.infraUsedCapacity.textContent = this.app.formatNumber(this.app.getUsedCapacity());
+      if (this.els.infraFreeCapacity) this.els.infraFreeCapacity.textContent = this.app.formatNumber(this.app.getRemainingCapacity());
+      if (this.els.infraAutomatedIncome) this.els.infraAutomatedIncome.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} / sec`;
+      if (this.els.infraBestRoi) {
+        const best = DATA.generatorDefs
+          .filter(def => this.app.canUnlockGenerator(def))
+          .map(def => ({ def, value: this.app.getGeneratorPotentialPerSecond(def, this.app.getGenState(def.id)) || (def.payout / Math.max(1, def.cycle)) / Math.max(1, this.app.getNextCost(def, this.app.getGenState(def.id).owned)) }))
+          .sort((a, b) => b.value - a.value)[0];
+        this.els.infraBestRoi.textContent = best?.def?.name || 'Home Lab Node';
+      }
+      if (this.els.peopleManagersValue) this.els.peopleManagersValue.textContent = `${state.totalManagers} / ${DATA.generatorDefs.length}`;
+      if (this.els.peopleSpecialistsValue) this.els.peopleSpecialistsValue.textContent = `${Object.keys(state.hiredSpecialists || {}).filter(id => state.hiredSpecialists[id]).length} active`;
       if (this.els.telemetryHealthValue) {
         const incidents = state.activeIncidents.length;
         this.els.telemetryHealthValue.textContent = incidents ? `${incidents} incident${incidents === 1 ? '' : 's'}` : 'Nominal';
@@ -1479,9 +1492,9 @@ const HELP_SECTIONS = [
     },
 
     renderPurchaseModes() {
-      this.els.purchaseModeWrap.innerHTML = DATA.purchaseModes.map(mode => {
+      this.els.purchaseModeWrap.innerHTML = [10, 'MAX'].map(mode => {
         const label = String(mode);
-        return `<button class="mode-chip ${this.app.state.purchaseMode === mode ? 'active' : ''}" data-mode="${label}">${label}</button>`;
+        return `<button class="mode-chip ${this.app.state.purchaseMode === mode ? 'active' : ''}" data-mode="${label}">Buy ${label === 'MAX' ? 'Max' : label}</button>`;
       }).join('');
     },
 
@@ -1492,9 +1505,9 @@ const HELP_SECTIONS = [
       }).join('');
     },
 
-    renderOps() {
+    renderOpsLegacy() {
       this.renderOpsIncidentSummary();
-      this.els.opsList.innerHTML = DATA.generatorDefs.map(def => {
+      this.els.opsList.innerHTML = DATA.generatorDefs.filter(def => this.app.canUnlockGenerator(def) || this.app.getGenState(def.id).owned > 0).map(def => {
         const gen = this.app.getGenState(def.id);
         const unlocked = this.app.canUnlockGenerator(def);
         const nextCost = this.app.getNextCost(def, gen.owned);
@@ -1540,6 +1553,41 @@ const HELP_SECTIONS = [
                   ${qty ? `Buy ${qty}` : 'Buy'} (${this.app.formatNumber(qty ? bulkCost : nextCost)})
                 </button>
               </div>
+            </div>
+          </article>`;
+      }).join('');
+    },
+
+    renderOps() {
+      this.renderOpsIncidentSummary();
+      this.els.opsList.innerHTML = DATA.generatorDefs.filter(def => this.app.canUnlockGenerator(def) || this.app.getGenState(def.id).owned > 0).map(def => {
+        const gen = this.app.getGenState(def.id);
+        const unlocked = this.app.canUnlockGenerator(def);
+        const nextCost = this.app.getNextCost(def, gen.owned);
+        const qty = Math.max(0, this.app.getSelectedQuantity(def));
+        const bulkCost = qty ? this.app.costForQuantity(def, gen.owned, qty) : 0;
+        const canAfford = qty > 0 && this.app.state.credits >= bulkCost && this.app.getRemainingCapacity() >= this.app.getEffectiveCapacityUse(def) * qty;
+        const managerCost = this.app.getManagerCost(def);
+        const canHire = gen.owned > 0 && !gen.managerHired && this.app.state.credits >= managerCost;
+        const incomePerCycle = gen.owned ? this.app.getIncomePerCycle(def, gen) : 0;
+        const perSecond = gen.owned ? this.app.getGeneratorPotentialPerSecond(def, gen) : 0;
+        const lockMsg = !unlocked ? `Unlocks at ${this.app.formatNumber(def.unlockAt)} lifetime compute` : '';
+        const nextMilestone = DATA.milestoneDefs.find(m => m.count > gen.owned)?.count || DATA.milestoneDefs[DATA.milestoneDefs.length - 1]?.count || 1;
+        return `
+          <article class="row-card resource-row ${unlocked ? '' : 'locked'}" data-gen-card="${def.id}">
+            <div class="resource-copy">
+              <div class="generator-name">${def.name}</div>
+              <p class="fleet-summary">Owned <span data-gen-owned="${def.id}">${gen.owned}</span> / ${gen.managerHired ? 'Automated' : 'Manual cycles'} / Milestone ${nextMilestone}</p>
+              <div class="progress-track"><div class="progress-bar" data-progress-id="${def.id}"></div></div>
+              <p class="lock-msg ${lockMsg ? '' : 'hidden'}" data-gen-lock="${def.id}">${lockMsg}</p>
+              <span class="fleet-hidden-metric" data-gen-cycle="${def.id}">${this.app.formatDuration(this.app.getCycleTime(def))}</span>
+              <span class="fleet-hidden-metric" data-gen-cap="${def.id}">${this.app.getEffectiveCapacityUse(def).toFixed(1)}</span>
+            </div>
+            <div class="fleet-rate"><strong data-gen-per-second="${def.id}">${this.app.formatNumber(perSecond)} CC</strong><span><span data-gen-per-cycle="${def.id}">${this.app.formatNumber(incomePerCycle)} CC</span> each</span></div>
+            <div class="row-actions fleet-actions">
+              <button class="action-btn ${(!gen.running && !gen.automated && gen.owned) ? 'can-afford' : 'nope'}" data-action="run-generator" data-id="${def.id}">${gen.automated ? 'Automated' : gen.running ? 'Running...' : 'Run'}</button>
+              <button class="action-btn ${canHire ? 'can-afford' : 'nope'}" data-action="hire-manager" data-id="${def.id}">${gen.managerHired ? 'Managed' : `Hire manager ${this.app.formatNumber(managerCost)}`}</button>
+              <button class="buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-generator" data-id="${def.id}">${qty ? `Buy ${qty}` : 'Buy'} <span class="button-cost">${this.app.formatNumber(qty ? bulkCost : nextCost)}</span></button>
             </div>
           </article>`;
       }).join('');
@@ -1902,10 +1950,9 @@ const HELP_SECTIONS = [
         }
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = 'rgba(3, 10, 9, 0.18)';
-        ctx.fillRect(0, 0, width, height);
+        ctx.clearRect(0, 0, width, height);
         ctx.font = '12px monospace';
-        ctx.fillStyle = 'rgba(92, 230, 137, 0.16)';
+        ctx.fillStyle = 'rgba(42, 132, 76, 0.10)';
         this.codefallDrops.forEach((drop, column) => {
           ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
           this.codefallDrops[column] = drop * 20 > height && Math.random() > 0.97 ? 0 : drop + 0.45;
@@ -1951,7 +1998,7 @@ const HELP_SECTIONS = [
           const canBuy = this.app.canBuyCampaignGoal ? this.app.canBuyCampaignGoal(def) : false;
           const when = this.app.getCampaignGoalCompletionTime ? this.app.getCampaignGoalCompletionTime(def.id) : 0;
           return `
-            <article class="manager-card card campaign-goal-card ${done ? 'done' : (!unlocked ? 'locked' : '')}">
+            <article class="manager-card card campaign-goal-card ${def.id === nextGoal?.id ? 'current' : ''} ${done ? 'done' : (!unlocked ? 'locked' : '')}">
               <div class="manager-top">
                 <div class="manager-name"><span class="icon-badge">${def.icon}</span> ${def.name}</div>
                 <span class="tag">${done ? 'secured' : def.stage}</span>
@@ -2119,7 +2166,7 @@ const HELP_SECTIONS = [
         <div class="mission-subgroup available-group">${availableCards || emptyAvailable}</div>`;
     },
 
-    renderUpgrades() {
+    renderUpgradesLegacy() {
       const view = this.app.state.currentUpgradeView;
       const cards = DATA.upgradeDefs
         .filter(def => def.view === view)
@@ -2167,6 +2214,29 @@ const HELP_SECTIONS = [
       }
 
       this.els.upgradeList.innerHTML = cards.map(renderCard).join('');
+    },
+
+    renderUpgrades() {
+      const cards = DATA.upgradeDefs
+        .filter(def => !this.app.state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen))
+        .sort((a, b) => {
+          const affordableDelta = Number(this.app.canBuyUpgradeDef(b)) - Number(this.app.canBuyUpgradeDef(a));
+          return affordableDelta || (a.cost || 0) - (b.cost || 0);
+        });
+      if (!cards.length) {
+        this.els.upgradeList.innerHTML = `<div class="section-card"><p class="muted">No upgrades visible yet. Keep scaling and the next recommendation will appear here.</p></div>`;
+        return;
+      }
+      this.els.upgradeList.innerHTML = cards.map(def => {
+        const requirementsMet = this.app.upgradeRequirementsMet(def);
+        const canAfford = this.app.canBuyUpgradeDef(def);
+        return `<article class="upgrade-card ${requirementsMet ? '' : 'locked'}" data-upgrade-card="${def.id}">
+          <div class="upgrade-top"><div class="upgrade-name">${def.name}</div><span class="tag">${def.branch || def.view}</span></div>
+          <p class="muted">${def.desc}</p>
+          <div class="upgrade-meta"><span data-upgrade-cost="${def.id}">${this.app.formatNumber(def.cost || 0)} CC${def.costResearch ? `<br>${def.costResearch} RD` : ''}</span></div>
+          <div class="row-actions"><button class="buy-btn ${(requirementsMet && canAfford) ? 'can-afford' : 'nope'}" data-action="buy-upgrade" data-id="${def.id}">${requirementsMet ? 'Install' : 'Locked'}</button></div>
+        </article>`;
+      }).join('');
     },
 
     renderStaff() {
@@ -5869,10 +5939,12 @@ const HELP_SECTIONS = [
 
     updateUpgradesLive(force = false) {
       if (!this.els.upgradeList) return;
-      const view = this.app.state.currentUpgradeView;
       const visibleDefs = DATA.upgradeDefs
-        .filter(def => def.view === view)
-        .filter(def => !this.app.state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen));
+        .filter(def => !this.app.state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen))
+        .sort((a, b) => {
+          const affordableDelta = Number(this.app.canBuyUpgradeDef(b)) - Number(this.app.canBuyUpgradeDef(a));
+          return affordableDelta || (a.cost || 0) - (b.cost || 0);
+        });
 
       const domIds = [...this.els.upgradeList.querySelectorAll('[data-upgrade-card]')].map(card => card.dataset.upgradeCard);
       if (domIds.length !== visibleDefs.length || domIds.some((id, idx) => id !== visibleDefs[idx].id)) {
@@ -5893,7 +5965,7 @@ const HELP_SECTIONS = [
         if (reqEl) reqEl.classList.toggle('needs', !requirementsMet);
         const btn = card.querySelector(`button[data-action="buy-upgrade"][data-id="${def.id}"]`);
         if (btn) {
-          btn.textContent = requirementsMet ? 'Install Upgrade' : 'Locked Research';
+          btn.textContent = requirementsMet ? 'Install' : 'Locked';
           btn.disabled = !canHighlight;
           btn.classList.toggle('can-afford', canHighlight);
           btn.classList.toggle('nope', !canHighlight);
