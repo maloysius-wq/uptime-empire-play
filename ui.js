@@ -2739,7 +2739,7 @@ const HELP_SECTIONS = [
       const arcade = this.arcade;
       if (!arcade || !arcade.overlayOpen) return false;
       if (input.type === 'pointer') {
-        this.handleCabinetArcadePointer(input.x, input.y);
+        this.handleCabinetArcadePointer(input.x, input.y, input.button);
         return true;
       }
       if (input.type === 'keyup') {
@@ -2763,7 +2763,7 @@ const HELP_SECTIONS = [
       return true;
     },
 
-    handleCabinetArcadePointer(u, v) {
+    handleCabinetArcadePointer(u, v, button = 'primary') {
       const arcade = this.arcade;
       if (!arcade) return;
       const x = Math.max(0, Math.min(512, u * 512));
@@ -2801,7 +2801,8 @@ const HELP_SECTIONS = [
         if (y >= 334 && y <= 360 && x >= 340 && x <= 488) { game.mode = game.mode === 'flag' ? 'reveal' : 'flag'; return; }
         const cellSize = 24, left = 136, top = 72;
         const col = Math.floor((x - left) / cellSize), row = Math.floor((y - top) / cellSize);
-        if (col >= 0 && col < 10 && row >= 0 && row < 10) this.onBombmopperCell(row * 10 + col, false);
+        const forceFlag = button === 'secondary' || button === 'hold';
+        if (col >= 0 && col < 10 && row >= 0 && row < 10) this.onBombmopperCell(row * 10 + col, forceFlag);
         return;
       }
       if (id === 'stackOverflow') {

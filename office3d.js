@@ -141,6 +141,8 @@
       this.dynamicDisplays = [];
       this.arcadeDisplay = null;
       this.arcadeScreenState = { mode: 'attract', title: 'UPTIME ARCADE' };
+      this.arcadePointerPress = null;
+      this.arcadeSuppressClickUntil = 0;
       this.visualQATargets = Object.create(null);
       this.animatedLavaLamps = [];
       this.animatedSceneObjects = [];
@@ -276,6 +278,10 @@
       this._boundMouseMove = this.handleMouseMove.bind(this);
       this._boundPointer = this.handlePointerLockChange.bind(this);
       this._boundPlacementWheel = this.handlePlacementWheel.bind(this);
+      this._boundArcadePointerDown = this.handleArcadePointerDown.bind(this);
+      this._boundArcadePointerUp = this.handleArcadePointerUp.bind(this);
+      this._boundArcadePointerCancel = this.handleArcadePointerCancel.bind(this);
+      this._boundArcadeContextMenu = this.handleArcadeContextMenu.bind(this);
       this._boundKey = this.handleKey.bind(this);
       this._boundBlur = this.handleBlur.bind(this);
       this._boundMobileMoveDown = this.handleMobileMoveDown.bind(this);
@@ -417,8 +423,12 @@
           return;
         }
         if (this.arcadeHold && this.onArcadeInput) {
+          if (this.arcadeSuppressClickUntil > performance.now()) {
+            event.preventDefault();
+            return;
+          }
           const point = this.getArcadeScreenPointer(event);
-          if (point) this.onArcadeInput({ type: 'pointer', ...point });
+          if (point) this.onArcadeInput({ type: 'pointer', button: 'primary', ...point });
           event.preventDefault();
           return;
         }
@@ -431,6 +441,10 @@
           this.canvas.requestPointerLock?.();
         }
       });
+      this.canvas.addEventListener('pointerdown', this._boundArcadePointerDown);
+      this.canvas.addEventListener('pointerup', this._boundArcadePointerUp);
+      this.canvas.addEventListener('pointercancel', this._boundArcadePointerCancel);
+      this.canvas.addEventListener('contextmenu', this._boundArcadeContextMenu);
       this.canvas.addEventListener('pointermove', this._boundPlacementPointerMove);
       this.canvas.addEventListener('wheel', this._boundPlacementWheel, { passive: false });
       document.addEventListener('pointerlockchange', this._boundPointer);
@@ -440,6 +454,48 @@
       window.addEventListener('blur', this._boundBlur);
       window.addEventListener('resize', this._boundResize);
       this.bindMobileControls();
+    }
+
+    clearArcadePointerPress() {
+      const press = this.arcadePointerPress;
+      if (press?.timer) window.clearTimeout(press.timer);
+      this.arcadePointerPress = null;
+    }
+
+    handleArcadePointerDown(event) {
+      if (!this.loaded || !this.arcadeHold || !this.onArcadeInput || event.button !== 0) return;
+      const point = this.getArcadeScreenPointer(event);
+      if (!point) return;
+      this.clearArcadePointerPress();
+      const press = { pointerId: event.pointerId, point, held: false, timer: null };
+      press.timer = window.setTimeout(() => {
+        if (this.arcadePointerPress !== press) return;
+        press.held = true;
+        this.arcadeSuppressClickUntil = performance.now() + 750;
+        this.onArcadeInput({ type: 'pointer', button: 'hold', ...press.point });
+      }, 420);
+      this.arcadePointerPress = press;
+    }
+
+    handleArcadePointerUp(event) {
+      const press = this.arcadePointerPress;
+      if (!press || event.pointerId !== press.pointerId) return;
+      if (press.held) this.arcadeSuppressClickUntil = performance.now() + 750;
+      this.clearArcadePointerPress();
+    }
+
+    handleArcadePointerCancel(event) {
+      const press = this.arcadePointerPress;
+      if (!press || event.pointerId !== press.pointerId) return;
+      this.clearArcadePointerPress();
+    }
+
+    handleArcadeContextMenu(event) {
+      if (!this.loaded || !this.arcadeHold || !this.onArcadeInput) return;
+      event.preventDefault();
+      if (this.arcadeSuppressClickUntil > performance.now()) return;
+      const point = this.getArcadeScreenPointer(event);
+      if (point) this.onArcadeInput({ type: 'pointer', button: 'secondary', ...point });
     }
 
     bindMobileControls() {
@@ -577,6 +633,11 @@
     destroy() {
       this.destroyed = true;
       if (this.canvas) {
+        this.clearArcadePointerPress();
+        this.canvas.removeEventListener('pointerdown', this._boundArcadePointerDown);
+        this.canvas.removeEventListener('pointerup', this._boundArcadePointerUp);
+        this.canvas.removeEventListener('pointercancel', this._boundArcadePointerCancel);
+        this.canvas.removeEventListener('contextmenu', this._boundArcadeContextMenu);
         this.canvas.removeEventListener('pointermove', this._boundPlacementPointerMove);
         this.canvas.removeEventListener('wheel', this._boundPlacementWheel);
       }
