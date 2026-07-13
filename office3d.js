@@ -7,6 +7,10 @@
     return Number.isFinite(numeric) ? clamp(numeric, 0, 1) : fallback;
   };
   const lerp = (a, b, t) => a + (b - a) * t;
+  const lerpAngle = (from, to, t) => {
+    const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    return from + delta * t;
+  };
   const smooth = value => value * value * (3 - 2 * value);
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
   const DECOR_PLACEMENT_ZONES = {
@@ -5504,7 +5508,7 @@
         const s = transition.t * transition.t * (3 - 2 * transition.t);
         this.player.x = lerp(transition.from.x, transition.to.x, s);
         this.player.z = lerp(transition.from.z, transition.to.z, s);
-        this.player.yaw = lerp(transition.from.yaw, transition.to.yaw, s);
+        this.player.yaw = lerpAngle(transition.from.yaw, transition.to.yaw, s);
         this.player.pitch = lerp(transition.from.pitch, transition.to.pitch, s);
         this.player.bob = 0;
         if (transition.t >= 1) {
