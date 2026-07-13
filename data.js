@@ -4815,6 +4815,40 @@ window.UptimeEmpireData.campaignGoalDefs = [
   }
 ];
 
+window.UptimeEmpireData.uiSkinDefs = [
+  {
+    id: 'founder',
+    name: "Founder's Terminal",
+    desc: 'The original cyan-and-green shed terminal. Quiet, crisp, and always available.',
+    unlockText: 'Included',
+    animated: false
+  },
+  {
+    id: 'noc',
+    name: 'NOC Glass',
+    desc: 'A polished operations display with a restrained animated status scanner.',
+    unlockWhen: { campaignGoal: 'buy-campus' },
+    unlockText: 'Buy the campus',
+    animated: true
+  },
+  {
+    id: 'codefall',
+    name: 'Codefall',
+    desc: 'A dark terminal backed by a subtle, low-contrast digital code rain.',
+    costCredits: 50000000,
+    unlockText: '50M CC',
+    animated: true
+  },
+  {
+    id: 'crt',
+    name: 'Amber CRT',
+    desc: 'Warm amber phosphor, soft scanlines, and the glow of a machine that never sleeps.',
+    unlockWhen: { prestiges: 1 },
+    unlockText: 'Complete one Overhaul',
+    animated: true
+  }
+];
+
 window.UptimeEmpireData.contractContactDefs = {
   'daily-managers': { client: 'Mara Venn', org: 'People Operations' },
   'daily-missions': { client: 'Moss Chen', org: 'Service Desk' },

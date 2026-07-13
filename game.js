@@ -189,14 +189,14 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     });
 
     return {
-      version: 8,
+      version: 9,
       credits: 20,
       lifetimeCredits: 0,
       innovationPoints: 0,
       ipFragments: 0,
       research: 0,
       purchaseMode: 1,
-      currentPanel: 'ops',
+      currentPanel: 'command',
       currentUpgradeView: 'global',
       currentShopView: 'office',
       currentSuiteTab: 'office',
@@ -221,6 +221,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         deskFinish: 'default',
         chairFinish: 'default'
       },
+      uiSkin: 'founder',
+      purchasedUiSkins: { founder: true },
       floorBotProfile: {
         name: 'Floor Bot',
         voicePitch: 1,
@@ -322,6 +324,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       deskFinish: ((loaded.equippedCosmetics || {}).deskFinish) || 'default',
       chairFinish: ((loaded.equippedCosmetics || {}).chairFinish) || 'default'
     };
+    merged.purchasedUiSkins = Object.assign({ founder: true }, loaded.purchasedUiSkins || {});
+    merged.uiSkin = (DATA.uiSkinDefs || []).some(def => def.id === loaded.uiSkin) ? loaded.uiSkin : 'founder';
     merged.floorBotProfile = {
       name: typeof (loaded.floorBotProfile || {}).name === 'string' && (loaded.floorBotProfile || {}).name.trim() ? (loaded.floorBotProfile || {}).name.trim().slice(0, 28) : 'Floor Bot',
       voicePitch: Math.max(0.025, Math.min(10.0, Number((loaded.floorBotProfile || {}).voicePitch || 1))),
@@ -356,7 +360,17 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     if (!DATA.purchaseModes.includes(merged.purchaseMode)) merged.purchaseMode = 1;
     if (!DATA.regionDefs.some(r => r.id === merged.currentRegionId)) merged.currentRegionId = DATA.regionDefs[0].id;
-    if (!['ops', 'missions', 'upgrades', 'staff', 'regions', 'overhaul'].includes(merged.currentPanel)) merged.currentPanel = 'ops';
+    const panelMigrations = {
+      ops: 'infrastructure',
+      upgrades: 'infrastructure',
+      missions: 'people',
+      staff: 'people',
+      regions: 'network',
+      overhaul: 'progress',
+      achievements: 'progress'
+    };
+    merged.currentPanel = panelMigrations[merged.currentPanel] || merged.currentPanel;
+    if (!['command', 'infrastructure', 'people', 'network', 'progress'].includes(merged.currentPanel)) merged.currentPanel = 'command';
     if (!['global', 'category', 'automation', 'facilities', 'resilience', 'research'].includes(merged.currentUpgradeView)) merged.currentUpgradeView = 'global';
     if (!Object.keys(DATA.cosmetics).includes(merged.currentShopView)) merged.currentShopView = 'office';
     if (!['office', 'achievements', 'console'].includes(merged.currentSuiteTab)) merged.currentSuiteTab = 'office';
@@ -1009,6 +1023,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (condition.totalCapacity && this.getTotalCapacity() < condition.totalCapacity) return false;
       if (condition.potentialIncomePerSecond && this.getPotentialIncomePerSecond() < condition.potentialIncomePerSecond) return false;
       if (condition.incidentShieldRemaining && this.state.incidentShieldRemaining < condition.incidentShieldRemaining) return false;
+      if (condition.campaignGoal && !this.isCampaignGoalComplete(condition.campaignGoal)) return false;
       return true;
     },
 
@@ -1303,6 +1318,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         purchasedPrestigeNodes: Object.assign({}, this.state.purchasedPrestigeNodes),
         purchasedCosmetics: deepClone(this.state.purchasedCosmetics),
         equippedCosmetics: deepClone(this.state.equippedCosmetics),
+        uiSkin: this.state.uiSkin,
+        purchasedUiSkins: Object.assign({}, this.state.purchasedUiSkins),
         equippedDecorations: deepClone(this.state.equippedDecorations),
         officeTier: this.state.officeTier,
         achievementsClaimed: Object.assign({}, this.state.achievementsClaimed),
@@ -1327,6 +1344,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.purchasedPrestigeNodes = preserved.purchasedPrestigeNodes;
       this.state.purchasedCosmetics = preserved.purchasedCosmetics;
       this.state.equippedCosmetics = preserved.equippedCosmetics;
+      this.state.uiSkin = preserved.uiSkin;
+      this.state.purchasedUiSkins = preserved.purchasedUiSkins;
       this.state.equippedDecorations = preserved.equippedDecorations;
       this.state.officeTier = preserved.officeTier;
       this.state.achievementsClaimed = preserved.achievementsClaimed;
@@ -1447,6 +1466,33 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     getEquippedCosmetic(category) {
       return (this.state.equippedCosmetics || {})[category] || 'default';
+    },
+
+    getUiSkinDef(id) {
+      return (DATA.uiSkinDefs || []).find(def => def.id === id) || null;
+    },
+
+    isUiSkinUnlocked(defOrId) {
+      const def = typeof defOrId === 'string' ? this.getUiSkinDef(defOrId) : defOrId;
+      if (!def) return false;
+      if (def.id === 'founder' || this.state.purchasedUiSkins?.[def.id]) return true;
+      return !!def.unlockWhen && this.meetsCondition(def.unlockWhen);
+    },
+
+    acquireUiSkin(id) {
+      const def = this.getUiSkinDef(id);
+      if (!def) return { ok: false, reason: 'missing' };
+      if (this.isUiSkinUnlocked(def)) {
+        this.state.uiSkin = id;
+        return { ok: true, equipped: true };
+      }
+      if (!def.costCredits) return { ok: false, reason: 'locked' };
+      if (this.state.credits < def.costCredits) return { ok: false, reason: 'credits' };
+      this.state.credits -= def.costCredits;
+      this.state.purchasedUiSkins[id] = true;
+      this.state.uiSkin = id;
+      this.pushConsoleLog(`Interface skin installed: ${def.name}.`, 'system');
+      return { ok: true, purchased: true, equipped: true };
     },
 
     buyCosmetic(category, id) {
@@ -1573,8 +1619,17 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     },
 
     changePanel(panel) {
-      if (panel === 'achievements') panel = 'ops';
-      this.state.currentPanel = panel;
+      const migrations = {
+        ops: 'infrastructure',
+        upgrades: 'infrastructure',
+        missions: 'people',
+        staff: 'people',
+        regions: 'network',
+        overhaul: 'progress',
+        achievements: 'progress'
+      };
+      const next = migrations[panel] || panel;
+      this.state.currentPanel = ['command', 'infrastructure', 'people', 'network', 'progress'].includes(next) ? next : 'command';
       this.renderAll();
     },
 

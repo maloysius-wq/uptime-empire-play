@@ -57,15 +57,15 @@ const HELP_SECTIONS = [
   },
   {
     id: 'ops',
-    label: 'Ops & Upgrades',
-    blurb: 'Hardware, managers, services, and scaling.',
+    label: 'Infrastructure',
+    blurb: 'Hardware, inline managers, upgrades, and scaling.',
     html: `
-      <p><strong>Ops</strong> is where you build throughput. Buy more infrastructure, run things manually, and hire managers so the empire stops needing constant babysitting.</p>
+      <p><strong>Infrastructure</strong> is where you build throughput. Buy hardware, run it manually, hire managers directly on each fleet, and install upgrades.</p>
       <ul>
         <li><strong>Generators</strong> create your core income and define category growth.</li>
         <li><strong>Managers</strong> automate owned generators.</li>
         <li><strong>Upgrades</strong> make everything hit harder, cheaper, faster, or smarter.</li>
-        <li><strong>Specialists</strong> and <strong>Services</strong> solve specific scaling problems.</li>
+        <li><strong>Purchase quantity</strong> controls apply to every hardware row from the workspace header.</li>
       </ul>
       <h4>Simple rule of thumb</h4>
       <p>If income feels flat, check in this order: more owned hardware, better managers, more region capacity, then higher-tier upgrades.</p>
@@ -73,8 +73,8 @@ const HELP_SECTIONS = [
   },
   {
     id: 'missions',
-    label: 'Missions & Focus',
-    blurb: 'Quest Board, region focus, and why focus matters now.',
+    label: 'People & Ops',
+    blurb: 'Missions, incidents, staff, services, and region focus.',
     html: `
       <div class="help-callout"><strong>New focus rule:</strong> region focus no longer just changes the UI. Missions tied to your focused region get a bonus.</div>
       <p>Missions are short-to-medium jobs that convert mission teams into money, research, fragments, and safety tools like incident shields.</p>
@@ -95,7 +95,7 @@ const HELP_SECTIONS = [
   },
   {
     id: 'regions',
-    label: 'Regions',
+    label: 'Network',
     blurb: 'Expansion, projects, mastery, and stacking bonuses.',
     html: `
       <p>Regions are not optional side flavor. They are the empire’s real skeleton.</p>
@@ -110,15 +110,15 @@ const HELP_SECTIONS = [
   },
   {
     id: 'command',
-    label: 'Command & Replayability',
+    label: 'Command Center',
     blurb: 'The long-term toy box and how to create a “forever game.”',
     html: `
-      <p><strong>Command</strong> is where the game stops being just a bigger number machine and starts becoming a run-planning machine.</p>
+      <p><strong>Command Center</strong> is the calm overview for the current run. It surfaces important status, three useful next moves, the Big Bet, and one optional side job.</p>
       <ul>
-        <li><strong>Seasons</strong> rotate the rules and keep runs feeling different.</li>
-        <li><strong>Contracts</strong> create short-term goals.</li>
-        <li><strong>Boss ladder</strong> gives you recurring milestones.</li>
-        <li><strong>Doctrines, eras, and challenges</strong> let you shape how a run feels.</li>
+        <li><strong>Next Best Moves</strong> points toward a milestone, an affordable improvement, or an operational need.</li>
+        <li><strong>The Big Bet</strong> begins with paying off the launch debt and grows into larger permanent goals.</li>
+        <li><strong>Side Job</strong> is one optional request at a time, not a second campaign to micromanage.</li>
+        <li><strong>Founder Mode</strong> adds optional challenge runs after the main route is complete.</li>
       </ul>
       <h4>A strong long-game arc to consider</h4>
       <p>The best “end goal” for an endlessly replayable game is usually not a literal ending. It is a <strong>north star</strong> that keeps resetting in a bigger form.</p>
@@ -126,13 +126,13 @@ const HELP_SECTIONS = [
         <div class="help-chip"><strong>Recommended arc</strong><br />Start with “pay off the data-center debt,” then graduate into “buy the campus,” then “fund the orbital command deck,” then “become the sovereign network that leases infrastructure to everyone else.”</div>
         <div class="help-chip"><strong>Why it works</strong><br />Each stage feels like a finish line, but also unlocks a bigger finish line. That is what gives infinite-ish replayability its bite.</div>
       </div>
-      <p>That campaign is now live in Command as the Career Route. Those huge milestone purchases survive overhauls and give the empire a real north star without creating a hard final ending.</p>
+      <p>Big Bet purchases survive Overhauls, so each finish line becomes the foundation for the next one without ending the replayable idle loop.</p>
     `
   },
   {
     id: 'overhaul',
-    label: 'Overhaul',
-    blurb: 'What resets, what stays, and why you should want to do it.',
+    label: 'Progress',
+    blurb: 'Overhauls, permanent innovation, achievements, and interface skins.',
     html: `
       <p><strong>Overhaul</strong> is your prestige/reset layer. It is how the game turns “I finished this run” into “I built a stronger next run.”</p>
       <ul>
@@ -211,6 +211,9 @@ const HELP_SECTIONS = [
     lastConsoleKey: '',
     soundStep: 0,
     lastSuiteTabRendered: '',
+    skinAnimationFrame: 0,
+    skinAnimationLastDraw: 0,
+    codefallDrops: [],
 
     init(app) {
       this.app = app;
@@ -231,6 +234,7 @@ const HELP_SECTIONS = [
       this.syncComputerMode();
       this.startArcadeLoop();
       this.renderAll();
+      this.startUiSkinAnimation();
       this.startVisualQAFromQuery();
       this.startMobileTerminalQAFromQuery();
     },
@@ -247,6 +251,8 @@ const HELP_SECTIONS = [
         mobileCreditsValue: $('mobileCreditsValue'),
         mobileRateValue: $('mobileRateValue'),
         mobileIncidentsValue: $('mobileIncidentsValue'),
+        mobileCapacityValue: $('mobileCapacityValue'),
+        mobileTeamsValue: $('mobileTeamsValue'),
         mobileTerminalBack: $('mobileTerminalBack'),
         deskComputerCloseBtn: $('deskComputerCloseBtn'),
         worldQuickActions: $('worldQuickActions'),
@@ -279,6 +285,7 @@ const HELP_SECTIONS = [
         missionTeamsValue: $('missionTeamsValue'),
         securityValue: $('securityValue'),
         offlineValue: $('offlineValue'),
+        telemetryHealthValue: $('telemetryHealthValue'),
         missionTeamsPanelValue: $('missionTeamsPanelValue'),
         missionResearchValue: $('missionResearchValue'),
         activeIncidentsValue: $('activeIncidentsValue'),
@@ -301,6 +308,15 @@ const HELP_SECTIONS = [
         bigBetDebtPanel: $('bigBetDebtPanel'),
         contractsList: $('contractsList'),
         legacyPanel: $('legacyPanel'),
+        commandMetricResearch: $('commandMetricResearch'),
+        commandMetricInnovation: $('commandMetricInnovation'),
+        commandMetricOverhaul: $('commandMetricOverhaul'),
+        commandMetricDebt: $('commandMetricDebt'),
+        commandActionList: $('commandActionList'),
+        uiSkinList: $('uiSkinList'),
+        idleSkinCanvas: $('idleSkinCanvas'),
+        terminalDockLines: $('terminalDockLines'),
+        terminalDockExpandBtn: $('terminalDockExpandBtn'),
         commandNoticeBtn: $('commandNoticeBtn'),
         commandNoticeBadge: $('commandNoticeBadge'),
         helpBtn: $('helpBtn'),
@@ -416,7 +432,7 @@ const HELP_SECTIONS = [
       const params = new URLSearchParams(window.location.search);
       if (params.get('qa') !== 'mobile-terminal') return;
       document.body.classList.add('mobile-terminal-preview');
-      window.setTimeout(() => this.openDeskComputer({ panel: 'ops', forceDeskView: true }), 80);
+      window.setTimeout(() => this.openDeskComputer({ panel: 'infrastructure', forceDeskView: true }), 80);
     },
 
     bindEvents() {
@@ -496,6 +512,23 @@ const HELP_SECTIONS = [
       });
 
       document.addEventListener('click', e => {
+        const commandJump = e.target.closest('[data-command-panel]');
+        if (commandJump) {
+          this.primeAudio();
+          this.playSound('ui');
+          this.app.changePanel(commandJump.dataset.commandPanel);
+          requestAnimationFrame(() => this.scrollMainToTop());
+          return;
+        }
+        const skinBtn = e.target.closest('[data-action="acquire-ui-skin"]');
+        if (skinBtn) {
+          this.primeAudio();
+          const result = this.app.acquireUiSkin(skinBtn.dataset.id);
+          this.playSound(result.ok ? 'ui' : 'error');
+          if (!result.ok) this.toast(result.reason === 'credits' ? 'Not enough Compute Credits.' : 'That interface skin is still locked.');
+          this.app.renderAll();
+          return;
+        }
         const challengeBtn = e.target.closest('[data-action="select-challenge"]');
         if (challengeBtn) {
           this.primeAudio();
@@ -522,6 +555,19 @@ const HELP_SECTIONS = [
           return;
         }
       });
+
+      if (this.els.terminalDockExpandBtn) {
+        this.els.terminalDockExpandBtn.addEventListener('click', () => {
+          this.primeAudio();
+          this.playSound('ui');
+          if (window.matchMedia('(max-width: 1219px)').matches) this.openMobileTerminalApp('console');
+          else {
+            this.app.changeSuiteTab('console');
+            this.consolePinnedToBottom = true;
+            requestAnimationFrame(() => this.renderConsole(true));
+          }
+        });
+      }
 
       if (this.els.consoleFeed) {
         this.els.consoleFeed.addEventListener('scroll', () => {
@@ -1268,8 +1314,8 @@ const HELP_SECTIONS = [
     },
 
     openIncidentCenter(incidentId = null) {
-      this.openDeskComputer({ panel: 'missions', suiteTab: 'console', forceDeskView: true });
-      this.app.changePanel('missions');
+      this.openDeskComputer({ panel: 'people', suiteTab: 'console', forceDeskView: true });
+      this.app.changePanel('people');
       if (!incidentId) {
         requestAnimationFrame(() => {
           const monitor = this.els.incidentList?.closest('.section-card') || this.els.incidentList;
@@ -1306,6 +1352,7 @@ const HELP_SECTIONS = [
       this.renderRegions();
       this.renderPrestige();
       this.renderCommand();
+      this.renderUiSkins();
       this.renderAchievements();
       this.renderCollections();
       this.renderOffice();
@@ -1318,11 +1365,20 @@ const HELP_SECTIONS = [
 
     renderPanels() {
       document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
-      const active = document.getElementById(`panel-${this.app.state.currentPanel}`);
-      if (active) active.classList.add('active');
+      const workspacePanels = {
+        command: ['panel-command'],
+        infrastructure: ['panel-ops', 'panel-upgrades'],
+        people: ['panel-missions', 'panel-staff'],
+        network: ['panel-regions'],
+        progress: ['panel-overhaul', 'panel-achievements']
+      };
+      (workspacePanels[this.app.state.currentPanel] || workspacePanels.command).forEach(id => {
+        const panel = document.getElementById(id);
+        if (panel) panel.classList.add('active');
+      });
 
       if (this.els.networkFootprintCard) {
-        this.els.networkFootprintCard.classList.toggle('hidden', this.app.state.currentPanel !== 'ops');
+        this.els.networkFootprintCard.classList.toggle('hidden', this.app.state.currentPanel !== 'network');
       }
 
       this.els.mainNav.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1391,6 +1447,11 @@ const HELP_SECTIONS = [
       this.els.missionResearchValue.textContent = `${this.app.formatNumber(state.research)} RD`;
       this.els.activeIncidentsValue.textContent = `${state.activeIncidents.length}`;
       this.els.incidentShieldValue.textContent = state.incidentShieldRemaining > 0 ? this.app.formatDuration(state.incidentShieldRemaining) : 'None';
+      if (this.els.telemetryHealthValue) {
+        const incidents = state.activeIncidents.length;
+        this.els.telemetryHealthValue.textContent = incidents ? `${incidents} incident${incidents === 1 ? '' : 's'}` : 'Nominal';
+        this.els.telemetryHealthValue.classList.toggle('warning-text', incidents > 0);
+      }
       if (this.els.toggleSoundBtn) {
         this.els.toggleSoundBtn.textContent = state.soundEnabled ? 'Sound On' : 'Sound Off';
         this.els.toggleSoundBtn.classList.toggle('active', state.soundEnabled);
@@ -1401,6 +1462,8 @@ const HELP_SECTIONS = [
       if (this.els.mobileCreditsValue) this.els.mobileCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
       if (this.els.mobileRateValue) this.els.mobileRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
       if (this.els.mobileIncidentsValue) this.els.mobileIncidentsValue.textContent = `${state.activeIncidents.length}`;
+      if (this.els.mobileCapacityValue) this.els.mobileCapacityValue.textContent = `${this.app.formatNumber(this.app.getUsedCapacity())} / ${this.app.formatNumber(this.app.getTotalCapacity())}`;
+      if (this.els.mobileTeamsValue) this.els.mobileTeamsValue.textContent = `${this.app.getAvailableMissionTeams()} / ${state.missionSlots}`;
     },
 
     renderGraphicsQuality() {
@@ -1570,13 +1633,11 @@ const HELP_SECTIONS = [
 
     getPanelAvailabilityCounts() {
       const counts = {
-        ops: 0,
-        missions: 0,
-        upgrades: 0,
-        staff: 0,
-        regions: 0,
+        infrastructure: 0,
+        people: 0,
+        network: 0,
         command: 0,
-        overhaul: 0
+        progress: 0
       };
 
       const credits = this.app.state.credits;
@@ -1591,22 +1652,22 @@ const HELP_SECTIONS = [
           && credits >= bulkCost
           && this.app.getRemainingCapacity() >= this.app.getEffectiveCapacityUse(def) * qty;
         const canHire = gen.owned > 0 && !gen.managerHired && credits >= this.app.getManagerCost(def);
-        if (canBuy || canHire) counts.ops += 1;
+        if (canBuy || canHire) counts.infrastructure += 1;
       });
 
       DATA.upgradeDefs
         .filter(def => !this.app.state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen))
         .forEach(def => {
-          if (this.app.upgradeRequirementsMet(def) && this.app.canBuyUpgradeDef(def)) counts.upgrades += 1;
+          if (this.app.upgradeRequirementsMet(def) && this.app.canBuyUpgradeDef(def)) counts.infrastructure += 1;
         });
 
       DATA.generatorDefs.forEach(def => {
         const gen = this.app.getGenState(def.id);
-        if (gen.owned > 0 && !gen.managerHired && credits >= this.app.getManagerCost(def)) counts.staff += 1;
+        if (gen.owned > 0 && !gen.managerHired && credits >= this.app.getManagerCost(def)) counts.people += 1;
       });
 
       (DATA.specialistDefs || []).forEach(def => {
-        if (!this.app.state.hiredSpecialists[def.id] && this.app.meetsCondition(def.visibleWhen) && credits >= def.cost) counts.staff += 1;
+        if (!this.app.state.hiredSpecialists[def.id] && this.app.meetsCondition(def.visibleWhen) && credits >= def.cost) counts.people += 1;
       });
 
       (DATA.serviceDefs || []).forEach(def => {
@@ -1614,7 +1675,7 @@ const HELP_SECTIONS = [
           && this.app.meetsCondition(def.visibleWhen)
           && credits >= (def.cost || 0)
           && research >= (def.costResearch || 0);
-        if (canBuy) counts.staff += 1;
+        if (canBuy) counts.people += 1;
       });
 
       DATA.regionDefs.forEach(region => {
@@ -1627,12 +1688,14 @@ const HELP_SECTIONS = [
           && !this.app.state.regionProjects[region.id]
           && credits >= (project.costCredits || 0)
           && research >= (project.costResearch || 0);
-        if (canUnlock || canExpand || canProject) counts.regions += 1;
+        if (canUnlock || canExpand || canProject) counts.network += 1;
       });
 
       (DATA.prestigeNodeDefs || []).forEach(node => {
-        if (this.app.canBuyPrestigeNode(node)) counts.overhaul += 1;
+        if (this.app.canBuyPrestigeNode(node)) counts.progress += 1;
       });
+
+      counts.command = this.getCommandAttentionCount();
 
       return counts;
     },
@@ -1675,7 +1738,7 @@ const HELP_SECTIONS = [
       if (!this.els.mainNav) return;
       this.els.mainNav.querySelectorAll('.nav-btn').forEach(btn => {
         const panel = btn.dataset.panel;
-        const count = panel === 'ops' ? 0 : (counts[panel] || 0);
+        const count = counts[panel] || 0;
         btn.dataset.badge = count > 0 ? (count > 99 ? '99+' : String(count)) : '';
         btn.classList.toggle('has-alert', count > 0);
       });
@@ -1683,10 +1746,9 @@ const HELP_SECTIONS = [
     },
 
     updateCurrentPanelCardDots() {
-      const active = document.getElementById(`panel-${this.app.state.currentPanel}`);
-      if (!active) return;
-      active.querySelectorAll('.has-available-dot').forEach(card => card.classList.remove('has-available-dot'));
-      if (this.app.state.currentPanel === 'ops') return;
+      const activePanels = [...document.querySelectorAll('.panel.active')];
+      if (!activePanels.length) return;
+      activePanels.forEach(active => active.querySelectorAll('.has-available-dot').forEach(card => card.classList.remove('has-available-dot')));
       const selectors = [
         'button[data-action="buy-generator"].can-afford:not([disabled])',
         'button[data-action="hire-manager"].can-afford:not([disabled])',
@@ -1698,9 +1760,11 @@ const HELP_SECTIONS = [
         'button[data-action="project-region"].can-afford:not([disabled])',
         'button[data-action="buy-tree"].can-afford:not([disabled])'
       ];
-      active.querySelectorAll(selectors.join(',')).forEach(btn => {
-        const card = btn.closest('.row-card, .manager-card, .upgrade-card, .region-card, .tree-card');
-        if (card) card.classList.add('has-available-dot');
+      activePanels.forEach(active => {
+        active.querySelectorAll(selectors.join(',')).forEach(btn => {
+          const card = btn.closest('.row-card, .manager-card, .upgrade-card, .region-card, .tree-card');
+          if (card) card.classList.add('has-available-dot');
+        });
       });
     },
 
@@ -1746,11 +1810,116 @@ const HELP_SECTIONS = [
       return bits.join(' • ');
     },
 
+    renderCommandOverview(goals, debtGoal, debtCleared) {
+      const state = this.app.state;
+      if (this.els.commandMetricResearch) this.els.commandMetricResearch.textContent = `${this.app.formatNumber(state.research)} RD`;
+      if (this.els.commandMetricInnovation) this.els.commandMetricInnovation.textContent = `${this.app.formatNumber(state.innovationPoints)} IP`;
+      if (this.els.commandMetricOverhaul) this.els.commandMetricOverhaul.textContent = `${this.app.formatNumber(this.app.getPrestigeGain())} IP`;
+      if (this.els.commandMetricDebt) {
+        const remaining = debtGoal ? Math.max(0, (debtGoal.costCredits || 0) - state.credits) : 0;
+        this.els.commandMetricDebt.textContent = debtCleared ? 'Paid' : `${this.app.formatNumber(remaining)} CC gap`;
+      }
+      if (!this.els.commandActionList) return;
+
+      const actions = [];
+      const nextGoal = goals.find(goal => !this.app.isCampaignGoalComplete(goal.id));
+      if (nextGoal) {
+        const ready = this.app.canBuyCampaignGoal(nextGoal);
+        actions.push({
+          eyebrow: ready ? 'Milestone ready' : 'North star',
+          title: nextGoal.name,
+          detail: ready ? 'The requirements and resources are ready.' : `Keep building toward ${this.describeCampaignCosts(nextGoal)}.`,
+          panel: 'command',
+          label: ready ? 'Review milestone' : 'View Big Bet'
+        });
+      }
+
+      const managerReady = DATA.generatorDefs.find(def => {
+        const gen = this.app.getGenState(def.id);
+        return gen.owned > 0 && !gen.managerHired && state.credits >= this.app.getManagerCost(def);
+      });
+      if (managerReady) {
+        actions.push({ eyebrow: 'Automation ready', title: `Hire ${managerReady.managerName}`, detail: `${managerReady.name} can become passive now.`, panel: 'infrastructure', label: 'Open infrastructure' });
+      } else {
+        const affordableUpgrade = DATA.upgradeDefs.find(def => !state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen) && this.app.upgradeRequirementsMet(def) && this.app.canBuyUpgradeDef(def));
+        if (affordableUpgrade) actions.push({ eyebrow: 'Upgrade ready', title: affordableUpgrade.name, detail: 'A useful improvement is affordable this run.', panel: 'infrastructure', label: 'Review upgrades' });
+      }
+
+      if (state.activeIncidents.length) {
+        actions.push({ eyebrow: 'Attention', title: `${state.activeIncidents.length} active incident${state.activeIncidents.length === 1 ? '' : 's'}`, detail: 'Resolve pressure before it drags on production.', panel: 'people', label: 'Open incident monitor' });
+      } else if (this.app.getAvailableMissionTeams() > 0) {
+        actions.push({ eyebrow: 'Teams available', title: 'Dispatch a mission', detail: `${this.app.getAvailableMissionTeams()} team${this.app.getAvailableMissionTeams() === 1 ? '' : 's'} currently ready.`, panel: 'people', label: 'Open People & Ops' });
+      }
+
+      if (actions.length < 3) actions.push({ eyebrow: 'Capacity planning', title: 'Review the network', detail: 'Region expansion is the cleanest route past a capacity wall.', panel: 'network', label: 'Open network' });
+      this.els.commandActionList.innerHTML = actions.slice(0, 3).map(action => `
+        <article class="command-action-row">
+          <div><span class="action-eyebrow">${action.eyebrow}</span><strong>${action.title}</strong><p>${action.detail}</p></div>
+          <button class="soft-btn small" type="button" data-command-panel="${action.panel}">${action.label}</button>
+        </article>`).join('');
+    },
+
+    renderUiSkins() {
+      this.syncUiSkin();
+      if (!this.els.uiSkinList) return;
+      this.els.uiSkinList.innerHTML = (DATA.uiSkinDefs || []).map(def => {
+        const unlocked = this.app.isUiSkinUnlocked(def);
+        const active = this.app.state.uiSkin === def.id;
+        const affordable = def.costCredits && this.app.state.credits >= def.costCredits;
+        const label = active ? 'Active' : unlocked ? 'Use skin' : def.costCredits ? `Buy ${this.app.formatNumber(def.costCredits)} CC` : 'Locked';
+        return `<article class="ui-skin-card skin-preview-${def.id} ${active ? 'active' : ''} ${unlocked ? '' : 'locked'}">
+          <div class="ui-skin-preview" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="ui-skin-copy"><div class="manager-top"><strong>${def.name}</strong><span class="tag">${def.animated ? 'animated' : 'static'}</span></div><p>${def.desc}</p><small>${unlocked ? 'Owned' : def.unlockText}</small></div>
+          <button class="buy-btn ${active ? 'nope' : (unlocked || affordable) ? 'can-afford' : 'nope'}" type="button" data-action="acquire-ui-skin" data-id="${def.id}" ${active ? 'disabled' : ''}>${label}</button>
+        </article>`;
+      }).join('');
+    },
+
+    syncUiSkin() {
+      const skin = this.app.getUiSkinDef(this.app.state.uiSkin) ? this.app.state.uiSkin : 'founder';
+      document.body.dataset.uiSkin = skin;
+      if (skin !== 'codefall' && this.els.idleSkinCanvas) {
+        const ctx = this.els.idleSkinCanvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, this.els.idleSkinCanvas.width, this.els.idleSkinCanvas.height);
+      }
+    },
+
+    startUiSkinAnimation() {
+      if (this.skinAnimationFrame) return;
+      const draw = now => {
+        this.skinAnimationFrame = requestAnimationFrame(draw);
+        if (document.body.dataset.uiSkin !== 'codefall' || document.hidden || now - this.skinAnimationLastDraw < 80) return;
+        this.skinAnimationLastDraw = now;
+        const canvas = this.els.idleSkinCanvas;
+        if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          this.codefallDrops = Array.from({ length: Math.ceil(width / 20) }, () => Math.random() * -height / 20);
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = 'rgba(3, 10, 9, 0.18)';
+        ctx.fillRect(0, 0, width, height);
+        ctx.font = '12px monospace';
+        ctx.fillStyle = 'rgba(92, 230, 137, 0.16)';
+        this.codefallDrops.forEach((drop, column) => {
+          ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
+          this.codefallDrops[column] = drop * 20 > height && Math.random() > 0.97 ? 0 : drop + 0.45;
+        });
+      };
+      this.skinAnimationFrame = requestAnimationFrame(draw);
+    },
+
     renderCommand() {
       this.renderCommandAttention();
       const goals = DATA.campaignGoalDefs || [];
       const debtGoal = goals.find(goal => goal.id === 'debt-free');
       const debtCleared = !!debtGoal && this.app.isCampaignGoalComplete(debtGoal.id);
+      this.renderCommandOverview(goals, debtGoal, debtCleared);
       if (this.els.bigBetDebtPanel && debtGoal) {
         const paid = debtCleared ? debtGoal.costCredits : Math.min(debtGoal.costCredits, this.app.state.credits);
         const pct = Math.max(0, Math.min(100, paid / Math.max(1, debtGoal.costCredits) * 100));
@@ -5732,7 +5901,17 @@ const HELP_SECTIONS = [
       });
     },
 
+    renderTerminalDock() {
+      if (!this.els.terminalDockLines) return;
+      const logs = (this.app.state.consoleLog || []).slice(-2);
+      this.els.terminalDockLines.innerHTML = logs.length ? logs.map(entry => {
+        const stamp = new Date(entry.time || Date.now()).toLocaleTimeString([], { hour12: false });
+        return `<div class="terminal-dock-line ${entry.level || 'info'}"><span>[${stamp}]</span><p>${entry.message}</p></div>`;
+      }).join('') : '<div class="terminal-dock-line"><span>[READY]</span><p>Waiting for empire activity...</p></div>';
+    },
+
     renderConsole(force = false) {
+      this.renderTerminalDock();
       const feed = this.els.consoleFeed;
       if (!feed) return;
       const logs = this.app.state.consoleLog || [];
@@ -5785,24 +5964,24 @@ const HELP_SECTIONS = [
         this.renderSuitePanels();
         if (this.worldUtilityOpen && this.currentWorldUtility === 'shop') this.renderShop();
         if (this.app.state.currentSuiteTab === 'console') this.renderConsole();
-        if (this.app.state.currentPanel === 'missions') {
+        if (this.app.state.currentPanel === 'people') {
           this.renderMissions();
           this.updateMissionsLive(force);
+          this.renderStaff();
         }
-        if (this.app.state.currentPanel === 'ops') {
-          this.renderOpsIncidentSummary();
+        if (this.app.state.currentPanel === 'infrastructure') {
           this.updateOpsLive(force);
+          this.updateUpgradesLive(force);
         }
-        if (this.app.state.currentPanel === 'upgrades') this.updateUpgradesLive(force);
-        if (this.app.state.currentPanel === 'staff') this.renderStaff();
-        if (this.app.state.currentPanel === 'regions') this.updateRegionsLive(force);
+        if (this.app.state.currentPanel === 'network') this.updateRegionsLive(force);
         if (this.app.state.currentPanel === 'command') {
-          this.renderPrestige();
           this.renderCommand();
-          this.renderCollections();
         }
-        if (this.app.state.currentPanel === 'overhaul') this.renderPrestige();
-        if (this.app.state.currentPanel === 'achievements') this.renderCollections();
+        if (this.app.state.currentPanel === 'progress') {
+          this.renderPrestige();
+          this.renderCollections();
+          this.renderUiSkins();
+        }
       }
       this.updateTabAvailabilityBadges();
       this.updateCurrentPanelCardDots();

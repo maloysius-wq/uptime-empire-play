@@ -54,30 +54,35 @@
   <button class="placement-wall-arrow placement-wall-arrow-right hidden" id="placementWallNextBtn" type="button" aria-label="Next wall">›</button>
 
   <div class="app-shell" id="appShell">
+    <canvas class="idle-skin-canvas" id="idleSkinCanvas" aria-hidden="true"></canvas>
     <aside class="stats-sidebar">
       <header class="topbar card stats-card">
         <div class="stats-header-row">
           <div>
-            <div class="eyebrow">Empire Telemetry</div>
-            <p class="muted">Real-time compute, staffing, mission, and resilience metrics.</p>
+            <div class="eyebrow">Uptime Empire // Live</div>
+            <p class="muted">The numbers that matter right now.</p>
           </div>
         </div>
         <div class="stats-grid telemetry-grid primary">
-          <div class="stat"><span>Compute Credits</span><strong id="creditsValue">0</strong></div>
-          <div class="stat"><span>Avg Potential / sec</span><strong id="ipsValue">0</strong></div>
-          <div class="stat"><span>Automated / sec</span><strong id="passiveIpsValue">0</strong></div>
-          <div class="stat"><span>Innovation Points</span><strong id="ipValue">0</strong></div>
-        </div>
-        <div class="stats-grid compact telemetry-grid secondary">
-          <div class="stat"><span>Research Data</span><strong id="researchValue">0</strong></div>
-          <div class="stat"><span>IP Fragments</span><strong id="fragmentsValue">0</strong></div>
+          <div class="stat"><span>Credits</span><strong id="creditsValue">0</strong></div>
+          <div class="stat"><span>Passive / sec</span><strong id="passiveIpsValue">0</strong></div>
           <div class="stat"><span>Empire Capacity</span><strong id="capacityValue">0 / 0</strong></div>
-          <div class="stat"><span>Managers</span><strong id="managersValue">0</strong></div>
-          <div class="stat"><span>Mission Teams</span><strong id="missionTeamsValue">0</strong></div>
-          <div class="stat"><span>Security</span><strong id="securityValue">0</strong></div>
-          <div class="stat"><span>Lifetime Compute</span><strong id="lifetimeValue">0</strong></div>
-          <div class="stat"><span>Offline Cap</span><strong id="offlineValue">0</strong></div>
+          <div class="stat"><span>Available Teams</span><strong id="missionTeamsValue">0</strong></div>
+          <div class="stat"><span>System Health</span><strong id="telemetryHealthValue">Nominal</strong></div>
         </div>
+        <details class="telemetry-details">
+          <summary>More telemetry</summary>
+          <div class="stats-grid compact telemetry-grid secondary">
+            <div class="stat"><span>Potential / sec</span><strong id="ipsValue">0</strong></div>
+            <div class="stat"><span>Innovation Points</span><strong id="ipValue">0</strong></div>
+            <div class="stat"><span>Research Data</span><strong id="researchValue">0</strong></div>
+            <div class="stat"><span>IP Fragments</span><strong id="fragmentsValue">0</strong></div>
+            <div class="stat"><span>Managers</span><strong id="managersValue">0</strong></div>
+            <div class="stat"><span>Security</span><strong id="securityValue">0</strong></div>
+            <div class="stat"><span>Lifetime Compute</span><strong id="lifetimeValue">0</strong></div>
+            <div class="stat"><span>Offline Cap</span><strong id="offlineValue">0</strong></div>
+          </div>
+        </details>
       </header>
     </aside>
 
@@ -86,6 +91,8 @@
         <div><span>Credits</span><strong id="mobileCreditsValue">0 CC</strong></div>
         <div><span>Income / sec</span><strong id="mobileRateValue">0 CC</strong></div>
         <div><span>Incidents</span><strong id="mobileIncidentsValue">0</strong></div>
+        <div><span>Capacity</span><strong id="mobileCapacityValue">0 / 0</strong></div>
+        <div><span>Teams</span><strong id="mobileTeamsValue">0</strong></div>
       </div>
       <nav class="bottom-nav card" id="mainNav">
         <div class="command-bar-head">
@@ -102,15 +109,11 @@
           <button class="soft-btn command-help-btn" id="helpBtn">Help</button>
         </div>
         <div class="nav-grid">
-          <button class="nav-btn active" data-panel="ops">Ops</button>
-          <button class="nav-btn" data-panel="missions">Missions</button>
-          <button class="nav-btn" data-panel="upgrades">Upgrades</button>
-          <button class="nav-btn" data-panel="staff">Staff</button>
-          <button class="nav-btn" data-panel="regions">Regions</button>
-          <button class="nav-btn" data-panel="command">Command</button>
-          <button class="nav-btn" data-panel="overhaul">Overhaul</button>
-          <button class="nav-btn mobile-terminal-app" data-terminal-view="achievements">Badges</button>
-          <button class="nav-btn mobile-terminal-app" data-terminal-view="console">Console</button>
+          <button class="nav-btn active" data-panel="command">Command Center</button>
+          <button class="nav-btn" data-panel="infrastructure">Infrastructure</button>
+          <button class="nav-btn" data-panel="people">People &amp; Ops</button>
+          <button class="nav-btn" data-panel="network">Network</button>
+          <button class="nav-btn" data-panel="progress">Progress</button>
         </div>
       </nav>
 
@@ -120,26 +123,19 @@
             <h2>Network Footprint</h2>
             <p class="muted">Unlocked regions stack bonuses and capacity into your empire</p>
           </div>
-          <div class="purchase-mode" id="purchaseModeWrap"></div>
         </div>
         <div class="region-chip-row" id="regionChipRow"></div>
         <div class="network-shortcuts" id="networkShortcuts"></div>
       </section>
 
       <main class="panel-stack">
-        <section class="panel active" id="panel-ops">
+        <section class="panel" id="panel-ops">
           <div class="section-head card">
             <div>
-              <h2>Operations</h2>
-              <p class="muted">Buy hardware, kick off cycles, and automate the humming machine.</p>
+              <h2>Infrastructure</h2>
+              <p class="muted">Scale hardware, hire each fleet's manager in place, and tune the empire.</p>
             </div>
-          </div>
-          <div class="card section-card ops-status-card">
-            <div class="mini-head">
-              <h3>Current Pressure</h3>
-              <p class="muted">Incidents are mild but persistent. Services and specialists tame the chaos.</p>
-            </div>
-            <div id="opsIncidentSummary" class="inline-status-grid"></div>
+            <div class="purchase-mode" id="purchaseModeWrap"></div>
           </div>
           <div id="opsList" class="stack"></div>
         </section>
@@ -147,8 +143,8 @@
         <section class="panel" id="panel-missions">
           <div class="section-head card">
             <div>
-              <h2>Quest Board & Incidents</h2>
-              <p class="muted">Dispatch teams, research weird things, and swat the occasional digital gremlin.</p>
+              <h2>People &amp; Ops</h2>
+              <p class="muted">Dispatch teams, resolve incidents, and manage the people and services behind the machines.</p>
             </div>
           </div>
           <div class="stats-grid compact mission-top-grid">
@@ -175,16 +171,32 @@
           </div>
         </section>
 
-        <section class="panel" id="panel-command">
+        <section class="panel active" id="panel-command">
           <div class="section-head card">
             <div>
-              <h2>The Big Bet</h2>
-              <p class="muted">You borrowed far too much money to turn a tech shed into Uptime Empire. Make the bet pay off.</p>
+              <h2>Command Center</h2>
+              <p class="muted">A clear view of the empire, the next useful moves, and the Big Bet.</p>
+            </div>
+          </div>
+          <div class="command-metric-grid">
+            <div class="stat"><span>Research</span><strong id="commandMetricResearch">0 RD</strong></div>
+            <div class="stat"><span>Innovation</span><strong id="commandMetricInnovation">0 IP</strong></div>
+            <div class="stat"><span>Next Overhaul</span><strong id="commandMetricOverhaul">0 IP</strong></div>
+            <div class="stat"><span>Launch Debt</span><strong id="commandMetricDebt">Open</strong></div>
+          </div>
+          <div class="command-overview-grid">
+            <div class="card section-card workspace-section">
+              <div class="mini-head"><h3>Next Best Moves</h3><p class="muted">Three useful directions, based on the current run.</p></div>
+              <div id="commandActionList" class="mini-stack"></div>
+            </div>
+            <div class="card section-card workspace-section">
+              <div class="mini-head"><h3>System Status</h3><p class="muted">Current operational pressure without opening another workspace.</p></div>
+              <div id="opsIncidentSummary" class="inline-status-grid"></div>
             </div>
           </div>
           <div class="card section-card">
             <div class="mini-head">
-              <h3>Founder Ledger</h3>
+              <h3>The Big Bet</h3>
               <p class="muted">One clear climb. Each milestone survives Overhaul and leaves the empire stronger than before.</p>
             </div>
             <div id="bigBetDebtPanel" class="mini-stack"></div>
@@ -209,7 +221,7 @@
         <section class="panel" id="panel-upgrades">
           <div class="section-head card">
             <div>
-              <h2>Upgrades</h2>
+              <h2>Infrastructure Tuning</h2>
               <p class="muted">Global tuning, category boosts, and empire-scale optimizations.</p>
             </div>
           </div>
@@ -227,7 +239,7 @@
         <section class="panel" id="panel-staff">
           <div class="section-head card">
             <div>
-              <h2>Staff & Services</h2>
+              <h2>Staff &amp; Services</h2>
               <p class="muted">Managers automate generators. Specialists bend the whole empire. Services keep the fires tiny.</p>
             </div>
           </div>
@@ -259,7 +271,7 @@
         <section class="panel" id="panel-regions">
           <div class="section-head card">
             <div>
-              <h2>Regions</h2>
+              <h2>Network</h2>
               <p class="muted">Unlock capacity, expand footprints, and stack regional bonuses.</p>
             </div>
           </div>
@@ -269,7 +281,7 @@
         <section class="panel" id="panel-achievements">
           <div class="section-head card">
             <div>
-              <h2>Achievements</h2>
+              <h2>Achievements &amp; Collections</h2>
               <p class="muted">Badges, trophies, timestamps, and permanent little bragging rights.</p>
             </div>
           </div>
@@ -292,7 +304,7 @@
         <section class="panel" id="panel-overhaul">
           <div class="section-head card">
             <div>
-              <h2>Infrastructure Overhaul</h2>
+              <h2>Progress</h2>
               <p class="muted">Reset the empire, keep the know-how, come back louder.</p>
             </div>
           </div>
@@ -311,8 +323,19 @@
             </div>
             <div id="prestigeTree" class="stack"></div>
           </div>
+          <div class="card section-card ui-skin-section">
+            <div class="mini-head">
+              <h3>Interface Skins</h3>
+              <p class="muted">Choose an owned terminal style. Progress rewards and purchases are cosmetic only.</p>
+            </div>
+            <div id="uiSkinList" class="ui-skin-list"></div>
+          </div>
         </section>
       </main>
+      <section class="terminal-dock card" id="terminalDock" aria-label="Live terminal">
+        <div class="terminal-dock-head"><span>LIVE TERMINAL</span><button class="soft-btn small" id="terminalDockExpandBtn" type="button">Expand</button></div>
+        <div class="terminal-dock-lines" id="terminalDockLines"></div>
+      </section>
     </div>
 
     <aside class="office-sidebar card">
@@ -524,9 +547,9 @@
   <div class="toast" id="toast"></div>
   <div class="fx-layer" id="fxLayer"></div>
 
-  <script src="data.js?v=bacbd1724c3c"></script>
+  <script src="data.js?v=3d9dfda0a5e9"></script>
   <script src="save.js?v=bc84326bcb84"></script>
-  <script src="game.js?v=162b78f37ade"></script>
+  <script src="game.js?v=2d482f50ecd6"></script>
   <script src="assets/arcade_model_data.js?v=668dab13ec6d"></script>
   <script src="assets/server_ambience_audio_data.js?v=c193b8f881c5"></script>
   <script src="assets/background_music_data.js?v=c90e9561501f"></script>
@@ -543,7 +566,7 @@
   <script src="assets/scifi_floor_tile_data.js?v=81e439523cca"></script>
   <script src="assets/circuit_wall_texture_data.js?v=68b42bfca2f4"></script>
   <script src="office3d.js?v=8f94414afbb0"></script>
-  <script src="ui.js?v=3dfdeae39b78"></script>
+  <script src="ui.js?v=dea46a7830a4"></script>
 
   <div class="modal-backdrop hidden" id="robotModal">
     <div class="modal card modal-narrow">
