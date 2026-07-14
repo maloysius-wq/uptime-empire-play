@@ -8509,7 +8509,7 @@ body.office-computer-mode .idle-skin-canvas {
   z-index: 0 !important;
   opacity: 0 !important;
 }
-body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 0.82 !important; }
+body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 1 !important; }
 
 body.office-computer-mode .app-shell {
   z-index: 2;
@@ -8882,9 +8882,37 @@ body.office-computer-mode .resource-row.locked { opacity: 0.48; }
 body.office-computer-mode .resource-row.has-available-dot { box-shadow: none !important; }
 body.office-computer-mode .resource-row.has-available-dot::after { display: none !important; }
 body.office-computer-mode .generator-name { color: var(--idle-text) !important; font-size: 0.84rem !important; font-weight: 500 !important; }
-body.office-computer-mode .fleet-summary { margin: 2px 0 0; color: var(--idle-muted); font-size: 0.68rem; }
+body.office-computer-mode .fleet-summary {
+  margin: 3px 0 0;
+  display: flex;
+  gap: 3px 10px;
+  flex-wrap: wrap;
+  color: var(--idle-text);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+body.office-computer-mode .fleet-summary strong { color: var(--idle-accent); font-weight: 700; }
+body.office-computer-mode .fleet-progress-wrap { margin-top: 8px; gap: 6px; }
 body.office-computer-mode .resource-row .progress-track { width: 100%; height: 5px !important; margin-top: 7px; border-radius: 5px !important; background: rgba(88, 108, 101, 0.18) !important; }
 body.office-computer-mode .resource-row .progress-bar { background: var(--idle-accent) !important; }
+body.office-computer-mode .fleet-milestones { gap: 5px; }
+body.office-computer-mode .fleet-milestones .milestone-pill {
+  min-width: 30px;
+  padding: 3px 6px;
+  border-color: var(--idle-border);
+  color: var(--idle-muted);
+  background: color-mix(in srgb, var(--idle-control) 78%, transparent);
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+}
+body.office-computer-mode .fleet-milestones .milestone-pill.hit {
+  border-color: color-mix(in srgb, var(--idle-accent) 58%, transparent);
+  color: var(--idle-accent);
+  background: color-mix(in srgb, var(--idle-accent) 15%, var(--idle-control));
+}
 body.office-computer-mode .fleet-rate strong,
 body.office-computer-mode .fleet-rate span { display: block; }
 body.office-computer-mode .fleet-rate strong { font-size: 0.82rem; font-weight: 500; }
@@ -8897,6 +8925,11 @@ body.office-computer-mode .fleet-actions > button {
   height: 32px;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.15;
 }
 body.office-computer-mode .fleet-actions > button:nth-child(1) { width: 82px; }
 body.office-computer-mode .fleet-actions > button:nth-child(2) { width: 184px; }

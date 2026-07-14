@@ -1641,8 +1641,11 @@ const WORKSPACE_SECTION_DEFS = {
           <article class="row-card resource-row ${unlocked ? '' : 'locked'}" data-gen-card="${def.id}">
             <div class="resource-copy">
               <div class="generator-name">${def.name}</div>
-              <p class="fleet-summary">Owned <span data-gen-owned="${def.id}">${gen.owned}</span> / ${gen.managerHired ? 'Automated' : 'Manual cycles'} / Milestone ${nextMilestone}</p>
-              <div class="progress-track"><div class="progress-bar" data-progress-id="${def.id}"></div></div>
+              <p class="fleet-summary"><span>Owned <strong data-gen-owned="${def.id}">${gen.owned}</strong></span><span>${gen.managerHired ? 'Automated' : 'Manual cycles'}</span><span>Next tier ${nextMilestone}</span></p>
+              <div class="progress-wrap fleet-progress-wrap">
+                <div class="progress-track"><div class="progress-bar" data-progress-id="${def.id}"></div></div>
+                <div class="milestones fleet-milestones">${DATA.milestoneDefs.map(m => `<span class="milestone-pill ${gen.owned >= m.count ? 'hit' : ''}" data-gen-milestone="${def.id}:${m.count}">${m.count}</span>`).join('')}</div>
+              </div>
               <p class="lock-msg ${lockMsg ? '' : 'hidden'}" data-gen-lock="${def.id}">${lockMsg}</p>
               <span class="fleet-hidden-metric" data-gen-cycle="${def.id}">${this.app.formatDuration(this.app.getCycleTime(def))}</span>
               <span class="fleet-hidden-metric" data-gen-cap="${def.id}">${this.app.getEffectiveCapacityUse(def).toFixed(1)}</span>
@@ -2015,12 +2018,15 @@ const WORKSPACE_SECTION_DEFS = {
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
-        ctx.font = '12px monospace';
-        ctx.fillStyle = 'rgba(30, 116, 59, 0.20)';
+        ctx.font = '13px monospace';
+        ctx.fillStyle = 'rgba(92, 255, 139, 0.42)';
+        ctx.shadowColor = 'rgba(57, 230, 103, 0.42)';
+        ctx.shadowBlur = 5;
         this.codefallDrops.forEach((drop, column) => {
           ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
           this.codefallDrops[column] = drop * 20 > height && Math.random() > 0.97 ? 0 : drop + 0.45;
         });
+        ctx.shadowBlur = 0;
       };
       this.skinAnimationFrame = requestAnimationFrame(draw);
     },
