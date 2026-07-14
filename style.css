@@ -8478,19 +8478,21 @@ body.office-computer-mode .app-shell::after {
 body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
   left: 0;
   right: 0;
-  top: 0;
+  top: var(--noc-scan-y, 0px);
   bottom: auto;
   height: 12px !important;
   opacity: 0.42;
   background: linear-gradient(180deg, transparent, rgba(99, 211, 236, 0.56), transparent);
-  animation: idleNocScanner 6s ease-in-out infinite;
+  animation: none !important;
   will-change: top;
 }
 
 body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
   opacity: 0.15;
   background: repeating-linear-gradient(180deg, transparent 0 3px, rgba(255, 184, 77, 0.32) 3px 4px);
-  animation: idleCrtScan 8s linear infinite;
+  background-position: 0 var(--crt-scan-y, 0px);
+  animation: none !important;
+  will-change: background-position;
 }
 
 @keyframes idleNocScanner {
@@ -9231,13 +9233,6 @@ body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
 @media (prefers-reduced-motion: reduce) {
   body.office-computer-mode .app-shell::before,
   body.office-computer-mode .app-shell::after { animation: none !important; }
-}
-
-/* The NOC scanner is a small state cue, not a large motion effect. */
-@media (prefers-reduced-motion: reduce) {
-  body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
-    animation: idleNocScanner 6s ease-in-out infinite !important;
-  }
 }
 
 @media (max-width: 760px) {

@@ -2040,8 +2040,26 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.skinAnimationFrame) return;
       const draw = now => {
         this.skinAnimationFrame = requestAnimationFrame(draw);
-        if (document.body.dataset.uiSkin !== 'codefall' || document.hidden || now - this.skinAnimationLastDraw < 80) return;
+        if (document.hidden || now - this.skinAnimationLastDraw < 80) return;
         this.skinAnimationLastDraw = now;
+        const skin = document.body.dataset.uiSkin;
+        const shell = this.els.appShell;
+        if (shell) {
+          if (skin === 'noc') {
+            const travel = Math.max(0, shell.clientHeight - 12);
+            const phase = (now % 6000) / 6000;
+            const progress = phase <= 0.5 ? phase * 2 : (1 - phase) * 2;
+            shell.style.setProperty('--noc-scan-y', `${Math.round(travel * progress)}px`);
+          } else {
+            shell.style.removeProperty('--noc-scan-y');
+          }
+          if (skin === 'crt') {
+            shell.style.setProperty('--crt-scan-y', `${Math.round(((now % 8000) / 8000) * 80)}px`);
+          } else {
+            shell.style.removeProperty('--crt-scan-y');
+          }
+        }
+        if (skin !== 'codefall') return;
         const canvas = this.els.idleSkinCanvas;
         if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         const width = Math.max(1, canvas.clientWidth);
