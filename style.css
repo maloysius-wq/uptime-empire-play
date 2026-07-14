@@ -8476,9 +8476,13 @@ body.office-computer-mode .app-shell::after {
 }
 
 body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
-  opacity: 0.38;
-  background: linear-gradient(180deg, transparent calc(50% - 7px), rgba(99, 211, 236, 0.42) 50%, transparent calc(50% + 7px));
+  inset: 0 0 auto !important;
+  top: 0;
+  height: 12px !important;
+  opacity: 0.42;
+  background: linear-gradient(180deg, transparent, rgba(99, 211, 236, 0.56), transparent);
   animation: idleNocScanner 6s ease-in-out infinite;
+  will-change: top;
 }
 
 body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
@@ -8488,8 +8492,8 @@ body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
 }
 
 @keyframes idleNocScanner {
-  0%, 100% { transform: translateY(-50%); }
-  50% { transform: translateY(50%); }
+  0%, 100% { top: 0; }
+  50% { top: calc(100% - 12px); }
 }
 
 @keyframes idleCrtScan {
@@ -8738,6 +8742,8 @@ body.office-computer-mode .nav-btn.has-alert::after {
   right: 11px;
   width: 8px;
   height: 8px;
+  min-width: 0;
+  padding: 0;
   display: block !important;
   border-radius: 50%;
   background: linear-gradient(180deg, #ff8a8a, #ff4f4f);
