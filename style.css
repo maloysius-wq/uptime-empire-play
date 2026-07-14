@@ -8468,6 +8468,7 @@ body.office-computer-mode .app-shell::after {
   content: "";
   position: absolute !important;
   inset: 0 !important;
+  height: 100% !important;
   z-index: 1 !important;
   pointer-events: none;
   opacity: 0;
@@ -8731,7 +8732,17 @@ body.office-computer-mode .nav-btn {
 body.office-computer-mode .nav-btn.active { color: white !important; background: var(--idle-primary) !important; }
 body.office-computer-mode .nav-symbol { width: 16px; flex: 0 0 16px; text-align: center; }
 body.office-computer-mode .nav-btn.has-alert::after {
-  display: none !important;
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  width: 8px;
+  height: 8px;
+  display: block !important;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ff8a8a, #ff4f4f);
+  box-shadow: 0 0 0 2px var(--idle-sidebar), 0 0 10px rgba(255, 83, 83, 0.42);
+  transform: translateY(-50%);
 }
 
 body.office-computer-mode #networkFootprintCard {

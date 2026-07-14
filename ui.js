@@ -2054,8 +2054,10 @@ const WORKSPACE_SECTION_DEFS = {
         }
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = 'rgba(5, 27, 12, 0.09)';
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
         ctx.fillRect(0, 0, width, height);
+        ctx.globalCompositeOperation = 'source-over';
         ctx.font = '13px monospace';
         ctx.fillStyle = 'rgba(92, 255, 139, 0.42)';
         ctx.shadowColor = 'rgba(57, 230, 103, 0.42)';
