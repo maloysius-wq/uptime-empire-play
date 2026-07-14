@@ -15,7 +15,7 @@
     infrastructure: ['fleet', 'upgrades'],
     people: ['operations', 'staff'],
     network: ['regions'],
-    progress: ['overhaul', 'achievements']
+    progress: ['overhaul', 'skins', 'achievements']
   };
 
   function deepClone(value) {

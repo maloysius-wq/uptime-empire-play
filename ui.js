@@ -200,7 +200,8 @@ const WORKSPACE_SECTION_DEFS = {
   ],
   network: [{ id: 'regions', label: 'Regions', panels: ['panel-regions'] }],
   progress: [
-    { id: 'overhaul', label: 'Overhaul & skins', panels: ['panel-overhaul'] },
+    { id: 'overhaul', label: 'Overhaul', panels: ['panel-overhaul'] },
+    { id: 'skins', label: 'Interface skins', panels: ['panel-skins'] },
     { id: 'achievements', label: 'Achievements', panels: ['panel-achievements'] }
   ]
 };
@@ -231,6 +232,7 @@ const WORKSPACE_SECTION_DEFS = {
     skinAnimationFrame: 0,
     skinAnimationLastDraw: 0,
     codefallDrops: [],
+    workspacePanelSwitchTimer: 0,
 
     init(app) {
       this.app = app;
@@ -483,8 +485,7 @@ const WORKSPACE_SECTION_DEFS = {
         if (!targetPanel) return;
         this.primeAudio();
         this.playSound('ui');
-        this.app.changePanel(targetPanel);
-        requestAnimationFrame(() => this.scrollMainToTop());
+        this.changeWorkspacePanel(targetPanel);
       });
 
       if (this.els.workspaceSectionMenu) this.els.workspaceSectionMenu.addEventListener('click', e => {
@@ -1239,6 +1240,22 @@ const WORKSPACE_SECTION_DEFS = {
       this.els.appMain.scrollTo({ top: 0, behavior: 'auto' });
     },
 
+    changeWorkspacePanel(panel) {
+      const change = () => {
+        this.workspacePanelSwitchTimer = 0;
+        this.app.changePanel(panel);
+        requestAnimationFrame(() => this.scrollMainToTop());
+      };
+      const menu = this.els.workspaceSectionMenu;
+      if (!menu?.classList.contains('is-open')) {
+        change();
+        return;
+      }
+      menu.classList.remove('is-open');
+      if (this.workspacePanelSwitchTimer) window.clearTimeout(this.workspacePanelSwitchTimer);
+      this.workspacePanelSwitchTimer = window.setTimeout(change, 180);
+    },
+
     openShop() {
       this.openWorldUtility('shop');
     },
@@ -1432,9 +1449,17 @@ const WORKSPACE_SECTION_DEFS = {
 
     renderWorkspaceSectionMenu(sections, activeSectionId) {
       if (!this.els.workspaceSectionMenu) return;
-      this.els.workspaceSectionMenu.classList.toggle('hidden', sections.length < 2);
-      this.els.workspaceSectionMenu.innerHTML = sections.map(section => `
+      const menu = this.els.workspaceSectionMenu;
+      const activeTab = this.els.mainNav.querySelector(`.nav-btn[data-panel="${this.app.state.currentPanel}"]`);
+      if (activeTab && menu.previousElementSibling !== activeTab) activeTab.insertAdjacentElement('afterend', menu);
+      if (sections.length < 2) {
+        menu.classList.remove('is-open');
+        menu.innerHTML = '';
+        return;
+      }
+      menu.innerHTML = sections.map(section => `
         <button class="workspace-section-link ${section.id === activeSectionId ? 'active' : ''}" type="button" data-workspace-section="${section.id}">${section.label}</button>`).join('');
+      requestAnimationFrame(() => menu.classList.add('is-open'));
     },
 
     renderSuitePanels() {
