@@ -1639,12 +1639,11 @@ const WORKSPACE_SECTION_DEFS = {
         const incomePerCycle = gen.owned ? this.app.getIncomePerCycle(def, gen) : 0;
         const perSecond = gen.owned ? this.app.getGeneratorPotentialPerSecond(def, gen) : 0;
         const lockMsg = !unlocked ? `Unlocks at ${this.app.formatNumber(def.unlockAt)} lifetime compute` : '';
-        const nextMilestone = DATA.milestoneDefs.find(m => m.count > gen.owned)?.count || DATA.milestoneDefs[DATA.milestoneDefs.length - 1]?.count || 1;
         return `
           <article class="row-card resource-row ${unlocked ? '' : 'locked'}" data-gen-card="${def.id}">
             <div class="resource-copy">
               <div class="generator-name">${def.name}</div>
-              <p class="fleet-summary"><span>Owned <strong data-gen-owned="${def.id}">${gen.owned}</strong></span><span>${gen.managerHired ? 'Automated' : 'Manual cycles'}</span><span>Next tier ${nextMilestone}</span></p>
+              <p class="fleet-summary"><span>Owned <strong data-gen-owned="${def.id}">${gen.owned}</strong></span><span>${gen.managerHired ? 'Automated' : 'Manual cycles'}</span></p>
               <div class="progress-wrap fleet-progress-wrap">
                 <div class="progress-track"><div class="progress-bar" data-progress-id="${def.id}"></div></div>
                 <div class="milestones fleet-milestones">${DATA.milestoneDefs.map(m => `<span class="milestone-pill ${gen.owned >= m.count ? 'hit' : ''}" data-gen-milestone="${def.id}:${m.count}">${m.count}</span>`).join('')}</div>

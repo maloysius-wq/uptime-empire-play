@@ -8480,9 +8480,12 @@ body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
   right: 0;
   top: var(--noc-scan-y, 0px);
   bottom: auto;
-  height: 12px !important;
-  opacity: 0.42;
-  background: linear-gradient(180deg, transparent, rgba(99, 211, 236, 0.56), transparent);
+  height: 22px !important;
+  opacity: 0.82;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 28px, rgba(181, 244, 255, 0.28) 29px 31px, transparent 32px 56px),
+    linear-gradient(180deg, transparent 0%, rgba(92, 203, 232, 0.12) 26%, rgba(203, 249, 255, 0.96) 48%, rgba(103, 221, 244, 0.70) 53%, rgba(92, 203, 232, 0.12) 74%, transparent 100%);
+  box-shadow: 0 0 8px rgba(100, 218, 246, 0.52), 0 0 22px rgba(56, 164, 210, 0.28);
   animation: none !important;
   will-change: top;
 }
@@ -8676,8 +8679,8 @@ body.office-computer-mode .telemetry-grid.primary .stat {
 }
 body.office-computer-mode .telemetry-grid.primary .stat span,
 body.office-computer-mode .telemetry-grid.primary .stat strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-body.office-computer-mode .telemetry-grid.primary .stat span { margin: 0 0 3px; color: var(--idle-muted); font-size: 0.68rem; text-transform: none; }
-body.office-computer-mode .telemetry-grid.primary .stat strong { color: var(--idle-text); font-size: 0.82rem; font-weight: 500; }
+body.office-computer-mode .telemetry-grid.primary .stat span { margin: 0 0 4px; color: var(--idle-muted); font-size: 0.76rem; text-transform: none; }
+body.office-computer-mode .telemetry-grid.primary .stat strong { color: var(--idle-text); font-size: 0.98rem; font-weight: 600; }
 body.office-computer-mode .telemetry-details { display: none !important; }
 
 body.office-computer-mode .app-main {
@@ -9255,6 +9258,8 @@ body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
   }
   body.office-computer-mode .ue-brand { padding-right: 52px; }
   body.office-computer-mode .ue-brand-copy strong { font-size: 0.72rem; }
+  body.office-computer-mode .telemetry-grid.primary .stat span { font-size: 0.72rem; }
+  body.office-computer-mode .telemetry-grid.primary .stat strong { font-size: 0.92rem; }
   body.office-computer-mode .telemetry-grid.primary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px 12px !important; }
   body.office-computer-mode .telemetry-grid.primary .stat:last-child { grid-column: 1 / -1; }
   body.office-computer-mode .app-main {
