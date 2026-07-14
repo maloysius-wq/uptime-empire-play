@@ -438,12 +438,13 @@ const HELP_SECTIONS = [
       const params = new URLSearchParams(window.location.search);
       if (params.get('qa') !== 'mobile-terminal') return;
       const requestedSkin = params.get('skin');
+      const requestedPanel = params.get('panel');
       if ((DATA.uiSkinDefs || []).some(def => def.id === requestedSkin)) this.app.state.uiSkin = requestedSkin;
       document.body.classList.add('mobile-terminal-preview');
       window.setTimeout(() => {
         this.computerOpen = true;
         this.mobileTerminalView = '';
-        this.app.state.currentPanel = 'infrastructure';
+        this.app.state.currentPanel = ['command', 'infrastructure', 'people', 'network', 'progress'].includes(requestedPanel) ? requestedPanel : 'infrastructure';
         this.syncComputerMode();
         this.renderAll();
       }, 80);
@@ -1500,7 +1501,7 @@ const HELP_SECTIONS = [
     },
 
     renderPurchaseModes() {
-      this.els.purchaseModeWrap.innerHTML = [10, 'MAX'].map(mode => {
+      this.els.purchaseModeWrap.innerHTML = [1, 10, 'MAX'].map(mode => {
         const label = String(mode);
         return `<button class="mode-chip ${this.app.state.purchaseMode === mode ? 'active' : ''}" data-mode="${label}">Buy ${label === 'MAX' ? 'Max' : label}</button>`;
       }).join('');
@@ -1515,7 +1516,7 @@ const HELP_SECTIONS = [
 
     renderOpsLegacy() {
       this.renderOpsIncidentSummary();
-      this.els.opsList.innerHTML = DATA.generatorDefs.filter(def => this.app.canUnlockGenerator(def) || this.app.getGenState(def.id).owned > 0).map(def => {
+      this.els.opsList.innerHTML = DATA.generatorDefs.map(def => {
         const gen = this.app.getGenState(def.id);
         const unlocked = this.app.canUnlockGenerator(def);
         const nextCost = this.app.getNextCost(def, gen.owned);
@@ -1568,7 +1569,7 @@ const HELP_SECTIONS = [
 
     renderOps() {
       this.renderOpsIncidentSummary();
-      this.els.opsList.innerHTML = DATA.generatorDefs.filter(def => this.app.canUnlockGenerator(def) || this.app.getGenState(def.id).owned > 0).map(def => {
+      this.els.opsList.innerHTML = DATA.generatorDefs.map(def => {
         const gen = this.app.getGenState(def.id);
         const unlocked = this.app.canUnlockGenerator(def);
         const nextCost = this.app.getNextCost(def, gen.owned);

@@ -8327,23 +8327,23 @@ body.mobile-office-controls-visible .mobile-office-controls {
 
 /* v3.109: final idle UI follows the approved workspace mockup literally. */
 body.office-computer-mode {
-  --idle-page: #f5f7f6;
-  --idle-shell: #eef3f0;
-  --idle-top: #e3ebe7;
-  --idle-sidebar: rgba(255, 255, 255, 0.72);
-  --idle-panel: rgba(255, 255, 255, 0.38);
-  --idle-panel-strong: rgba(210, 221, 216, 0.82);
-  --idle-text: #182126;
-  --idle-muted: #77817f;
-  --idle-border: rgba(34, 53, 49, 0.12);
-  --idle-primary: #2995ff;
-  --idle-accent: #65c985;
-  --idle-dark-button: #1d2124;
-  --idle-control: rgba(246, 249, 247, 0.78);
-  --idle-card: rgba(237, 243, 239, 0.62);
-  --idle-workspace: rgba(246, 249, 247, 0.38);
-  --idle-terminal: rgba(210, 221, 216, 0.82);
-  --idle-shell-shadow: 0 18px 55px rgba(26, 38, 34, 0.12);
+  --idle-page: #0e1a21;
+  --idle-shell: rgba(23, 40, 48, 0.96);
+  --idle-top: rgba(34, 57, 66, 0.93);
+  --idle-sidebar: rgba(20, 39, 48, 0.84);
+  --idle-panel: rgba(48, 76, 85, 0.44);
+  --idle-panel-strong: rgba(50, 80, 88, 0.74);
+  --idle-text: #e4f0ef;
+  --idle-muted: #9ab1b2;
+  --idle-border: rgba(131, 190, 192, 0.20);
+  --idle-primary: #2d9bd8;
+  --idle-accent: #63d6a0;
+  --idle-dark-button: #174e63;
+  --idle-control: rgba(35, 61, 70, 0.88);
+  --idle-card: rgba(39, 68, 77, 0.58);
+  --idle-workspace: rgba(17, 35, 43, 0.52);
+  --idle-terminal: rgba(35, 66, 75, 0.88);
+  --idle-shell-shadow: 0 20px 62px rgba(0, 8, 12, 0.50), 0 0 36px rgba(72, 171, 190, 0.08);
   padding: 0 !important;
   overflow: hidden !important;
   color: var(--idle-text) !important;
@@ -8372,23 +8372,23 @@ body.office-computer-mode[data-ui-skin="noc"] {
 }
 
 body.office-computer-mode[data-ui-skin="codefall"] {
-  --idle-page: #dce7e0;
-  --idle-shell: rgba(229, 239, 232, 0.88);
-  --idle-top: rgba(197, 215, 202, 0.82);
-  --idle-sidebar: rgba(241, 247, 243, 0.66);
-  --idle-panel: rgba(224, 236, 227, 0.50);
-  --idle-panel-strong: rgba(184, 204, 190, 0.68);
-  --idle-text: #17251c;
-  --idle-muted: #687a6e;
-  --idle-border: rgba(42, 91, 58, 0.16);
-  --idle-primary: #269554;
-  --idle-accent: #43bd6c;
-  --idle-dark-button: #17221b;
-  --idle-control: rgba(233, 242, 235, 0.72);
-  --idle-card: rgba(215, 230, 219, 0.52);
-  --idle-workspace: rgba(231, 240, 234, 0.30);
-  --idle-terminal: rgba(188, 210, 194, 0.74);
-  --idle-shell-shadow: 0 18px 58px rgba(25, 56, 35, 0.18);
+  --idle-page: #10251a;
+  --idle-shell: rgba(22, 53, 34, 0.96);
+  --idle-top: rgba(31, 76, 47, 0.92);
+  --idle-sidebar: rgba(17, 47, 30, 0.84);
+  --idle-panel: rgba(48, 101, 64, 0.42);
+  --idle-panel-strong: rgba(47, 100, 63, 0.72);
+  --idle-text: #e2f7e5;
+  --idle-muted: #9fc7a8;
+  --idle-border: rgba(105, 205, 126, 0.22);
+  --idle-primary: #24995a;
+  --idle-accent: #68df8a;
+  --idle-dark-button: #165c35;
+  --idle-control: rgba(29, 77, 45, 0.88);
+  --idle-card: rgba(38, 91, 55, 0.56);
+  --idle-workspace: rgba(14, 44, 26, 0.48);
+  --idle-terminal: rgba(30, 77, 46, 0.88);
+  --idle-shell-shadow: 0 20px 62px rgba(0, 12, 5, 0.52), 0 0 38px rgba(77, 200, 103, 0.10);
 }
 
 body.office-computer-mode[data-ui-skin="crt"] {
@@ -8822,8 +8822,9 @@ body.office-computer-mode .fleet-rate strong { font-size: 0.82rem; font-weight: 
 body.office-computer-mode .fleet-rate > span { margin-top: 3px; color: var(--idle-muted); font-size: 0.67rem; }
 body.office-computer-mode .fleet-hidden-metric { display: none; }
 body.office-computer-mode .fleet-actions { display: flex !important; align-items: center; justify-content: flex-end; gap: 7px !important; flex-wrap: wrap; }
-body.office-computer-mode .fleet-actions .action-btn:first-child { display: none; }
-body.office-computer-mode .fleet-actions .action-btn:disabled { display: none; }
+body.office-computer-mode .fleet-actions .action-btn:first-child,
+body.office-computer-mode .fleet-actions .action-btn:disabled { display: inline-flex !important; }
+body.office-computer-mode .fleet-actions .action-btn:disabled { opacity: 0.58; cursor: not-allowed; }
 body.office-computer-mode .lock-msg { margin: 5px 0 0 !important; color: #a06c21 !important; font-size: 0.67rem !important; }
 
 body.office-computer-mode #panel-upgrades { padding-top: 2px; }
