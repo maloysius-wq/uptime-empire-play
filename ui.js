@@ -1457,8 +1457,11 @@ const WORKSPACE_SECTION_DEFS = {
         menu.innerHTML = '';
         return;
       }
-      menu.innerHTML = sections.map(section => `
-        <button class="workspace-section-link ${section.id === activeSectionId ? 'active' : ''}" type="button" data-workspace-section="${section.id}">${section.label}</button>`).join('');
+      const sectionCounts = this.getWorkspaceSectionAvailabilityCounts();
+      menu.innerHTML = sections.map(section => {
+        const available = (sectionCounts[this.app.state.currentPanel]?.[section.id] || 0) > 0;
+        return `<button class="workspace-section-link ${section.id === activeSectionId ? 'active' : ''}" type="button" data-workspace-section="${section.id}" data-dot="${available ? 'true' : ''}">${section.label}</button>`;
+      }).join('');
       requestAnimationFrame(() => menu.classList.add('is-open'));
     },
 
@@ -1815,6 +1818,31 @@ const WORKSPACE_SECTION_DEFS = {
       return counts;
     },
 
+    getWorkspaceSectionAvailabilityCounts() {
+      const panels = this.getPanelAvailabilityCounts();
+      const credits = this.app.state.credits;
+      let fleet = 0;
+      DATA.generatorDefs.forEach(def => {
+        const gen = this.app.getGenState(def.id);
+        const qty = Math.max(0, this.app.getSelectedQuantity(def));
+        const bulkCost = qty ? this.app.costForQuantity(def, gen.owned, qty) : 0;
+        const canBuy = this.app.canUnlockGenerator(def)
+          && qty > 0
+          && credits >= bulkCost
+          && this.app.getRemainingCapacity() >= this.app.getEffectiveCapacityUse(def) * qty;
+        const canHire = gen.owned > 0 && !gen.managerHired && credits >= this.app.getManagerCost(def);
+        if (canBuy || canHire) fleet += 1;
+      });
+      const upgrades = Object.values(this.getUpgradeViewAvailabilityCounts()).reduce((total, count) => total + count, 0);
+      return {
+        command: { overview: panels.command },
+        infrastructure: { fleet, upgrades },
+        people: { operations: 0, staff: panels.people },
+        network: { regions: panels.network },
+        progress: { overhaul: panels.progress, skins: 0, achievements: 0 }
+      };
+    },
+
     getUpgradeViewAvailabilityCounts() {
       const counts = {
         global: 0,
@@ -1858,6 +1886,15 @@ const WORKSPACE_SECTION_DEFS = {
         btn.classList.toggle('has-alert', count > 0);
       });
       this.updateUpgradeSubtabBadges();
+      this.updateWorkspaceSectionAvailabilityBadges();
+    },
+
+    updateWorkspaceSectionAvailabilityBadges() {
+      if (!this.els.workspaceSectionMenu) return;
+      const counts = this.getWorkspaceSectionAvailabilityCounts()[this.app.state.currentPanel] || {};
+      this.els.workspaceSectionMenu.querySelectorAll('[data-workspace-section]').forEach(btn => {
+        btn.dataset.dot = (counts[btn.dataset.workspaceSection] || 0) > 0 ? 'true' : '';
+      });
     },
 
     updateCurrentPanelCardDots() {
@@ -2017,7 +2054,8 @@ const WORKSPACE_SECTION_DEFS = {
         }
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = 'rgba(5, 27, 12, 0.09)';
+        ctx.fillRect(0, 0, width, height);
         ctx.font = '13px monospace';
         ctx.fillStyle = 'rgba(92, 255, 139, 0.42)';
         ctx.shadowColor = 'rgba(57, 230, 103, 0.42)';
@@ -2287,26 +2325,7 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     renderUpgrades() {
-      const cards = DATA.upgradeDefs
-        .filter(def => !this.app.state.purchasedUpgrades[def.id] && this.app.meetsCondition(def.visibleWhen))
-        .sort((a, b) => {
-          const affordableDelta = Number(this.app.canBuyUpgradeDef(b)) - Number(this.app.canBuyUpgradeDef(a));
-          return affordableDelta || (a.cost || 0) - (b.cost || 0);
-        });
-      if (!cards.length) {
-        this.els.upgradeList.innerHTML = `<div class="section-card"><p class="muted">No upgrades visible yet. Keep scaling and the next recommendation will appear here.</p></div>`;
-        return;
-      }
-      this.els.upgradeList.innerHTML = cards.map(def => {
-        const requirementsMet = this.app.upgradeRequirementsMet(def);
-        const canAfford = this.app.canBuyUpgradeDef(def);
-        return `<article class="upgrade-card ${requirementsMet ? '' : 'locked'}" data-upgrade-card="${def.id}">
-          <div class="upgrade-top"><div class="upgrade-name">${def.name}</div><span class="tag">${def.branch || def.view}</span></div>
-          <p class="muted">${def.desc}</p>
-          <div class="upgrade-meta"><span data-upgrade-cost="${def.id}">${this.app.formatNumber(def.cost || 0)} CC${def.costResearch ? `<br>${def.costResearch} RD` : ''}</span></div>
-          <div class="row-actions"><button class="buy-btn ${(requirementsMet && canAfford) ? 'can-afford' : 'nope'}" data-action="buy-upgrade" data-id="${def.id}">${requirementsMet ? 'Install' : 'Locked'}</button></div>
-        </article>`;
-      }).join('');
+      this.renderUpgradesLegacy();
     },
 
     renderStaff() {

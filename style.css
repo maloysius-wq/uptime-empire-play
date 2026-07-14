@@ -8475,8 +8475,8 @@ body.office-computer-mode .app-shell::after {
 }
 
 body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
-  opacity: 0.30;
-  background: linear-gradient(180deg, transparent 0, rgba(99, 211, 236, 0.34) 48%, transparent 100%);
+  opacity: 0.38;
+  background: linear-gradient(180deg, transparent calc(50% - 7px), rgba(99, 211, 236, 0.42) 50%, transparent calc(50% + 7px));
   animation: idleNocScanner 6s ease-in-out infinite;
 }
 
@@ -8487,8 +8487,8 @@ body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
 }
 
 @keyframes idleNocScanner {
-  0%, 100% { transform: translateY(-96%); }
-  50% { transform: translateY(96%); }
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
 }
 
 @keyframes idleCrtScan {
@@ -8567,6 +8567,22 @@ body.office-computer-mode .workspace-section-link.active {
   border-color: var(--idle-border);
   color: var(--idle-text);
   background: var(--idle-control);
+}
+body.office-computer-mode .workspace-section-link[data-dot="true"] {
+  position: relative;
+  padding-right: 24px;
+}
+body.office-computer-mode .workspace-section-link[data-dot="true"]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ff8a8a, #ff4f4f);
+  box-shadow: 0 0 0 2px var(--idle-sidebar), 0 0 10px rgba(255, 83, 83, 0.42);
+  transform: translateY(-50%);
 }
 
 @media (min-width: 761px) {
@@ -8952,8 +8968,18 @@ body.office-computer-mode #panel-upgrades::before {
   font-size: 1.02rem;
   font-weight: 500;
 }
-body.office-computer-mode #upgradeTabs { display: none !important; }
-body.office-computer-mode #upgradeTabs .subtab { min-height: 27px; padding: 4px 8px !important; border-radius: 6px !important; color: var(--idle-muted) !important; background: transparent !important; }
+body.office-computer-mode #upgradeTabs {
+  display: flex !important;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 0 0 9px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--idle-border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+body.office-computer-mode #upgradeTabs .subtab { min-height: 30px; padding: 5px 9px !important; border-radius: 5px !important; color: var(--idle-muted) !important; background: transparent !important; }
 body.office-computer-mode #upgradeTabs .subtab.active { color: white !important; background: var(--idle-dark-button) !important; }
 body.office-computer-mode #upgradeList { display: grid; gap: 0 !important; }
 body.office-computer-mode #upgradeList > .section-card {
