@@ -2055,7 +2055,7 @@ const WORKSPACE_SECTION_DEFS = {
         const ctx = canvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
         ctx.fillRect(0, 0, width, height);
         ctx.globalCompositeOperation = 'source-over';
         ctx.font = '13px monospace';
@@ -2063,7 +2063,7 @@ const WORKSPACE_SECTION_DEFS = {
         ctx.shadowColor = 'rgba(57, 230, 103, 0.42)';
         ctx.shadowBlur = 3;
         this.codefallDrops.forEach((drop, column) => {
-          if (Math.random() > 0.38) ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
+          if (Math.random() > 0.50) ctx.fillText(String.fromCharCode(0x30A0 + Math.floor(Math.random() * 80)), column * 20, drop * 20);
           this.codefallDrops[column] = drop * 20 > height && Math.random() > 0.97 ? 0 : drop + 0.36;
         });
         ctx.shadowBlur = 0;
