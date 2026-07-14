@@ -8480,12 +8480,11 @@ body.office-computer-mode[data-ui-skin="noc"] .app-shell::after {
   right: 0;
   top: var(--noc-scan-y, 0px);
   bottom: auto;
-  height: 22px !important;
-  opacity: 0.82;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 28px, rgba(181, 244, 255, 0.28) 29px 31px, transparent 32px 56px),
-    linear-gradient(180deg, transparent 0%, rgba(92, 203, 232, 0.12) 26%, rgba(203, 249, 255, 0.96) 48%, rgba(103, 221, 244, 0.70) 53%, rgba(92, 203, 232, 0.12) 74%, transparent 100%);
-  box-shadow: 0 0 8px rgba(100, 218, 246, 0.52), 0 0 22px rgba(56, 164, 210, 0.28);
+  height: 68px !important;
+  opacity: 0.32;
+  background: linear-gradient(180deg, transparent 0%, rgba(79, 188, 220, 0.04) 18%, rgba(119, 222, 244, 0.22) 39%, rgba(207, 249, 255, 0.48) 50%, rgba(119, 222, 244, 0.22) 61%, rgba(79, 188, 220, 0.04) 82%, transparent 100%);
+  box-shadow: 0 0 24px rgba(94, 211, 239, 0.24), 0 0 54px rgba(47, 151, 193, 0.12);
+  filter: blur(5px);
   animation: none !important;
   will-change: top;
 }
@@ -8496,11 +8495,6 @@ body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
   background-position: 0 var(--crt-scan-y, 0px);
   animation: none !important;
   will-change: background-position;
-}
-
-@keyframes idleNocScanner {
-  0%, 100% { top: 0; }
-  50% { top: calc(100% - 12px); }
 }
 
 @keyframes idleCrtScan {

@@ -2045,9 +2045,9 @@ const WORKSPACE_SECTION_DEFS = {
         const shell = this.els.appShell;
         if (shell) {
           if (skin === 'noc') {
-            const travel = Math.max(0, shell.clientHeight - 12);
-            const phase = (now % 6000) / 6000;
-            const progress = phase <= 0.5 ? phase * 2 : (1 - phase) * 2;
+            const travel = Math.max(0, shell.clientHeight - 68);
+            const phase = (now % 14000) / 14000;
+            const progress = (1 - Math.cos(phase * Math.PI * 2)) / 2;
             shell.style.setProperty('--noc-scan-y', `${Math.round(travel * progress)}px`);
           } else {
             shell.style.removeProperty('--noc-scan-y');
