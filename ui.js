@@ -1596,7 +1596,7 @@ const HELP_SECTIONS = [
             <div class="row-actions fleet-actions">
               <button class="action-btn ${(!gen.running && !gen.automated && gen.owned) ? 'can-afford' : 'nope'}" data-action="run-generator" data-id="${def.id}">${gen.automated ? 'Automated' : gen.running ? 'Running...' : 'Run'}</button>
               <button class="action-btn ${canHire ? 'can-afford' : 'nope'}" data-action="hire-manager" data-id="${def.id}">${gen.managerHired ? 'Managed' : `Hire manager ${this.app.formatNumber(managerCost)}`}</button>
-              <button class="buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-generator" data-id="${def.id}">${qty ? `Buy ${qty}` : 'Buy'} <span class="button-cost">${this.app.formatNumber(qty ? bulkCost : nextCost)}</span></button>
+              <button class="buy-btn fleet-buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-generator" data-id="${def.id}"><span>Buy ${qty || 1}</span><span class="button-cost">(${this.app.formatNumber(qty ? bulkCost : nextCost)})</span></button>
             </div>
           </article>`;
       }).join('');
@@ -1663,7 +1663,7 @@ const HELP_SECTIONS = [
 
         const buyBtn = card.querySelector(`button[data-action="buy-generator"][data-id="${def.id}"]`);
         if (buyBtn) {
-          buyBtn.textContent = `${qty ? `Buy ${qty}` : 'Buy'} (${this.app.formatNumber(qty ? bulkCost : nextCost)})`;
+          buyBtn.innerHTML = `<span>Buy ${qty || 1}</span><span class="button-cost">(${this.app.formatNumber(qty ? bulkCost : nextCost)})</span>`;
           buyBtn.disabled = !canAfford;
           buyBtn.classList.toggle('can-afford', canAfford);
           buyBtn.classList.toggle('nope', !canAfford);

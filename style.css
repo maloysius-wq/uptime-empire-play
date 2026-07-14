@@ -8418,11 +8418,11 @@ body.office-computer-mode button { font-family: inherit !important; letter-spaci
 body.office-computer-mode .app-shell {
   position: relative;
   isolation: isolate;
-  width: min(1180px, calc(100vw - 32px)) !important;
-  max-width: 1180px !important;
-  height: min(820px, calc(100vh - 32px)) !important;
-  max-height: calc(100vh - 32px) !important;
-  margin: 16px auto !important;
+  width: min(1440px, calc(100vw - 24px)) !important;
+  max-width: 1440px !important;
+  height: min(900px, calc(100vh - 24px)) !important;
+  max-height: calc(100vh - 24px) !important;
+  margin: 12px auto !important;
   padding: 0 !important;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
@@ -8799,9 +8799,10 @@ body.office-computer-mode .status-pill {
 body.office-computer-mode #opsList { display: grid; gap: 0 !important; }
 body.office-computer-mode .resource-row {
   min-width: 0;
+  min-height: 92px;
   padding: 13px 0 !important;
   display: grid !important;
-  grid-template-columns: minmax(170px, 1fr) minmax(110px, auto) minmax(170px, auto) !important;
+  grid-template-columns: minmax(260px, 1fr) 120px 420px !important;
   align-items: center;
   gap: 12px !important;
   border: 0 !important;
@@ -8821,10 +8822,22 @@ body.office-computer-mode .fleet-rate span { display: block; }
 body.office-computer-mode .fleet-rate strong { font-size: 0.82rem; font-weight: 500; }
 body.office-computer-mode .fleet-rate > span { margin-top: 3px; color: var(--idle-muted); font-size: 0.67rem; }
 body.office-computer-mode .fleet-hidden-metric { display: none; }
-body.office-computer-mode .fleet-actions { display: flex !important; align-items: center; justify-content: flex-end; gap: 7px !important; flex-wrap: wrap; }
+body.office-computer-mode .fleet-actions { display: flex !important; align-items: center; justify-content: flex-end; gap: 7px !important; flex-wrap: nowrap; }
+body.office-computer-mode .fleet-actions > button {
+  min-width: 0 !important;
+  flex: 0 0 auto;
+  height: 32px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body.office-computer-mode .fleet-actions > button:nth-child(1) { width: 82px; }
+body.office-computer-mode .fleet-actions > button:nth-child(2) { width: 184px; }
+body.office-computer-mode .fleet-actions > button:nth-child(3) { width: 140px; }
 body.office-computer-mode .fleet-actions .action-btn:first-child,
 body.office-computer-mode .fleet-actions .action-btn:disabled { display: inline-flex !important; }
 body.office-computer-mode .fleet-actions .action-btn:disabled { opacity: 0.58; cursor: not-allowed; }
+body.office-computer-mode .fleet-buy-btn { display: inline-flex !important; align-items: center; justify-content: center; gap: 4px; }
+body.office-computer-mode .fleet-buy-btn .button-cost { display: inline !important; }
 body.office-computer-mode .lock-msg { margin: 5px 0 0 !important; color: #a06c21 !important; font-size: 0.67rem !important; }
 
 body.office-computer-mode #panel-upgrades { padding-top: 2px; }
@@ -9121,8 +9134,16 @@ body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
   body.office-computer-mode .command-overview-grid,
   body.office-computer-mode .mission-layout { grid-template-columns: minmax(0, 1fr) !important; }
   body.office-computer-mode .resource-row { grid-template-columns: minmax(0, 1fr) auto !important; }
-  body.office-computer-mode .fleet-actions { grid-column: 1 / -1; justify-content: stretch; }
-  body.office-computer-mode .fleet-actions button { flex: 1 1 auto; }
+  body.office-computer-mode .fleet-actions {
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr) 118px;
+    justify-content: stretch;
+  }
+  body.office-computer-mode .fleet-actions button {
+    width: 100% !important;
+    flex: 0 0 auto;
+  }
   body.office-computer-mode .upgrade-card { grid-template-columns: minmax(0, 1fr) auto; }
   body.office-computer-mode .upgrade-card .upgrade-meta { grid-column: 1; grid-row: 2; }
   body.office-computer-mode .upgrade-card .row-actions { grid-column: 2; grid-row: 1 / 3; }

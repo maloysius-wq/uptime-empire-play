@@ -1,5 +1,8 @@
 (function() {
   const DATA = window.UptimeEmpireData;
+  // Keep every interface skin available while the new workspace is being playtested.
+  // Their normal unlock definitions remain in data.js for restoration after testing.
+  const UI_SKIN_PLAYTEST_UNLOCK_ALL = true;
 
   function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -1475,6 +1478,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     isUiSkinUnlocked(defOrId) {
       const def = typeof defOrId === 'string' ? this.getUiSkinDef(defOrId) : defOrId;
       if (!def) return false;
+      if (UI_SKIN_PLAYTEST_UNLOCK_ALL) return true;
       if (def.id === 'founder' || this.state.purchasedUiSkins?.[def.id]) return true;
       return !!def.unlockWhen && this.meetsCondition(def.unlockWhen);
     },
