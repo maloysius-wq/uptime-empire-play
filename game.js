@@ -3,6 +3,20 @@
   // Keep every interface skin available while the new workspace is being playtested.
   // Their normal unlock definitions remain in data.js for restoration after testing.
   const UI_SKIN_PLAYTEST_UNLOCK_ALL = true;
+  const WORKSPACE_SECTION_DEFAULTS = {
+    command: 'overview',
+    infrastructure: 'fleet',
+    people: 'operations',
+    network: 'regions',
+    progress: 'overhaul'
+  };
+  const WORKSPACE_SECTION_BY_PANEL = {
+    command: ['overview'],
+    infrastructure: ['fleet', 'upgrades'],
+    people: ['operations', 'staff'],
+    network: ['regions'],
+    progress: ['overhaul', 'achievements']
+  };
 
   function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -200,6 +214,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       research: 0,
       purchaseMode: 1,
       currentPanel: 'command',
+      currentWorkspaceSection: 'overview',
       currentUpgradeView: 'global',
       currentShopView: 'office',
       currentSuiteTab: 'office',
@@ -374,6 +389,9 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     };
     merged.currentPanel = panelMigrations[merged.currentPanel] || merged.currentPanel;
     if (!['command', 'infrastructure', 'people', 'network', 'progress'].includes(merged.currentPanel)) merged.currentPanel = 'command';
+    if (!WORKSPACE_SECTION_BY_PANEL[merged.currentPanel].includes(merged.currentWorkspaceSection)) {
+      merged.currentWorkspaceSection = WORKSPACE_SECTION_DEFAULTS[merged.currentPanel];
+    }
     if (!['global', 'category', 'automation', 'facilities', 'resilience', 'research'].includes(merged.currentUpgradeView)) merged.currentUpgradeView = 'global';
     if (!Object.keys(DATA.cosmetics).includes(merged.currentShopView)) merged.currentShopView = 'office';
     if (!['office', 'achievements', 'console'].includes(merged.currentSuiteTab)) merged.currentSuiteTab = 'office';
@@ -1634,6 +1652,16 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       };
       const next = migrations[panel] || panel;
       this.state.currentPanel = ['command', 'infrastructure', 'people', 'network', 'progress'].includes(next) ? next : 'command';
+      if (!WORKSPACE_SECTION_BY_PANEL[this.state.currentPanel].includes(this.state.currentWorkspaceSection)) {
+        this.state.currentWorkspaceSection = WORKSPACE_SECTION_DEFAULTS[this.state.currentPanel];
+      }
+      this.renderAll();
+    },
+
+    changeWorkspaceSection(section) {
+      const available = WORKSPACE_SECTION_BY_PANEL[this.state.currentPanel] || [];
+      if (!available.includes(section)) return;
+      this.state.currentWorkspaceSection = section;
       this.renderAll();
     },
 

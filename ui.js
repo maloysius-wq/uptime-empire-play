@@ -188,6 +188,23 @@ const HELP_SECTIONS = [
   }
 ];
 
+const WORKSPACE_SECTION_DEFS = {
+  command: [{ id: 'overview', label: 'Overview', panels: ['panel-command'] }],
+  infrastructure: [
+    { id: 'fleet', label: 'Fleet', panels: ['panel-ops'] },
+    { id: 'upgrades', label: 'Upgrades', panels: ['panel-upgrades'] }
+  ],
+  people: [
+    { id: 'operations', label: 'Ops board', panels: ['panel-missions'] },
+    { id: 'staff', label: 'Team roster', panels: ['panel-staff'] }
+  ],
+  network: [{ id: 'regions', label: 'Regions', panels: ['panel-regions'] }],
+  progress: [
+    { id: 'overhaul', label: 'Overhaul & skins', panels: ['panel-overhaul'] },
+    { id: 'achievements', label: 'Achievements', panels: ['panel-achievements'] }
+  ]
+};
+
 
   const UI = {
     app: null,
@@ -303,6 +320,7 @@ const HELP_SECTIONS = [
         opsIncidentSummary: $('opsIncidentSummary'),
         opsList: $('opsList'),
         mainNav: $('mainNav'),
+        workspaceSectionMenu: $('workspaceSectionMenu'),
         upgradeTabs: $('upgradeTabs'),
         upgradeList: $('upgradeList'),
         managerList: $('managerList'),
@@ -466,6 +484,15 @@ const HELP_SECTIONS = [
         this.primeAudio();
         this.playSound('ui');
         this.app.changePanel(targetPanel);
+        requestAnimationFrame(() => this.scrollMainToTop());
+      });
+
+      if (this.els.workspaceSectionMenu) this.els.workspaceSectionMenu.addEventListener('click', e => {
+        const btn = e.target.closest('button[data-workspace-section]');
+        if (!btn) return;
+        this.primeAudio();
+        this.playSound('ui');
+        this.app.changeWorkspaceSection(btn.dataset.workspaceSection);
         requestAnimationFrame(() => this.scrollMainToTop());
       });
 
@@ -1375,14 +1402,9 @@ const HELP_SECTIONS = [
 
     renderPanels() {
       document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
-      const workspacePanels = {
-        command: ['panel-command'],
-        infrastructure: ['panel-ops', 'panel-upgrades'],
-        people: ['panel-missions', 'panel-staff'],
-        network: ['panel-regions'],
-        progress: ['panel-overhaul', 'panel-achievements']
-      };
-      (workspacePanels[this.app.state.currentPanel] || workspacePanels.command).forEach(id => {
+      const sections = WORKSPACE_SECTION_DEFS[this.app.state.currentPanel] || WORKSPACE_SECTION_DEFS.command;
+      const activeSection = sections.find(section => section.id === this.app.state.currentWorkspaceSection) || sections[0];
+      activeSection.panels.forEach(id => {
         const panel = document.getElementById(id);
         if (panel) panel.classList.add('active');
       });
@@ -1394,6 +1416,7 @@ const HELP_SECTIONS = [
       this.els.mainNav.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.panel === this.app.state.currentPanel);
       });
+      this.renderWorkspaceSectionMenu(sections, activeSection.id);
       this.renderCommandAttention();
 
       this.els.upgradeTabs.querySelectorAll('.subtab').forEach(btn => {
@@ -1405,6 +1428,13 @@ const HELP_SECTIONS = [
           btn.classList.toggle('active', btn.dataset.shopView === this.app.state.currentShopView);
         });
       }
+    },
+
+    renderWorkspaceSectionMenu(sections, activeSectionId) {
+      if (!this.els.workspaceSectionMenu) return;
+      this.els.workspaceSectionMenu.classList.toggle('hidden', sections.length < 2);
+      this.els.workspaceSectionMenu.innerHTML = sections.map(section => `
+        <button class="workspace-section-link ${section.id === activeSectionId ? 'active' : ''}" type="button" data-workspace-section="${section.id}">${section.label}</button>`).join('');
     },
 
     renderSuitePanels() {

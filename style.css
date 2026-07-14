@@ -8373,21 +8373,21 @@ body.office-computer-mode[data-ui-skin="noc"] {
 
 body.office-computer-mode[data-ui-skin="codefall"] {
   --idle-page: #10251a;
-  --idle-shell: rgba(22, 53, 34, 0.96);
-  --idle-top: rgba(31, 76, 47, 0.92);
-  --idle-sidebar: rgba(17, 47, 30, 0.84);
-  --idle-panel: rgba(48, 101, 64, 0.42);
-  --idle-panel-strong: rgba(47, 100, 63, 0.72);
+  --idle-shell: rgba(13, 39, 24, 0.78);
+  --idle-top: rgba(21, 62, 37, 0.68);
+  --idle-sidebar: rgba(12, 42, 25, 0.72);
+  --idle-panel: rgba(34, 91, 53, 0.30);
+  --idle-panel-strong: rgba(39, 94, 55, 0.52);
   --idle-text: #e2f7e5;
   --idle-muted: #9fc7a8;
   --idle-border: rgba(105, 205, 126, 0.22);
   --idle-primary: #24995a;
   --idle-accent: #68df8a;
   --idle-dark-button: #165c35;
-  --idle-control: rgba(29, 77, 45, 0.88);
-  --idle-card: rgba(38, 91, 55, 0.56);
-  --idle-workspace: rgba(14, 44, 26, 0.48);
-  --idle-terminal: rgba(30, 77, 46, 0.88);
+  --idle-control: rgba(22, 74, 41, 0.72);
+  --idle-card: rgba(28, 83, 46, 0.42);
+  --idle-workspace: rgba(8, 35, 19, 0.22);
+  --idle-terminal: rgba(23, 72, 40, 0.74);
   --idle-shell-shadow: 0 20px 62px rgba(0, 12, 5, 0.52), 0 0 38px rgba(77, 200, 103, 0.10);
 }
 
@@ -8502,14 +8502,67 @@ body.office-computer-mode[data-ui-skin="crt"] .app-shell::after {
 }
 
 body.office-computer-mode .idle-skin-canvas {
-  position: absolute !important;
+  position: fixed !important;
   inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100vw !important;
+  height: 100vh !important;
   z-index: 0 !important;
   opacity: 0 !important;
 }
-body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 0.58 !important; }
+body.office-computer-mode[data-ui-skin="codefall"] .idle-skin-canvas { opacity: 0.82 !important; }
+
+body.office-computer-mode .app-shell {
+  z-index: 2;
+}
+
+body.office-computer-mode[data-ui-skin="codefall"] .app-shell::before {
+  display: none !important;
+}
+
+body.office-computer-mode .app-shell::after {
+  z-index: 4 !important;
+  mix-blend-mode: screen;
+}
+
+body.office-computer-mode .ue-topbar {
+  border-bottom: 0 !important;
+  background: transparent !important;
+}
+
+body.office-computer-mode .workspace-section-menu {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--idle-border);
+}
+body.office-computer-mode .workspace-section-menu.hidden { display: none !important; }
+body.office-computer-mode .workspace-section-link {
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--idle-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.69rem;
+  text-align: left;
+}
+body.office-computer-mode .workspace-section-link.active {
+  border-color: var(--idle-border);
+  color: var(--idle-text);
+  background: var(--idle-control);
+}
+
+@media (min-width: 761px) {
+  body.office-computer-mode {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100dvh !important;
+  }
+  body.office-computer-mode .app-shell { margin: 0 !important; }
+}
 
 body.office-computer-mode .stats-sidebar {
   grid-area: telemetry !important;
@@ -9123,6 +9176,8 @@ body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
   body.office-computer-mode .nav-grid { display: flex !important; flex-flow: row wrap; gap: 5px !important; }
   body.office-computer-mode .nav-btn { width: auto; min-width: 0; flex: 1 1 120px; justify-content: center; padding: 8px 7px !important; font-size: 0.7rem !important; }
   body.office-computer-mode .nav-symbol { display: none; }
+  body.office-computer-mode .workspace-section-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 8px; padding-top: 8px; }
+  body.office-computer-mode .workspace-section-link { text-align: center; }
   body.office-computer-mode #networkFootprintCard { grid-column: 1; grid-row: 2; padding: 12px 12px 0 !important; }
   body.office-computer-mode .panel-stack { grid-column: 1; grid-row: 3; padding: 12px !important; }
   body.office-computer-mode .terminal-dock { grid-column: 1; grid-row: 4; margin: 0 12px 12px !important; grid-template-columns: minmax(0, 1fr) auto !important; }
