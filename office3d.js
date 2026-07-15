@@ -98,7 +98,8 @@
         x: 0,
         y: 1.62,
         z: 3.0,
-        yaw: Math.PI,
+        // Open the office toward the desk and active hardware, not into the front door.
+        yaw: 0,
         pitch: -0.05,
         bob: 0,
         walkPhase: 0
