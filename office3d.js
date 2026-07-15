@@ -1298,7 +1298,7 @@
         default: { id: 'default', width: 2.40, depth: 0.86, centerZOffset: 0.18, useUploadedModel: true },
         wide: { id: 'wide', width: 3.22, depth: 1.00, centerZOffset: 0.16, cableTray: true },
         command: { id: 'command', width: 3.36, depth: 1.02, centerZOffset: 0.14, wing: true, cableTray: true },
-        studio: { id: 'studio', width: 3.78, depth: 1.16, centerZOffset: 0.12, riser: true, cableTray: true }
+        studio: { id: 'studio', width: 3.78, depth: 1.16, centerZOffset: 0.12, cableTray: true }
       };
       return specs[frame] || specs.default;
     }
@@ -1524,11 +1524,13 @@
           pos.z + (pos.face === 'back' ? offset : pos.face === 'front' ? -offset : 0)
         );
         this.placementMode.ghost.rotation.set(0, pos.rotationY || 0, 0);
+        this.refreshPlacementGhostValidity(placement);
         return;
       }
       const pos = this.decorPlacementToWorld(zone, placement);
       this.placementMode.ghost.position.set(pos.x, pos.y, pos.z);
       this.placementMode.ghost.rotation.set(0, pos.rotationY || 0, 0);
+      this.refreshPlacementGhostValidity(placement);
     }
 
     commitPlacementMode() {
@@ -1544,6 +1546,12 @@
         placement.rotation = Number.isFinite(Number(mode.placement?.rotation)) ? Number(mode.placement.rotation) : 0;
         placement.viewIndex = Number.isFinite(Number(mode.viewIndex)) ? Number(mode.viewIndex) : 0;
         if (zone === 'desk') placement.support = this.getAvailableDeskSupportIds().includes(mode.placement?.support) ? mode.placement.support : 'desk';
+      }
+      const validity = this.getPlacementValidity(zone, mode.itemId, placement);
+      if (!validity.valid) {
+        this.setPlacementGhostValidity(false, validity.reason);
+        this.updateOverlay('placement blocked');
+        return;
       }
       this.finishPlacementMode(false);
       if (mode.onPlace) mode.onPlace(placement);
@@ -3685,7 +3693,6 @@
         addBox(0.12, deskY - 0.06, frame.depth - 0.12, frameMat, x, (deskY - 0.06) / 2, centerZ);
         addBox(0.24, 0.055, frame.depth - 0.02, frameMat, x, 0.035, centerZ);
       });
-      addBox(Math.max(1.4, frame.width - 0.42), 0.58, 0.05, frameMat, 0, 0.38, centerZ + frame.depth / 2 - 0.045);
       addBox(Math.max(1.18, frame.width - 0.56), 0.026, 0.032, accentMat, 0, deskY + deskH / 2 + 0.012, centerZ - frame.depth / 2 + 0.045);
       if (frame.cableTray) {
         addBox(Math.max(1.24, frame.width * 0.58), 0.055, 0.18, frameMat, 0, 0.48, centerZ - frame.depth / 2 + 0.14);
@@ -3697,12 +3704,6 @@
         addBox(0.86, deskH, 1.18, topMat, wingX, deskY, wingZ);
         addBox(0.12, deskY - 0.06, 1.02, frameMat, wingX + 0.25, (deskY - 0.06) / 2, wingZ);
         addBox(0.52, 0.34, 0.46, frameMat, wingX, 0.24, wingZ + 0.24);
-      }
-      if (frame.riser) {
-        const riserY = deskY + 0.14;
-        addBox(frame.width * 0.62, 0.13, 0.24, frameMat, 0, riserY, centerZ - frame.depth / 2 + 0.16);
-        addBox(frame.width * 0.52, 0.018, 0.026, accentMat, 0, riserY + 0.076, centerZ - frame.depth / 2 + 0.04);
-        [-frame.width * 0.23, frame.width * 0.23].forEach(x => addBox(0.055, 0.16, 0.18, frameMat, x, deskY + 0.04, centerZ - frame.depth / 2 + 0.16));
       }
       this.root.add(group);
     }
@@ -4616,6 +4617,141 @@
         'lab-shelving': { w: 1.44, d: 0.56, h: 1.30, color: 0x2a3841 }
       };
       return specs[id] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
+    }
+
+    getWallPlacementCollisionSpec(id) {
+      const fixture = WORLD_OPERATION_DISPLAY_DEFS[id];
+      if (fixture) return { w: fixture.width || 1.1, h: fixture.height || 0.72 };
+      return this.getWallPlacedDecorSpec(id);
+    }
+
+    isSolidFloorProp(id) {
+      const spec = this.getPlacedPropSpec(id);
+      return spec.kind !== 'pendant-light' && Number(spec.h || 0) > 0.055;
+    }
+
+    getPlacementCollisionCandidates(zone, itemId) {
+      const safeZone = this.normalizePlacementZone(zone);
+      const placements = this.state.placements || { wall: {}, floor: {}, desk: {} };
+      const candidates = [];
+      const seen = new Set();
+      const addCandidate = (id, placement) => {
+        if (!id || id === itemId || seen.has(id) || !placement) return;
+        seen.add(id);
+        candidates.push({ id, placement: Object.assign({}, placement) });
+      };
+
+      if (safeZone === 'wall') {
+        Object.values(WORLD_OPERATION_DISPLAY_DEFS).forEach(fixture => {
+          addCandidate(fixture.id, this.getWorldOperationsFixturePlacement(fixture.id));
+        });
+      }
+
+      (this.state.decorations || []).forEach(id => {
+        if (this.getDecorPlacementZone(id) !== safeZone) return;
+        const placement = (placements[safeZone] || {})[id] || this.getDefaultDecorPlacement(id, safeZone);
+        addCandidate(id, placement);
+      });
+      return candidates;
+    }
+
+    getPlacementFootprint(zone, itemId, placement) {
+      const safeZone = this.normalizePlacementZone(zone);
+      const spec = this.getPlacedPropSpec(itemId);
+      const world = this.decorPlacementToWorld(safeZone, placement);
+      const yaw = Number(world.rotationY || 0);
+      return {
+        x: world.x,
+        z: world.z,
+        halfWidth: Math.max(0.02, Number(spec.w || 0.42) / 2),
+        halfDepth: Math.max(0.02, Number(spec.d || 0.32) / 2),
+        axisWidth: { x: Math.cos(yaw), z: -Math.sin(yaw) },
+        axisDepth: { x: Math.sin(yaw), z: Math.cos(yaw) }
+      };
+    }
+
+    placementFootprintsIntersect(a, b, clearance = 0.018) {
+      const deltaX = b.x - a.x;
+      const deltaZ = b.z - a.z;
+      const axes = [a.axisWidth, a.axisDepth, b.axisWidth, b.axisDepth];
+      return axes.every(axis => {
+        const distance = Math.abs(deltaX * axis.x + deltaZ * axis.z);
+        const aRadius = Math.abs(a.axisWidth.x * axis.x + a.axisWidth.z * axis.z) * a.halfWidth
+          + Math.abs(a.axisDepth.x * axis.x + a.axisDepth.z * axis.z) * a.halfDepth;
+        const bRadius = Math.abs(b.axisWidth.x * axis.x + b.axisWidth.z * axis.z) * b.halfWidth
+          + Math.abs(b.axisDepth.x * axis.x + b.axisDepth.z * axis.z) * b.halfDepth;
+        return distance < aRadius + bRadius + clearance;
+      });
+    }
+
+    wallPlacementsIntersect(itemId, placement, candidate) {
+      const face = this.normalizeWallFace(placement?.face || 'back');
+      const candidateFace = this.normalizeWallFace(candidate.placement?.face || 'back');
+      if (face !== candidateFace) return false;
+      const first = this.wallPlacementToWorld(Object.assign({}, placement, { face }));
+      const second = this.wallPlacementToWorld(Object.assign({}, candidate.placement, { face: candidateFace }));
+      const firstSpec = this.getWallPlacementCollisionSpec(itemId);
+      const secondSpec = this.getWallPlacementCollisionSpec(candidate.id);
+      const firstAlong = face === 'left' || face === 'right' ? first.z : first.x;
+      const secondAlong = face === 'left' || face === 'right' ? second.z : second.x;
+      return Math.abs(firstAlong - secondAlong) < (firstSpec.w + secondSpec.w) / 2 + 0.018
+        && Math.abs(first.y - second.y) < (firstSpec.h + secondSpec.h) / 2 + 0.018;
+    }
+
+    getPlacementValidity(zone, itemId, placement) {
+      const safeZone = this.normalizePlacementZone(zone);
+      // Desk decorations intentionally share their support surface. A keyboard can sit on a desk mat,
+      // for example, while the support furniture itself remains protected as a floor prop.
+      if (safeZone === 'desk') return { valid: true, reason: '' };
+      const candidates = this.getPlacementCollisionCandidates(safeZone, itemId);
+      if (safeZone === 'wall') {
+        const overlap = candidates.find(candidate => this.wallPlacementsIntersect(itemId, placement, candidate));
+        return overlap
+          ? { valid: false, reason: `${overlap.id} already occupies this wall space.` }
+          : { valid: true, reason: '' };
+      }
+      if (!this.isSolidFloorProp(itemId)) return { valid: true, reason: '' };
+      const footprint = this.getPlacementFootprint(safeZone, itemId, placement);
+      const overlap = candidates.find(candidate => {
+        if (!this.isSolidFloorProp(candidate.id)) return false;
+        const candidateFootprint = this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
+        return this.placementFootprintsIntersect(footprint, candidateFootprint);
+      });
+      return overlap
+        ? { valid: false, reason: `${overlap.id} already occupies this floor space.` }
+        : { valid: true, reason: '' };
+    }
+
+    setPlacementGhostValidity(valid, reason = '') {
+      if (!this.placementMode?.ghost) return;
+      const color = valid ? 0x48f2a6 : 0xff535d;
+      this.placementMode.valid = !!valid;
+      this.placementMode.blockReason = reason || '';
+      this.placementMode.ghost.userData.placementValid = !!valid;
+      this.placementMode.ghost.traverse(child => {
+        if (!child.material) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach(material => {
+          if (material.color?.setHex) material.color.setHex(color);
+          if (material.emissive?.setHex) {
+            material.emissive.setHex(color);
+            material.emissiveIntensity = 0.48;
+          }
+          material.map = null;
+          material.emissiveMap = null;
+          material.transparent = true;
+          material.opacity = 0.44;
+          material.depthWrite = false;
+          material.needsUpdate = true;
+        });
+      });
+    }
+
+    refreshPlacementGhostValidity(placement) {
+      if (!this.placementMode) return { valid: true, reason: '' };
+      const validity = this.getPlacementValidity(this.placementMode.zone, this.placementMode.itemId, placement);
+      this.setPlacementGhostValidity(validity.valid, validity.reason);
+      return validity;
     }
 
     applyDecorGhost(group) {
