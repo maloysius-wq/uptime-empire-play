@@ -9,6 +9,11 @@
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
     'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
   };
+  const WORLD_OPERATION_FIXTURES = {
+    missionBoard: { id: 'missionBoard', name: 'Mission Board', zone: 'wall' },
+    network: { id: 'network', name: 'Uplink Map', zone: 'wall' },
+    founderRelay: { id: 'founderRelay', name: 'Founder\'s Relay', zone: 'wall' }
+  };
   const WALL_PLACEABLE_DECOR_IDS = new Set(Object.entries(DECOR_PLACEMENT_ZONES).filter(([, zone]) => zone === 'wall').map(([id]) => id));
 
 
@@ -5854,10 +5859,11 @@ const WORKSPACE_SECTION_DEFS = {
 
     getMovableDecorCount() {
       const equipped = Array.isArray(this.app.state.equippedDecorations) ? this.app.state.equippedDecorations : [];
-      return equipped.filter(id => {
+      const decorCount = equipped.filter(id => {
         const entry = this.getPlaceableCosmeticEntryById(id);
         return !!(entry && this.getCosmeticPlacementZone(entry.category, id));
       }).length;
+      return decorCount + Object.keys(WORLD_OPERATION_FIXTURES).length;
     },
 
     syncMoveModeHud(active) {
@@ -5914,6 +5920,11 @@ const WORKSPACE_SECTION_DEFS = {
         onSelect: target => {
           const moveView = target.moveModeView || this.getCurrentMoveModeView();
           this.syncMoveModeHud(false);
+          const fixture = WORLD_OPERATION_FIXTURES[target.id];
+          if (fixture) {
+            this.startWorldFixturePlacement(fixture, { returnToMoveMode: true, fromMoveMode: true, initialPlacement: target.placement || null, returnMoveView: moveView });
+            return;
+          }
           const entry = this.getPlaceableCosmeticEntryById(target.id);
           if (!entry) {
             this.toast('Could not identify that decor item.');
@@ -5931,7 +5942,48 @@ const WORKSPACE_SECTION_DEFS = {
         }
       });
       this.syncMoveModeHud(true);
-      if (!options.silent) this.toast('Move Mode: click a placed item to grab it.');
+      if (!options.silent) this.toast('Move Mode: click an item or operations screen to grab it.');
+    },
+
+    startWorldFixturePlacement(fixture, options = {}) {
+      if (!fixture || fixture.zone !== 'wall') return;
+      const existingPlacement = this.app.getCosmeticPlacement
+        ? (this.app.getCosmeticPlacement(fixture.zone, fixture.id) || options.initialPlacement || null)
+        : (options.initialPlacement || null);
+      if (this.worldUtilityOpen) this.closeWorldUtility(false);
+      this.syncPlacementHud(true, fixture.name, fixture.zone, { fromMoveMode: !!options.fromMoveMode });
+      if (!this.office3D?.startDecorPlacement) {
+        this.syncPlacementHud(false, '', fixture.zone);
+        this.toast('3D placement is not ready yet.');
+        return;
+      }
+      this.office3D.startDecorPlacement({
+        zone: fixture.zone,
+        itemId: fixture.id,
+        itemName: fixture.name,
+        placement: existingPlacement,
+        onPlace: placement => {
+          this.app.setCosmeticPlacement(fixture.zone, fixture.id, placement);
+          this.forcePlacementWallReturn = false;
+          this.syncPlacementHud(false, '', fixture.zone);
+          this.toast(`${fixture.name} moved.`);
+          this.playSound('ui');
+          this.app.renderAll();
+          requestAnimationFrame(() => {
+            if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, options.returnMoveView || {}));
+            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+          });
+        },
+        onCancel: () => {
+          this.forcePlacementWallReturn = false;
+          this.syncPlacementHud(false, '', fixture.zone);
+          this.toast(options.returnToMoveMode ? 'Grab cancelled. Pick another item.' : 'Placement cancelled.');
+          requestAnimationFrame(() => {
+            if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, options.returnMoveView || {}));
+            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+          });
+        }
+      });
     },
 
     startDecorPlacement(category, id, options = {}) {

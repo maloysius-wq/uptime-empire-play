@@ -21,6 +21,20 @@
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
     'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
   };
+  const WORLD_OPERATION_DISPLAY_DEFS = {
+    missionBoard: {
+      id: 'missionBoard', type: 'missionBoard', title: 'MISSION BOARD', width: 1.24, height: 0.82,
+      interactive: true, label: 'Mission Board', defaultPlacement: { x: 0.305, y: 0.374, face: 'right' }
+    },
+    network: {
+      id: 'network', type: 'network', title: 'UPLINK MAP', width: 1.24, height: 0.82,
+      interactive: true, label: 'Uplink Map', defaultPlacement: { x: 0.545, y: 0.374, face: 'right' }
+    },
+    founderRelay: {
+      id: 'founderRelay', type: 'relay', title: 'FOUNDER\'S RELAY', width: 1.06, height: 0.54,
+      interactive: false, label: 'Founder\'s Relay', defaultPlacement: { x: 0.779, y: 0.200, face: 'right' }
+    }
+  };
 
   const THREE_CDN = 'https://unpkg.com/three@0.158.0/build/three.min.js';
   const ASSET = name => new URL(`assets/${name}`, document.baseURI).href;
@@ -1266,8 +1280,11 @@
         ? (Number.isFinite(Number(viewIndex)) ? ((Math.round(Number(viewIndex)) % 4) + 4) % 4 : this.getNearestSurfaceViewIndexFromYaw(this.player?.yaw))
         : 0;
       this.applyDecorPlacementView(safeZone, normalizedFace || 'back', initialViewIndex);
-      const ghost = safeZone === 'wall'
-        ? this.createPlacedWallDecoration(itemId, normalizedPlacement, { ghost: true, label: itemName })
+      const fixture = safeZone === 'wall' ? WORLD_OPERATION_DISPLAY_DEFS[itemId] : null;
+      const ghost = fixture
+        ? this.createWorldOperationsDisplay(Object.assign({}, fixture, { placement: normalizedPlacement, ghost: true }))
+        : safeZone === 'wall'
+          ? this.createPlacedWallDecoration(itemId, normalizedPlacement, { ghost: true, label: itemName })
         : this.createPlacedPropDecoration(itemId, safeZone, normalizedPlacement, { ghost: true, label: itemName });
       this.placementMode = {
         zone: safeZone,
@@ -4718,11 +4735,20 @@
       this.worldStations.push(Object.assign({ label: 'Operations station', radius: 1.35, yaw: this.player.yaw }, station));
     }
 
-    createWorldOperationsDisplay({ id, type, title, x, y, z, rotationY = 0, width = 1.1, height = 0.72, interactive = false, label = '' }) {
+    getWorldOperationsFixturePlacement(id) {
+      const fixture = WORLD_OPERATION_DISPLAY_DEFS[id];
+      if (!fixture) return null;
+      const saved = ((this.state.placements || {}).wall || {})[id]
+        || ((this.state.cosmeticPlacements || {}).wall || {})[id];
+      return Object.assign({}, fixture.defaultPlacement, saved || {});
+    }
+
+    createWorldOperationsDisplay({ id, type, title, x = 0, y = 1.5, z = 0, rotationY = 0, width = 1.1, height = 0.72, interactive = false, label = '', placement = null, ghost = false }) {
       const THREE = this.THREE;
+      const world = placement ? this.wallPlacementToWorld(placement) : null;
       const group = new THREE.Group();
-      group.position.set(x, y, z);
-      group.rotation.y = rotationY;
+      group.position.set(world ? world.x : x, world ? world.y : y, world ? world.z : z);
+      group.rotation.y = world ? world.rotationY : rotationY;
       group.userData.worldDisplayId = id;
       const frameMat = new THREE.MeshStandardMaterial({ color: 0x14222d, metalness: 0.42, roughness: 0.42, emissive: 0x071b29, emissiveIntensity: 0.18 });
       const panel = new THREE.Mesh(new THREE.BoxGeometry(width + 0.13, height + 0.13, 0.055), frameMat);
@@ -4745,26 +4771,23 @@
       light.position.set(0, 0, 0.18);
       group.add(light);
       this.root.add(group);
+      if (ghost) {
+        this.drawDisplayShell({ ctx, canvas }, '#d7efff', '#07111a');
+        this.drawDisplayTitle(ctx, title, 'MOVE MODE // PLACE SCREEN', '#ecf8ff');
+        texture.needsUpdate = true;
+        this.applyDecorGhost(group);
+        return group;
+      }
       this.dynamicDisplays.push({ type, title, canvas, ctx, texture, screen, seed: Math.random() * 1000, nextFrameAt: 0, interval: 0.16 });
-      if (interactive) this.registerWorldStation({ id, label, x, y, z, yaw: rotationY, radius: 1.52 });
+      const savedPlacement = placement || this.getWorldOperationsFixturePlacement(id);
+      this.registerSelectableDecor(group, { id, zone: 'wall', placement: Object.assign({}, savedPlacement) });
+      if (interactive) this.registerWorldStation({ id, label, x: group.position.x, y: group.position.y, z: group.position.z, yaw: group.rotation.y, radius: 1.52 });
       return group;
     }
 
     buildWorldOperationsStations() {
-      const room = this.room;
-      const wallX = room.width / 2 - 0.035;
-      const wallRotation = -Math.PI / 2;
-      this.createWorldOperationsDisplay({
-        id: 'missionBoard', type: 'missionBoard', title: 'MISSION BOARD', x: wallX, y: 1.58, z: -1.48,
-        rotationY: wallRotation, width: 1.24, height: 0.82, interactive: true, label: 'Mission Board'
-      });
-      this.createWorldOperationsDisplay({
-        id: 'network', type: 'network', title: 'UPLINK MAP', x: wallX, y: 1.58, z: 0.34,
-        rotationY: wallRotation, width: 1.24, height: 0.82, interactive: true, label: 'Uplink Map'
-      });
-      this.createWorldOperationsDisplay({
-        id: 'founderRelay', type: 'relay', title: 'FOUNDER\'S RELAY', x: wallX, y: 1.18, z: 2.12,
-        rotationY: wallRotation, width: 1.06, height: 0.54, interactive: false
+      Object.values(WORLD_OPERATION_DISPLAY_DEFS).forEach(fixture => {
+        this.createWorldOperationsDisplay(Object.assign({}, fixture, { placement: this.getWorldOperationsFixturePlacement(fixture.id) }));
       });
     }
 
