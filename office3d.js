@@ -4146,7 +4146,7 @@
           ? new THREE.CanvasTexture(canvas)
           : this.makeLabelTexture(['NOC OVERVIEW', 'LIVE NODE MAP'], { width: 768, height: 384, background: '#061018', border: '#68dfff', colors: ['#9fe8ff', '#79ffc6'], size: 46 });
         if (canvas) tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
-        const screen = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.16, spec.h - 0.18), makeMat({ map: tex, emissive: spec.emissive || 0x61d8ff, emissiveIntensity: 0.45 }));
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.16, spec.h - 0.18), this.createMatteScreenMaterial(tex));
         screen.position.z = 0.045;
         group.add(screen);
         if (canvas) {
@@ -4735,7 +4735,7 @@
       const ctx = canvas.getContext('2d');
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace || texture.colorSpace;
-      const screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshStandardMaterial({ map: texture, emissive: 0x64dfff, emissiveIntensity: 0.46, roughness: 0.30, metalness: 0.04 }));
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), this.createMatteScreenMaterial(texture));
       screen.position.z = 0.062;
       group.add(screen);
       const status = new THREE.Mesh(new THREE.BoxGeometry(width * 0.13, 0.022, 0.018), new THREE.MeshStandardMaterial({ color: 0x72f3c6, emissive: 0x72f3c6, emissiveIntensity: 0.66, roughness: 0.28 }));
@@ -4799,6 +4799,14 @@
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace || texture.colorSpace;
       return texture;
+    }
+
+    createMatteScreenMaterial(texture) {
+      return new this.THREE.MeshBasicMaterial({
+        map: texture,
+        color: 0xffffff,
+        toneMapped: false
+      });
     }
 
     makeWallTexture(id) {
@@ -5458,7 +5466,7 @@
       const ctx = canvas.getContext('2d');
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace || texture.colorSpace;
-      const mat = new THREE.MeshStandardMaterial({ map: texture, emissive: 0x61d8ff, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.02 });
+      const mat = this.createMatteScreenMaterial(texture);
       const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.68), mat);
       screen.position.set(x, y, z + 0.05);
       this.root.add(screen);
@@ -6212,7 +6220,7 @@
       ctx.strokeStyle = accent;
       ctx.lineWidth = 5;
       ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.055)';
       ctx.lineWidth = 1;
       for (let y = 84; y < canvas.height - 26; y += 28) {
         ctx.beginPath(); ctx.moveTo(26, y); ctx.lineTo(canvas.width - 26, y); ctx.stroke();
@@ -6226,7 +6234,7 @@
       ctx.fillStyle = accent;
       ctx.font = '800 42px "Courier New", monospace';
       ctx.fillText(title, 34, 48);
-      ctx.fillStyle = 'rgba(220,245,255,0.65)';
+      ctx.fillStyle = '#d7edf7';
       ctx.font = '700 18px "Courier New", monospace';
       ctx.fillText(subline, 36, 80);
     }
@@ -6235,32 +6243,32 @@
       const { ctx, canvas, texture, screen } = display;
       const data = this.operationsData || {};
       const alert = (data.activeIncidents || []).length > 0;
-      const accent = alert ? '#ff8f9a' : '#72efcb';
-      this.drawDisplayShell(display, accent, '#07131b');
+      const accent = alert ? '#ffadb7' : '#93ffd8';
+      this.drawDisplayShell(display, accent, '#041119');
       this.drawDisplayTitle(ctx, 'NOC // LIVE', alert ? `${data.activeIncidents.length} INCIDENT${data.activeIncidents.length === 1 ? '' : 'S'} NEED RESPONSE` : 'SYSTEMS NOMINAL // LIVE TELEMETRY', accent);
       const metrics = [
         ['TREASURY', data.credits || '0 CC'], ['NET', data.income || '0 CC/s'], ['CAPACITY', data.capacity || '0 / 0'], ['TEAMS', `${data.availableTeams || 0} / ${data.totalTeams || 0}`]
       ];
       metrics.forEach(([label, value], index) => {
         const x = 34 + index * 244;
-        ctx.fillStyle = 'rgba(104,218,255,0.10)'; ctx.fillRect(x, 104, 218, 66);
-        ctx.strokeStyle = 'rgba(104,218,255,0.22)'; ctx.strokeRect(x, 104, 218, 66);
-        ctx.fillStyle = 'rgba(181,233,248,0.65)'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(label, x + 12, 123);
-        ctx.fillStyle = '#effcff'; ctx.font = '800 23px "Courier New", monospace'; ctx.fillText(String(value).slice(0, 16), x + 12, 151);
+        ctx.fillStyle = 'rgba(110,221,255,0.15)'; ctx.fillRect(x, 104, 218, 66);
+        ctx.strokeStyle = 'rgba(144,235,255,0.42)'; ctx.strokeRect(x, 104, 218, 66);
+        ctx.fillStyle = '#c8e9f5'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(label, x + 12, 123);
+        ctx.fillStyle = '#ffffff'; ctx.font = '800 23px "Courier New", monospace'; ctx.fillText(String(value).slice(0, 16), x + 12, 151);
       });
       const incidents = data.activeIncidents || [];
       const missions = data.activeMissions || [];
       ctx.fillStyle = alert ? '#ff9da7' : '#8debc7'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText(alert ? 'ACTIVE ALERTS' : 'ACTIVE MISSIONS', 38, 210);
       const entries = (alert ? incidents : missions).slice(0, 3);
       if (!entries.length) {
-        ctx.fillStyle = 'rgba(214,239,247,0.58)'; ctx.font = '700 17px "Courier New", monospace';
+        ctx.fillStyle = '#d9edf5'; ctx.font = '700 17px "Courier New", monospace';
         ctx.fillText(alert ? 'No unresolved incidents.' : 'No teams currently deployed.', 38, 246);
       }
       entries.forEach((entry, index) => {
         const y = 246 + index * 48;
-        ctx.fillStyle = index % 2 ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.065)'; ctx.fillRect(34, y - 18, 534, 34);
-        ctx.fillStyle = alert ? '#ffd4d8' : '#d7fff0'; ctx.font = '700 17px "Courier New", monospace'; ctx.fillText(String(entry.name || 'OPERATIONS').slice(0, 34), 48, y);
-        ctx.fillStyle = 'rgba(190,224,240,0.68)'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(entry.remaining || '', 438, y);
+        ctx.fillStyle = index % 2 ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.095)'; ctx.fillRect(34, y - 18, 534, 34);
+        ctx.fillStyle = alert ? '#ffe1e4' : '#e5fff4'; ctx.font = '700 17px "Courier New", monospace'; ctx.fillText(String(entry.name || 'OPERATIONS').slice(0, 34), 48, y);
+        ctx.fillStyle = '#c8e7f5'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(entry.remaining || '', 438, y);
       });
       ctx.fillStyle = '#8ddfff'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText('REGION UPLINKS', 626, 210);
       const regions = data.unlockedRegions || [];
@@ -6275,7 +6283,7 @@
         ctx.fillStyle = i === 0 ? '#78f5c9' : '#72dfff'; ctx.fillRect(x - 7, y - 7, 14, 14);
       }
       ctx.fillStyle = '#e7fbff'; ctx.fillRect(cx - 12, cy - 12, 24, 24);
-      ctx.fillStyle = 'rgba(190,224,240,0.66)'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(`${regions.length || 0} REGIONS ONLINE`, 704, 454);
+      ctx.fillStyle = '#cce9f5'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(`${regions.length || 0} REGIONS ONLINE`, 704, 454);
       const scanY = 100 + ((t * 26) % 350); ctx.fillStyle = 'rgba(114,239,203,0.07)'; ctx.fillRect(24, scanY, canvas.width - 48, 4);
       if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.42 + Math.abs(Math.sin(t * 1.15)) * 0.12;
       texture.needsUpdate = true;
@@ -6284,26 +6292,26 @@
     drawMissionBoardDisplay(display, t) {
       const { ctx, canvas, texture, screen } = display;
       const data = this.operationsData || {};
-      this.drawDisplayShell(display, '#ffbd70', '#1a1209');
-      this.drawDisplayTitle(ctx, 'MISSION BOARD', `${data.availableTeams || 0} TEAMS READY // ${data.availableMissionCount || 0} JOBS AVAILABLE`, '#ffca7d');
+      this.drawDisplayShell(display, '#ffd18a', '#160f07');
+      this.drawDisplayTitle(ctx, 'MISSION BOARD', `${data.availableTeams || 0} TEAMS READY // ${data.availableMissionCount || 0} JOBS AVAILABLE`, '#ffe0a6');
       const missions = (data.activeMissions || []).slice(0, 3);
       const cards = missions.length ? missions : [{ name: 'OPEN QUEUE', remaining: `${data.availableMissionCount || 0} jobs awaiting dispatch`, teams: data.availableTeams || 0 }];
       cards.forEach((mission, index) => {
         const x = 40 + index * 318;
         const cardColor = ['#f4d692', '#bce9ff', '#ffd2e5'][index % 3];
         ctx.fillStyle = cardColor; ctx.fillRect(x, 122, 276, 274);
-        ctx.fillStyle = 'rgba(35,28,18,0.24)'; ctx.fillRect(x + 12, 138, 252, 2);
-        ctx.fillStyle = '#332819'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText(index < missions.length ? 'ACTIVE DISPATCH' : 'NEXT ACTION', x + 16, 166);
+        ctx.fillStyle = 'rgba(26,19,11,0.42)'; ctx.fillRect(x + 12, 138, 252, 2);
+        ctx.fillStyle = '#21160c'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText(index < missions.length ? 'ACTIVE DISPATCH' : 'NEXT ACTION', x + 16, 166);
         ctx.font = '800 22px "Courier New", monospace';
         const words = String(mission.name || 'MISSION').toUpperCase().slice(0, 21).match(/.{1,13}(?:\s|$)|.{1,13}/g) || [];
         words.slice(0, 2).forEach((line, lineIndex) => ctx.fillText(line.trim(), x + 16, 212 + lineIndex * 30));
-        ctx.fillStyle = '#5e482c'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText(String(mission.remaining || '').slice(0, 25), x + 16, 308);
+        ctx.fillStyle = '#493616'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText(String(mission.remaining || '').slice(0, 25), x + 16, 308);
         ctx.fillText(`${mission.teams || 0} TEAM${mission.teams === 1 ? '' : 'S'}`, x + 16, 342);
         ctx.strokeStyle = 'rgba(65,46,25,0.40)'; ctx.lineWidth = 2; ctx.strokeRect(x + 10, 112, 296, 304);
       });
       const pulse = 0.4 + Math.abs(Math.sin(t * 1.4)) * 0.6;
       ctx.fillStyle = `rgba(255,202,125,${0.18 + pulse * 0.18})`; ctx.fillRect(38, 438, canvas.width - 76, 16);
-      ctx.fillStyle = '#f9e7c1'; ctx.font = '800 16px "Courier New", monospace'; ctx.fillText('PRESS E FOR THE FULL OPERATIONS BOARD', 266, 468);
+      ctx.fillStyle = '#fff1cf'; ctx.font = '800 16px "Courier New", monospace'; ctx.fillText('PRESS E FOR THE FULL OPERATIONS BOARD', 266, 468);
       if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.34 + pulse * 0.12;
       texture.needsUpdate = true;
     }
@@ -6311,8 +6319,8 @@
     drawNetworkDisplay(display, t) {
       const { ctx, canvas, texture, screen } = display;
       const data = this.operationsData || {};
-      this.drawDisplayShell(display, '#82c6ff', '#07101e');
-      this.drawDisplayTitle(ctx, 'UPLINK MAP', `${(data.unlockedRegions || []).length} REGIONAL SITES // EXPANSION ROUTE`, '#91d4ff');
+      this.drawDisplayShell(display, '#9bd5ff', '#040d1b');
+      this.drawDisplayTitle(ctx, 'UPLINK MAP', `${(data.unlockedRegions || []).length} REGIONAL SITES // EXPANSION ROUTE`, '#b7e6ff');
       const regions = (data.unlockedRegions || []).slice(0, 8);
       const centerX = 510; const centerY = 290;
       const count = Math.max(1, regions.length);
@@ -6324,12 +6332,12 @@
         ctx.beginPath(); ctx.moveTo(centerX, centerY); ctx.lineTo(x, y); ctx.stroke();
         ctx.fillStyle = index === 0 ? '#8cf3ce' : '#89ceff'; ctx.beginPath(); ctx.arc(x, y, 16, 0, TAU); ctx.fill();
         ctx.fillStyle = '#e8f8ff'; ctx.font = '800 15px "Courier New", monospace'; ctx.fillText(String(region.name || 'SITE').toUpperCase().slice(0, 14), x - 48, y + 34);
-        ctx.fillStyle = 'rgba(194,229,255,0.68)'; ctx.font = '700 13px "Courier New", monospace'; ctx.fillText(`LV ${region.level || 1}`, x - 20, y + 52);
+        ctx.fillStyle = '#d7edff'; ctx.font = '700 13px "Courier New", monospace'; ctx.fillText(`LV ${region.level || 1}`, x - 20, y + 52);
       });
       ctx.fillStyle = '#f1fdff'; ctx.beginPath(); ctx.arc(centerX, centerY, 28, 0, TAU); ctx.fill();
       ctx.fillStyle = '#183a5a'; ctx.font = '900 15px "Courier New", monospace'; ctx.fillText('HQ', centerX - 15, centerY + 5);
       if (!regions.length) {
-        ctx.fillStyle = 'rgba(213,238,255,0.72)'; ctx.font = '800 20px "Courier New", monospace'; ctx.fillText('FIRST EXPANSION AWAITS', 372, 438);
+        ctx.fillStyle = '#e3f4ff'; ctx.font = '800 20px "Courier New", monospace'; ctx.fillText('FIRST EXPANSION AWAITS', 372, 438);
       }
       ctx.fillStyle = 'rgba(145,212,255,0.16)'; ctx.fillRect(28, 470, canvas.width - 56, 8);
       if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.36 + Math.abs(Math.sin(t * 0.9)) * 0.10;
@@ -6339,24 +6347,24 @@
     drawFounderRelayDisplay(display, t) {
       const { ctx, canvas, texture, screen } = display;
       const data = this.operationsData || {};
-      this.drawDisplayShell(display, '#b9d5e5', '#0a1015');
-      this.drawDisplayTitle(ctx, 'FOUNDER\'S RELAY', 'FIELD NOTES // EMPIRE MEMORY', '#d6f0ff');
+      this.drawDisplayShell(display, '#d1ecfb', '#050b10');
+      this.drawDisplayTitle(ctx, 'FOUNDER\'S RELAY', 'FIELD NOTES // EMPIRE MEMORY', '#e6f7ff');
       const debt = data.debt;
       const pct = debt?.total ? Math.max(0, Math.min(1, debt.paid / debt.total)) : 0;
-      ctx.fillStyle = 'rgba(215,240,255,0.68)'; ctx.font = '800 17px "Courier New", monospace'; ctx.fillText(debt?.complete ? 'LAUNCH DEBT: CLEARED' : 'LAUNCH DEBT PAYOFF', 38, 124);
+      ctx.fillStyle = '#dceffc'; ctx.font = '800 17px "Courier New", monospace'; ctx.fillText(debt?.complete ? 'LAUNCH DEBT: CLEARED' : 'LAUNCH DEBT PAYOFF', 38, 124);
       ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(38, 142, canvas.width - 76, 18);
       ctx.fillStyle = debt?.complete ? '#83f1be' : '#76d8ff'; ctx.fillRect(38, 142, (canvas.width - 76) * pct, 18);
       const logs = (data.logs || []).slice(-3);
-      ctx.fillStyle = '#b9d5e5'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText('RECENT ACTIVITY', 38, 208);
+      ctx.fillStyle = '#e0f3ff'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText('RECENT ACTIVITY', 38, 208);
       logs.forEach((entry, index) => {
         const y = 248 + index * 64;
-        const tone = entry.level === 'danger' ? '#ffabb2' : entry.level === 'success' ? '#a9ffd6' : '#c7e6f4';
+        const tone = entry.level === 'danger' ? '#ffc0c6' : entry.level === 'success' ? '#c3ffe0' : '#def1fb';
         ctx.fillStyle = tone; ctx.font = '700 15px "Courier New", monospace';
         ctx.fillText(`> ${String(entry.message || 'Awaiting the next operation.').slice(0, 88)}`, 42, y);
       });
-      if (!logs.length) { ctx.fillStyle = '#c7e6f4'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText('> Awaiting the first operation.', 42, 248); }
+      if (!logs.length) { ctx.fillStyle = '#def1fb'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText('> Awaiting the first operation.', 42, 248); }
       const cursor = Math.floor(t * 2) % 2 ? '_' : ' ';
-      ctx.fillStyle = '#74e6ff'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(`RELAY ONLINE ${cursor}`, 38, 452);
+      ctx.fillStyle = '#a8eeff'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(`RELAY ONLINE ${cursor}`, 38, 452);
       if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.24 + Math.abs(Math.sin(t * 0.75)) * 0.07;
       texture.needsUpdate = true;
     }
