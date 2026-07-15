@@ -4,15 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Uptime Empire Expanded</title>
-  <link rel="stylesheet" href="style.css?v=3.124.0" />
+  <link rel="stylesheet" href="style.css?v=3.125.0" />
 </head>
 <body class="office-world-mode">
   <div class="world-hud" id="worldHud" aria-live="polite">
-    <div class="world-hud-brand">UPTIME EMPIRE</div>
-    <div class="world-hud-chip"><span>Credits</span><strong id="worldCreditsValue">0 CC</strong></div>
-    <div class="world-hud-chip"><span>Passive / sec</span><strong id="worldRateValue">0 CC</strong></div>
-    <div class="world-hud-chip"><span>Incidents</span><strong id="worldIncidentsValue">0</strong></div>
-    <div class="world-hud-prompt">Walk to the desk and press <strong>E</strong> to open the management computer.</div>
+    <div class="world-hud-brand"><span class="world-hud-mark" aria-hidden="true"></span><span><b>UPTIME EMPIRE</b><small>FOUNDER OPS</small></span></div>
+    <div class="world-hud-chip"><span>Treasury</span><strong id="worldCreditsValue">0 CC</strong></div>
+    <div class="world-hud-chip"><span>Net / sec</span><strong id="worldRateValue">0 CC</strong></div>
+    <div class="world-hud-chip"><span>Capacity</span><strong id="worldCapacityValue">0 / 0</strong></div>
+    <div class="world-hud-chip world-hud-ops"><span>Active ops</span><strong id="worldOpsValue">0 live</strong></div>
+    <div class="world-hud-context" id="worldHudContext">Walk to the desk to build the empire.</div>
   </div>
   <button class="desk-computer-close hidden" id="deskComputerCloseBtn" type="button">Esc / Close Computer</button>
   <div class="world-quick-actions" id="worldQuickActions" aria-label="World quick actions">
@@ -554,9 +555,9 @@
   <div class="toast" id="toast"></div>
   <div class="fx-layer" id="fxLayer"></div>
 
-  <script src="data.js?v=3d9dfda0a5e9"></script>
+  <script src="data.js?v=499c3e01f545"></script>
   <script src="save.js?v=bc84326bcb84"></script>
-  <script src="game.js?v=c6b700a6040f"></script>
+  <script src="game.js?v=a2924e728d4c"></script>
   <script src="assets/arcade_model_data.js?v=668dab13ec6d"></script>
   <script src="assets/server_ambience_audio_data.js?v=c193b8f881c5"></script>
   <script src="assets/background_music_data.js?v=c90e9561501f"></script>
@@ -572,8 +573,8 @@
   <script src="assets/aesthetic_floor_tile_data.js?v=ad77130516cb"></script>
   <script src="assets/scifi_floor_tile_data.js?v=81e439523cca"></script>
   <script src="assets/circuit_wall_texture_data.js?v=68b42bfca2f4"></script>
-  <script src="office3d.js?v=8f94414afbb0"></script>
-  <script src="ui.js?v=daf2d019a467"></script>
+  <script src="office3d.js?v=4db272f0cab2"></script>
+  <script src="ui.js?v=a01053083896"></script>
 
   <div class="modal-backdrop hidden" id="robotModal">
     <div class="modal card modal-narrow">

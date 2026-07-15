@@ -3,11 +3,11 @@
   const jitter = (min, max) => Math.random() * (max - min) + min;
   const DECOR_PLACEMENT_ZONES = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
-    'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall',
+    'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
     'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor'
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
   };
   const WALL_PLACEABLE_DECOR_IDS = new Set(Object.entries(DECOR_PLACEMENT_ZONES).filter(([, zone]) => zone === 'wall').map(([id]) => id));
 
@@ -213,6 +213,7 @@ const WORKSPACE_SECTION_DEFS = {
     office3D: null,
     arcade: null,
     computerOpen: false,
+    computerOpenFromWorldStation: false,
     mobileTerminalView: '',
     worldUtilityOpen: false,
     currentWorldUtility: 'shop',
@@ -245,7 +246,8 @@ const WORKSPACE_SECTION_DEFS = {
           onArcadeInteract: () => this.openArcade(),
           onArcadeInput: input => this.handleCabinetArcadeInput(input),
           onComputerInteract: () => this.openDeskComputer(),
-          onRobotInteract: () => this.openRobotModal()
+          onRobotInteract: () => this.openRobotModal(),
+          onStationInteract: station => this.openWorldStation(station)
         });
       }
       this.initArcade();
@@ -266,7 +268,9 @@ const WORKSPACE_SECTION_DEFS = {
         worldHud: $('worldHud'),
         worldCreditsValue: $('worldCreditsValue'),
         worldRateValue: $('worldRateValue'),
-        worldIncidentsValue: $('worldIncidentsValue'),
+        worldCapacityValue: $('worldCapacityValue'),
+        worldOpsValue: $('worldOpsValue'),
+        worldHudContext: $('worldHudContext'),
         mobileCreditsValue: $('mobileCreditsValue'),
         mobileRateValue: $('mobileRateValue'),
         mobileIncidentsValue: $('mobileIncidentsValue'),
@@ -1136,7 +1140,7 @@ const WORKSPACE_SECTION_DEFS = {
 
     openDeskComputer(options = {}) {
       const wasOpen = !!this.computerOpen;
-      const shouldStageDeskZoom = !wasOpen && this.office3D && this.office3D.enterComputerView;
+      const shouldStageDeskZoom = !wasOpen && !options.skipDeskZoom && this.office3D && this.office3D.enterComputerView;
       const transitionToken = `${Date.now()}-${Math.random()}`;
       this.pendingComputerOpenToken = transitionToken;
       const finishOpen = () => {
@@ -1148,6 +1152,7 @@ const WORKSPACE_SECTION_DEFS = {
         this.office3D.enterComputerView({ exitAtDesk: !!options.forceDeskView, onComplete: finishOpen, duration: 0.52 });
       }
       this.computerOpen = true;
+      this.computerOpenFromWorldStation = !!options.worldStation;
       this.mobileTerminalView = '';
       if (options.panel) this.app.state.currentPanel = options.panel;
 
@@ -1169,13 +1174,15 @@ const WORKSPACE_SECTION_DEFS = {
       if (!wasOpen) {
         this.primeAudio();
         this.playSound('ui');
-        this.toast('Desk computer online. Press Escape to return to the office.');
+        this.toast(options.worldStation ? `${options.worldStation.label || 'Operations station'} connected. Press Escape to return to the office.` : 'Desk computer online. Press Escape to return to the office.');
       }
     },
 
     closeDeskComputer(resumeControl = true) {
       if (!this.computerOpen) return;
       this.pendingComputerOpenToken = null;
+      const returnToStation = !!this.computerOpenFromWorldStation;
+      this.computerOpenFromWorldStation = false;
       this.computerOpen = false;
       this.mobileTerminalView = '';
       this.syncComputerMode();
@@ -1184,10 +1191,25 @@ const WORKSPACE_SECTION_DEFS = {
           this.office3D.resumeManualControl();
         }
       };
-      if (this.office3D && this.office3D.releaseComputerView) this.office3D.releaseComputerView(true, { onComplete: resumeAfterZoom, duration: 0.44 });
+      if (returnToStation) {
+        if (resumeControl) requestAnimationFrame(resumeAfterZoom);
+      } else if (this.office3D && this.office3D.releaseComputerView) this.office3D.releaseComputerView(true, { onComplete: resumeAfterZoom, duration: 0.44 });
       else if (resumeControl) requestAnimationFrame(resumeAfterZoom);
       this.renderAll();
       this.toast('Back in the office.');
+    },
+
+    openWorldStation(station = {}) {
+      const routes = {
+        noc: { panel: 'people', section: 'operations', label: 'NOC Operations' },
+        missionBoard: { panel: 'people', section: 'operations', label: 'Mission Board' },
+        network: { panel: 'network', section: 'regions', label: 'Uplink Map' },
+        incidentBoard: { panel: 'people', section: 'operations', label: 'Incident Board' }
+      };
+      const route = routes[station.id] || routes.noc;
+      this.app.changePanel(route.panel);
+      if (route.section) this.app.changeWorkspaceSection(route.section);
+      this.openDeskComputer({ panel: route.panel, skipDeskZoom: true, worldStation: Object.assign({}, station, { label: route.label }) });
     },
 
     syncWorldUtility() {
@@ -1421,6 +1443,8 @@ const WORKSPACE_SECTION_DEFS = {
       document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
       const sections = WORKSPACE_SECTION_DEFS[this.app.state.currentPanel] || WORKSPACE_SECTION_DEFS.command;
       const activeSection = sections.find(section => section.id === this.app.state.currentWorkspaceSection) || sections[0];
+      document.body.dataset.workspacePanel = this.app.state.currentPanel;
+      document.body.dataset.workspaceSection = activeSection.id;
       activeSection.panels.forEach(id => {
         const panel = document.getElementById(id);
         if (panel) panel.classList.add('active');
@@ -1536,14 +1560,61 @@ const WORKSPACE_SECTION_DEFS = {
         this.els.toggleSoundBtn.textContent = state.soundEnabled ? 'Sound On' : 'Sound Off';
         this.els.toggleSoundBtn.classList.toggle('active', state.soundEnabled);
       }
+      const activeMissionCount = state.activeMissions.length;
+      const activeIncidentCount = state.activeIncidents.length;
       if (this.els.worldCreditsValue) this.els.worldCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
       if (this.els.worldRateValue) this.els.worldRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
-      if (this.els.worldIncidentsValue) this.els.worldIncidentsValue.textContent = `${state.activeIncidents.length}`;
+      if (this.els.worldCapacityValue) this.els.worldCapacityValue.textContent = `${this.app.formatNumber(this.app.getUsedCapacity())} / ${this.app.formatNumber(this.app.getTotalCapacity())}`;
+      if (this.els.worldOpsValue) this.els.worldOpsValue.textContent = activeIncidentCount ? `${activeIncidentCount} alert${activeIncidentCount === 1 ? '' : 's'}` : `${activeMissionCount} live`;
+      if (this.els.worldHudContext) {
+        this.els.worldHudContext.textContent = activeIncidentCount
+          ? `${activeIncidentCount} incident${activeIncidentCount === 1 ? '' : 's'} need${activeIncidentCount === 1 ? 's' : ''} attention at the NOC.`
+          : activeMissionCount
+            ? `${activeMissionCount} mission${activeMissionCount === 1 ? '' : 's'} active. NOC tracking is live.`
+            : `${this.app.getAvailableMissionTeams()} team${this.app.getAvailableMissionTeams() === 1 ? '' : 's'} available. Check the mission board.`;
+      }
       if (this.els.mobileCreditsValue) this.els.mobileCreditsValue.textContent = `${this.app.formatNumber(state.credits)} CC`;
       if (this.els.mobileRateValue) this.els.mobileRateValue.textContent = `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC`;
       if (this.els.mobileIncidentsValue) this.els.mobileIncidentsValue.textContent = `${state.activeIncidents.length}`;
       if (this.els.mobileCapacityValue) this.els.mobileCapacityValue.textContent = `${this.app.formatNumber(this.app.getUsedCapacity())} / ${this.app.formatNumber(this.app.getTotalCapacity())}`;
       if (this.els.mobileTeamsValue) this.els.mobileTeamsValue.textContent = `${this.app.getAvailableMissionTeams()} / ${state.missionSlots}`;
+      this.syncOfficeOperationsData();
+    },
+
+    syncOfficeOperationsData() {
+      if (!this.office3D?.setOperationsData) return;
+      const state = this.app.state;
+      const activeMissions = (state.activeMissions || []).slice(0, 3).map(mission => ({
+        name: mission.name,
+        remaining: this.app.formatDuration(mission.remaining),
+        teams: mission.teams || 1
+      }));
+      const activeIncidents = (state.activeIncidents || []).slice(0, 3).map(incident => ({
+        name: incident.name,
+        remaining: this.app.formatDuration(incident.remaining),
+        severity: Number(incident.severity || 0)
+      }));
+      const unlockedRegions = DATA.regionDefs.filter(region => state.unlockedRegions?.[region.id]).map(region => ({
+        name: region.name,
+        level: (state.regionLevels?.[region.id] || 0) + 1
+      }));
+      const debtGoal = (DATA.campaignGoalDefs || []).find(goal => goal.id === 'debt-free');
+      const debtPaid = debtGoal ? Math.min(debtGoal.costCredits || 0, state.credits || 0) : 0;
+      const debtTotal = debtGoal?.costCredits || 0;
+      const logs = (state.consoleLog || []).slice(-3).map(entry => ({ message: String(entry.message || '').replace(/<[^>]*>/g, ''), level: entry.level || 'info' }));
+      this.office3D.setOperationsData({
+        credits: `${this.app.formatNumber(state.credits)} CC`,
+        income: `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC/s`,
+        capacity: `${this.app.formatNumber(this.app.getUsedCapacity())} / ${this.app.formatNumber(this.app.getTotalCapacity())}`,
+        availableTeams: this.app.getAvailableMissionTeams(),
+        totalTeams: state.missionSlots,
+        activeMissions,
+        activeIncidents,
+        unlockedRegions,
+        availableMissionCount: DATA.questDefs.filter(def => this.app.meetsCondition(def.visibleWhen) && this.app.getQuestCooldownRemaining(def.id) <= 0).length,
+        logs,
+        debt: debtGoal ? { paid: debtPaid, total: debtTotal, complete: this.app.isCampaignGoalComplete(debtGoal.id) } : null
+      });
     },
 
     renderGraphicsQuality() {
@@ -5628,7 +5699,9 @@ const WORKSPACE_SECTION_DEFS = {
         'rose-panel': 'background: linear-gradient(180deg, #71505e 0%, #4d3340 100%); background-image: linear-gradient(180deg, rgba(255,255,255,0.12), transparent 26%), repeating-linear-gradient(180deg, rgba(255,218,231,0.10), rgba(255,218,231,0.10) 8px, transparent 8px, transparent 18px);',
         'midnight-grid': 'background: linear-gradient(180deg, #182132 0%, #0f1520 100%); background-image: linear-gradient(90deg, rgba(102,216,255,0.12) 1px, transparent 1px), linear-gradient(rgba(102,216,255,0.08) 1px, transparent 1px); background-size: 18px 18px, 18px 18px;',
         'emerald-acoustic': 'background: linear-gradient(180deg, #2d5b4c 0%, #1d3d33 100%); background-image: linear-gradient(180deg, rgba(255,255,255,0.10), transparent 22%), repeating-linear-gradient(180deg, rgba(225,255,238,0.08), rgba(225,255,238,0.08) 8px, transparent 8px, transparent 18px);',
-        'circuit-board': 'background: #506d37 url("assets/circuit_wall_texture.png") center center / cover no-repeat;'
+        'circuit-board': 'background: #506d37 url("assets/circuit_wall_texture.png") center center / cover no-repeat;',
+        'signal-blue': 'background: linear-gradient(180deg, #355c72 0%, #1e3547 100%); background-image: repeating-linear-gradient(90deg, rgba(143,224,255,0.14), rgba(143,224,255,0.14) 1px, transparent 1px, transparent 28px), linear-gradient(180deg, rgba(255,255,255,0.12), transparent 26%);',
+        'archive-slate': 'background: linear-gradient(180deg, #3c4652 0%, #242d35 100%); background-image: repeating-linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.06) 2px, transparent 2px, transparent 34px);'
       };
       const floorFinishStyles = {
         'default': 'background: linear-gradient(180deg, #787c80 0%, #5d6165 100%); background-image: linear-gradient(180deg, rgba(255,255,255,0.10), transparent 30%), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: auto, 18px 18px;',
@@ -5637,7 +5710,8 @@ const WORKSPACE_SECTION_DEFS = {
         'hex-epoxy': 'background: linear-gradient(180deg, #29405a 0%, #1a2736 100%); background-image: linear-gradient(30deg, rgba(104,216,255,0.16) 12%, transparent 12.5%, transparent 87%, rgba(104,216,255,0.16) 87.5%), linear-gradient(150deg, rgba(104,216,255,0.16) 12%, transparent 12.5%, transparent 87%, rgba(104,216,255,0.16) 87.5%); background-size: 16px 28px, 16px 28px;',
         'aurora-laminate': 'background: linear-gradient(180deg, #2d3144 0%, #1c2030 100%); background-image: linear-gradient(90deg, rgba(255,127,209,0.22), rgba(104,216,255,0.18), rgba(127,255,174,0.18));',
         'aesthetic-tile': 'background: linear-gradient(180deg, #c09169 0%, #9d734e 100%); background-image: repeating-linear-gradient(0deg, transparent, transparent 66px, rgba(255,255,255,0.18) 66px, rgba(255,255,255,0.18) 68px), repeating-linear-gradient(90deg, transparent, transparent 66px, rgba(255,255,255,0.18) 66px, rgba(255,255,255,0.18) 68px), linear-gradient(135deg, rgba(255,255,255,0.10), transparent 45%); background-size: 68px 68px, 68px 68px, auto;',
-        'sci-fi-tile': 'background: linear-gradient(180deg, #0f171d 0%, #091016 100%); background-image: repeating-linear-gradient(0deg, transparent, transparent 74px, rgba(11,184,198,0.22) 74px, rgba(11,184,198,0.22) 76px), repeating-linear-gradient(90deg, transparent, transparent 74px, rgba(11,184,198,0.22) 74px, rgba(11,184,198,0.22) 76px), linear-gradient(90deg, transparent 44%, rgba(11,184,198,0.9) 44%, rgba(11,184,198,0.9) 56%, transparent 56%), linear-gradient(transparent 44%, rgba(11,184,198,0.9) 44%, rgba(11,184,198,0.9) 56%, transparent 56%); background-size: 76px 76px, 76px 76px, 76px 76px, 76px 76px;'
+        'sci-fi-tile': 'background: linear-gradient(180deg, #0f171d 0%, #091016 100%); background-image: repeating-linear-gradient(0deg, transparent, transparent 74px, rgba(11,184,198,0.22) 74px, rgba(11,184,198,0.22) 76px), repeating-linear-gradient(90deg, transparent, transparent 74px, rgba(11,184,198,0.22) 74px, rgba(11,184,198,0.22) 76px), linear-gradient(90deg, transparent 44%, rgba(11,184,198,0.9) 44%, rgba(11,184,198,0.9) 56%, transparent 56%), linear-gradient(transparent 44%, rgba(11,184,198,0.9) 44%, rgba(11,184,198,0.9) 56%, transparent 56%); background-size: 76px 76px, 76px 76px, 76px 76px, 76px 76px;',
+        'amber-grid': 'background: linear-gradient(180deg, #343233 0%, #202123 100%); background-image: linear-gradient(90deg, rgba(255,190,94,0.20) 1px, transparent 1px), linear-gradient(rgba(255,190,94,0.13) 1px, transparent 1px); background-size: 22px 22px;'
       };
       const deskFinishStyles = {
         'default': 'background: linear-gradient(180deg, #8b6450 0%, #6d4e3c 100%);',

@@ -15,11 +15,11 @@
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
   const DECOR_PLACEMENT_ZONES = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
-    'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall',
+    'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
     'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor'
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
   };
 
   const THREE_CDN = 'https://unpkg.com/three@0.158.0/build/three.min.js';
@@ -67,7 +67,7 @@
   }
 
   class Office3DScene {
-    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onArcadeInput = null, onComputerInteract = null, onRobotInteract = null }) {
+    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onArcadeInput = null, onComputerInteract = null, onRobotInteract = null, onStationInteract = null }) {
       this.canvas = canvas;
       this.hintEl = hintEl || null;
       this.modeEl = modeEl || null;
@@ -76,6 +76,7 @@
       this.arcadeScreenRenderer = null;
       this.onComputerInteract = typeof onComputerInteract === 'function' ? onComputerInteract : null;
       this.onRobotInteract = typeof onRobotInteract === 'function' ? onRobotInteract : null;
+      this.onStationInteract = typeof onStationInteract === 'function' ? onStationInteract : null;
       this.loaded = false;
       this.destroyed = false;
       this.width = 0;
@@ -139,6 +140,12 @@
       this.lastAutoPos = { x: 0, z: 0 };
       this.propGroups = [];
       this.dynamicDisplays = [];
+      this.worldStations = [];
+      this.operationsData = {
+        credits: '0 CC', income: '0 CC/s', capacity: '0 / 0', availableTeams: 0, totalTeams: 0,
+        activeMissions: [], activeIncidents: [], unlockedRegions: [], availableMissionCount: 0, logs: [], debt: null
+      };
+      this.operationsDataKey = '';
       this.arcadeDisplay = null;
       this.arcadeScreenState = { mode: 'attract', title: 'UPTIME ARCADE' };
       this.arcadePointerPress = null;
@@ -1389,10 +1396,12 @@
       const robotDist = this.getRobotDistance();
       const arcadeDist = this.getArcadeDistance();
       const deskDist = this.getDeskDistance();
+      const station = this.getNearbyWorldStation();
       const choices = [];
       if (this.onArcadeInteract && arcadeDist < 2.2) choices.push({ type: 'arcade', dist: arcadeDist });
       if (this.onRobotInteract && robotDist < 1.45) choices.push({ type: 'robot', dist: robotDist });
       if (this.onComputerInteract && deskDist < 1.85) choices.push({ type: 'computer', dist: deskDist });
+      if (station && this.onStationInteract) choices.push({ type: 'station', dist: station.dist, station });
       choices.sort((a, b) => a.dist - b.dist);
       const choice = choices[0];
       if (choice?.type === 'arcade') {
@@ -1408,6 +1417,11 @@
       if (choice?.type === 'computer') {
         this.enterComputerView();
         this.onComputerInteract();
+        return true;
+      }
+      if (choice?.type === 'station') {
+        this.releaseManualControl();
+        this.onStationInteract(choice.station);
         return true;
       }
       return false;
@@ -1468,6 +1482,17 @@
       this.updateOverlay();
     }
 
+    setOperationsData(next = {}) {
+      const merged = Object.assign({}, this.operationsData, next || {});
+      const nextKey = JSON.stringify(merged);
+      if (nextKey === this.operationsDataKey) return;
+      this.operationsData = merged;
+      this.operationsDataKey = nextKey;
+      this.dynamicDisplays.forEach(display => {
+        if (['noc', 'missionBoard', 'network', 'relay'].includes(display.type)) display.nextFrameAt = 0;
+      });
+    }
+
     setHint(message) {
       const nextMessage = String(message || '');
       if (nextMessage === this.lastHintMessage) return;
@@ -1481,6 +1506,7 @@
       const nearArcade = this.getArcadeDistance() < 2.05;
       const nearRobot = this.getRobotDistance() < 1.45;
       const nearDesk = this.getDeskDistance() < 1.85;
+      const nearbyStation = this.getNearbyWorldStation();
       const touchControl = !!(this.mobileControls.available && this.mobileControls.active);
       const manualActive = this.isManualControlActive();
       const modeLabel = this.moveMode ? 'Move Mode' : this.placementMode ? 'Placement Mode' : this.computerHold ? 'Desk Computer' : this.arcadeHold ? 'Arcade Hold' : (touchControl ? 'Touch Control' : this.pointerLocked ? 'Manual Control' : 'Manual Standby');
@@ -1518,6 +1544,8 @@
           ? 'floor bot'
           : nearArcade
             ? 'Uptime Arcade'
+            : nearbyStation
+              ? nearbyStation.label
             : nearDesk
               ? 'desk computer'
               : 'office';
@@ -1526,6 +1554,8 @@
         this.setHint(`WASD to move • mouse to look • Press <strong>E</strong> to configure your floor bot${botSpeechSuffix}`);
       } else if (this.pointerLocked && nearArcade) {
         this.setHint(`WASD to move • mouse to look • Press <strong>E</strong> to use Uptime Arcade${botSpeechSuffix}`);
+      } else if (this.pointerLocked && nearbyStation) {
+        this.setHint(`WASD to move • mouse to look • Press <strong>E</strong> to open ${nearbyStation.label}${botSpeechSuffix}`);
       } else if (this.pointerLocked && nearDesk) {
         this.setHint(`WASD to move • mouse to look • Press <strong>E</strong> to open the desk computer${botSpeechSuffix}`);
       } else {
@@ -3187,6 +3217,7 @@
       this.computerView = null;
       this.computerTransition = null;
       this.dynamicDisplays = [];
+      this.worldStations = [];
       this.arcadeDisplay = null;
       this.visualQATargets = Object.create(null);
       this.animatedLavaLamps = [];
@@ -3297,6 +3328,7 @@
       this.buildCeilingLight();
       this.buildCoreFurniture();
       this.buildDecorations();
+      this.buildWorldOperationsStations();
       this.autoPath = [];
       this.autoTarget = null;
       this.player.x = clamp(this.player.x, -room.width / 2 + 0.8, room.width / 2 - 0.8);
@@ -4016,7 +4048,9 @@
         'maintenance-clock': { w: 0.62, h: 0.62, clock: true, bg: '#f7f7f1', border: '#26313a', colors: ['#26313a'] },
         'fiber-art': { w: 0.96, h: 1.08, lines: ['FIBER', 'ART'], bg: '#151420', border: '#ff89df', colors: ['#ff89df', '#7ceaff'] },
         'incident-board': { w: 1.02, h: 0.92, lines: ['INCIDENT', 'BOARD'], bg: '#2a1014', border: '#ff7f7f', colors: ['#ffb6b6', '#ffd5d5'] },
-        'snack-shelf': { w: 1.04, h: 0.46, shelf: true, bg: '#20180f', border: '#d7bd6a', colors: ['#ffe6a0'] }
+        'snack-shelf': { w: 1.04, h: 0.46, shelf: true, bg: '#20180f', border: '#d7bd6a', colors: ['#ffe6a0'] },
+        'ops-beacon': { w: 0.54, h: 0.70, beacon: true, bg: '#111923', border: '#69e4ff', colors: ['#b9f4ff'] },
+        'runbook-board': { w: 1.14, h: 0.78, runbook: true, bg: '#1e2a31', border: '#d4d9cf', colors: ['#e9f0e5'] }
       };
       return specs[id] || { w: 0.9, h: 0.6, lines: [String(id || 'DECOR').toUpperCase()], bg: '#101820', border: '#7ceaff', colors: ['#7ceaff'] };
     }
@@ -4053,6 +4087,42 @@
           mount.position.set(x, -spec.h * 0.38, 0.045);
           group.add(mount);
         });
+      } else if (spec.beacon) {
+        const backing = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.040), makeMat({ color: 0x101a24, metalness: 0.42, roughness: 0.38 }));
+        backing.position.z = 0.012;
+        group.add(backing);
+        addBeaconRail(-spec.h * 0.30, 0x5ae8ff);
+        addBeaconRail(0, 0xffc76d);
+        addBeaconRail(spec.h * 0.30, 0x6ff2bb);
+        function addBeaconRail(y, color) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.62, 0.034, 0.018), makeMat({ color: 0x263846, metalness: 0.48, roughness: 0.32 }));
+          rail.position.set(0, y, 0.055);
+          group.add(rail);
+          const light = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.18, 0.020, 0.014), makeMat({ color, emissive: color, emissiveIntensity: 0.66, roughness: 0.26 }));
+          light.position.set(-spec.w * 0.14, y, 0.072);
+          light.userData.blink = opts.ghost ? 0 : 1.3 + (y + 1) * 0.42;
+          group.add(light);
+        }
+      } else if (spec.runbook) {
+        const board = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.038), makeMat({ color: 0xe8eee6, roughness: 0.72, metalness: 0.02 }));
+        board.position.z = 0.016;
+        group.add(board);
+        const headerTex = this.makeLabelTexture(['RUNBOOK', 'CHECKLIST // READY'], { width: 768, height: 180, colors: ['#243a4b', '#5c706b'], size: 46, weight: 900 });
+        const header = new THREE.Mesh(new THREE.PlaneGeometry(spec.w - 0.16, 0.20), makeMat({ map: headerTex, transparent: true }));
+        header.position.set(0, spec.h * 0.29, 0.053);
+        group.add(header);
+        [-0.18, -0.01, 0.16].forEach((y, row) => {
+          const rule = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.66, 0.014, 0.010), makeMat({ color: 0x8aa4aa }));
+          rule.position.set(0.06, y, 0.053);
+          group.add(rule);
+          const check = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.048, 0.010), makeMat({ color: row === 1 ? 0xffc86d : 0x7adfa8, emissive: row === 1 ? 0x5d3510 : 0x10462c, emissiveIntensity: 0.16 }));
+          check.position.set(-spec.w * 0.35, y, 0.055);
+          group.add(check);
+        });
+        const note = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.13, 0.012), makeMat({ color: 0xffd887, roughness: 0.72 }));
+        note.position.set(spec.w * 0.32, -spec.h * 0.22, 0.055);
+        note.rotation.z = -0.10;
+        group.add(note);
       } else if (spec.plant) {
         const backing = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, 0.035), makeMat({ color: 0x24523d }));
         backing.position.z = 0.012;
@@ -4231,6 +4301,12 @@
         this.registerSelectableDecor(group, { id, zone: 'wall', placement: Object.assign({}, placement) });
       }
       this.root.add(group);
+      if (!opts.ghost && id === 'wall-monitor') {
+        this.registerWorldStation({ id: 'noc', label: 'NOC Display', x: group.position.x, y: group.position.y, z: group.position.z, yaw: pos.rotationY || 0, radius: 1.42 });
+      }
+      if (!opts.ghost && id === 'incident-board') {
+        this.registerWorldStation({ id: 'incidentBoard', label: 'Incident Board', x: group.position.x, y: group.position.y, z: group.position.z, yaw: pos.rotationY || 0, radius: 1.35 });
+      }
       return group;
     }
 
@@ -4258,7 +4334,9 @@
         'bookcase': { w: 0.86, d: 0.32, h: 1.28, color: 0x2f2c26 },
         'model-sat': { w: 0.56, d: 0.38, h: 0.56, color: 0x7ceaff },
         'cold-spares': { w: 0.62, d: 0.40, h: 1.08, color: 0x25313d },
-        'pendant-light': { kind: 'pendant-light', w: 1.25, d: 1.55, h: 2.25, color: 0xffc36f, emissive: 0xffb45c, intensity: 0.65 }
+        'pendant-light': { kind: 'pendant-light', w: 1.25, d: 1.55, h: 2.25, color: 0xffc36f, emissive: 0xffb45c, intensity: 0.65 },
+        'server-island': { w: 0.72, d: 0.48, h: 1.12, color: 0x1c2934 },
+        'uplink-radio': { w: 0.48, d: 0.36, h: 0.46, color: 0x2b3745 }
       };
       return specs[id] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
     }
@@ -4323,7 +4401,14 @@
         [-1, 1].forEach(side => addBox(spec.w, spec.h, 0.016, 0x7ceaff, 0, spec.h / 2, side * (spec.d / 2 - 0.008), { transparent: true, opacity: 0.28, emissive: 0x246b88, emissiveIntensity: 0.32 }));
         addBox(spec.w - 0.07, 0.035, spec.d - 0.06, 0x2d6e75, 0, 0.058);
         [-0.12, 0.05, 0.16].forEach((x, index) => addCylinder(0.012, 0.022, 0.12 + index * 0.02, 0x49b477, x, 0.12 + index * 0.01, 0.02));
-        [-0.10, 0.12].forEach((x, index) => { const fish = addBox(0.065, 0.026, 0.018, index ? 0xffb763 : 0x9bdcff, x, 0.16 + index * 0.04, -0.07); addBox(0.022, 0.034, 0.012, fish.material.color, x - (index ? 0.042 : -0.042), 0.16 + index * 0.04, -0.07); });
+        [-0.10, 0.12].forEach((x, index) => {
+          const fish = addBox(0.065, 0.026, 0.018, index ? 0xffb763 : 0x9bdcff, x, 0.16 + index * 0.04, -0.07);
+          fish.userData.swim = opts.ghost ? null : { baseX: x, baseY: 0.16 + index * 0.04, baseZ: -0.07, spanX: 0.14, spanZ: 0.028, bob: 0.014, speed: 0.78 + index * 0.16, phase: index * 2.4 };
+          const tailX = x - (index ? 0.042 : -0.042);
+          const tail = addBox(0.022, 0.034, 0.012, fish.material.color, tailX, 0.16 + index * 0.04, -0.07);
+          tail.userData.swim = opts.ghost ? null : { baseX: tailX, baseY: 0.16 + index * 0.04, baseZ: -0.07, spanX: 0.14, spanZ: 0.028, bob: 0.014, speed: 0.78 + index * 0.16, phase: index * 2.4 };
+          tail.userData.wag = opts.ghost ? null : { speed: 4.2 + index, phase: index, amount: 0.28 };
+        });
       } else if (id === 'chair-upgrade') {
         addCylinder(0.34, 0.38, 0.035, 0x15212d, 0, 0.018);
         addRing(0.31, 0.024, 0.040, 0x68dfff);
@@ -4337,7 +4422,11 @@
         }
       } else if (id === 'mini-rack') {
         [-1, 1].forEach(side => [-1, 1].forEach(depth => addBox(0.025, spec.h, 0.025, 0x263545, side * 0.17, spec.h / 2, depth * 0.13)));
-        [0.10, 0.27, 0.44].forEach((y, row) => { addBox(0.32, 0.105, 0.025, 0x0e1720, 0, y, -0.15); addGlow(0.22, 0.018, 0.008, -0.035, y, -0.164, row === 1 ? 0xff71d2 : 0x69dcff); });
+        [0.10, 0.27, 0.44].forEach((y, row) => {
+          addBox(0.32, 0.105, 0.025, 0x0e1720, 0, y, -0.15);
+          const activity = addGlow(0.22, 0.018, 0.008, -0.035, y, -0.164, row === 1 ? 0xff71d2 : 0x69dcff);
+          if (!opts.ghost) activity.userData.blink = 1.2 + row * 0.45;
+        });
         addBox(0.34, 0.018, 0.28, 0x28394b, 0, 0.02);
       } else if (id === 'coffee-drone') {
         addCylinder(0.13, 0.15, 0.030, 0x17222e, 0, 0.015);
@@ -4345,6 +4434,12 @@
         const handle = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.010, 8, 16, Math.PI), makeMat({ color: 0xf1f6ff })); handle.position.set(0.071, 0.09, 0.01); handle.rotation.y = Math.PI / 2; group.add(handle);
         addBox(0.18, 0.025, 0.10, 0x263846, 0, 0.22);
         [-0.14, 0.14].forEach(x => addCylinder(0.055, 0.055, 0.009, 0x62e4ff, x, 0.22, 0, { emissive: 0x62e4ff, emissiveIntensity: 0.44 }).rotation.x = Math.PI / 2);
+        [-0.14, 0.14].forEach((x, index) => {
+          const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.008, 0.026), makeMat({ color: 0x74eaff, emissive: 0x3ca4d0, emissiveIntensity: 0.34, transparent: true, opacity: 0.72 }));
+          rotor.position.set(x, 0.245, 0);
+          rotor.userData.spin = opts.ghost ? 0 : 2.8 + index * 0.5;
+          group.add(rotor);
+        });
         void mug;
       } else if (id === 'desk-bonsai') {
         addCylinder(0.09, 0.12, 0.12, 0x735039, 0, 0.06);
@@ -4356,7 +4451,7 @@
         addCylinder(0.15, 0.18, 0.045, 0x172431, 0, 0.023, 0, { emissive: 0x123245, emissiveIntensity: 0.30 });
         addCylinder(0.070, 0.095, 0.10, 0x263b4d, 0, 0.095);
         const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.16, 0.34, 16, 1, true), makeMat({ color: 0x74eaff, transparent: true, opacity: 0.16, emissive: 0x45b9e8, emissiveIntensity: 0.24, depthWrite: false })); beam.position.y = 0.29; group.add(beam);
-        const holo = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.012, 40, 8), makeMat({ color: 0x88ecff, emissive: 0x61dfff, emissiveIntensity: 0.56, roughness: 0.28 })); holo.scale.y = 0.65; holo.position.y = 0.43; group.add(holo);
+        const holo = new THREE.Mesh(new THREE.TorusKnotGeometry(0.07, 0.012, 40, 8), makeMat({ color: 0x88ecff, emissive: 0x61dfff, emissiveIntensity: 0.56, roughness: 0.28 })); holo.scale.y = 0.65; holo.position.y = 0.43; holo.userData.float = opts.ghost ? null : { baseY: 0.43, amount: 0.030, speed: 1.1, phase: 0.5 }; holo.userData.spin = opts.ghost ? 0 : 0.38; group.add(holo);
       } else if (id === 'holo-globe') {
         addCylinder(0.18, 0.25, 0.12, 0x192735, 0, 0.06);
         addCylinder(0.065, 0.12, 0.38, 0x273c4c, 0, 0.25);
@@ -4419,7 +4514,7 @@
         addCylinder(0.026, 0.040, 0.28, 0xabb9c8, 0, 0.20);
         addBox(0.15, 0.10, 0.10, 0x71dfff, 0, 0.37, 0, { emissive: 0x28739c, emissiveIntensity: 0.24 });
         [-1, 1].forEach(side => { addBox(0.22, 0.026, 0.11, 0x5a8eb4, side * 0.20, 0.37, 0, { emissive: 0x24608a, emissiveIntensity: 0.22 }); addGlow(0.16, 0.010, 0.018, side * 0.20, 0.39, -0.062, 0x79e8ff); });
-        const dish = new THREE.Mesh(new THREE.SphereGeometry(0.10, 16, 10, 0, TAU, 0, Math.PI / 2), makeMat({ color: 0xe5edf5, metalness: 0.65, roughness: 0.28 })); dish.position.set(0, 0.48, 0); dish.rotation.x = -0.45; group.add(dish);
+        const dish = new THREE.Mesh(new THREE.SphereGeometry(0.10, 16, 10, 0, TAU, 0, Math.PI / 2), makeMat({ color: 0xe5edf5, metalness: 0.65, roughness: 0.28 })); dish.position.set(0, 0.48, 0); dish.rotation.x = -0.45; dish.userData.spin = opts.ghost ? 0 : 0.16; group.add(dish);
       } else if (id === 'cold-spares') {
         addBox(spec.w, spec.h, spec.d, 0x1d2a35, 0, spec.h / 2);
         [-0.145, 0.145].forEach((x, door) => {
@@ -4428,6 +4523,32 @@
           addCylinder(0.016, 0.016, 0.020, 0xc8d5df, x + (door ? -0.08 : 0.08), 0.54, -spec.d / 2 - 0.034).rotation.x = Math.PI / 2;
         });
         addGlow(0.40, 0.018, 0.012, 0, 0.99, -spec.d / 2 - 0.024, 0x6be2ff);
+      } else if (id === 'server-island') {
+        addBox(spec.w, 0.055, spec.d, 0x15222c, 0, 0.028);
+        [-1, 1].forEach(side => [-1, 1].forEach(depth => addBox(0.040, spec.h - 0.10, 0.040, 0x314352, side * (spec.w / 2 - 0.045), (spec.h - 0.10) / 2 + 0.055, depth * (spec.d / 2 - 0.045))));
+        [0.18, 0.38, 0.58, 0.78, 0.98].forEach((y, row) => {
+          addBox(spec.w - 0.12, 0.12, 0.030, 0x101a22, 0, y, -spec.d / 2 - 0.016);
+          const status = addGlow(spec.w * 0.48, 0.014, 0.010, -0.06, y, -spec.d / 2 - 0.036, row === 2 ? 0xffc46c : 0x64e8c4);
+          if (!opts.ghost) status.userData.blink = 0.95 + row * 0.18;
+          addCylinder(0.018, 0.018, 0.014, 0x405465, spec.w * 0.30, y, -spec.d / 2 - 0.036).rotation.x = Math.PI / 2;
+        });
+        addBox(spec.w * 0.78, 0.034, spec.d * 0.78, 0x29404f, 0, spec.h - 0.038);
+        addGlow(spec.w * 0.52, 0.014, 0.028, 0, spec.h - 0.015, -spec.d * 0.24, 0x6ae7ff);
+      } else if (id === 'uplink-radio') {
+        addBox(spec.w, 0.12, spec.d, 0x1e2b37, 0, 0.06);
+        addBox(spec.w * 0.72, 0.20, 0.040, 0x101a23, -0.04, 0.20, -spec.d / 2 - 0.022);
+        addGlow(spec.w * 0.38, 0.026, 0.012, -0.08, 0.20, -spec.d / 2 - 0.046, 0x65e6ff);
+        [-0.11, 0.03, 0.15].forEach((x, index) => {
+          const knob = addCylinder(0.030, 0.030, 0.022, index === 1 ? 0xffc76a : 0x718e9f, x, 0.12, -spec.d * 0.23);
+          knob.rotation.x = Math.PI / 2;
+        });
+        const mast = addCylinder(0.018, 0.024, 0.30, 0x8ba4af, spec.w * 0.30, 0.27, 0.02);
+        mast.rotation.z = -0.14;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.010, 8, 24), makeMat({ color: 0x6ce9ff, emissive: 0x52b8d4, emissiveIntensity: 0.44, roughness: 0.24 }));
+        ring.position.set(spec.w * 0.30, 0.43, 0.02);
+        ring.rotation.x = Math.PI / 2;
+        ring.userData.spin = opts.ghost ? 0 : 0.55;
+        group.add(ring);
       } else {
         addBox(spec.w, spec.h, spec.d, spec.color);
       }
@@ -4448,7 +4569,7 @@
       } else if (opts.selectable !== false) {
         this.registerSelectableDecor(group, { id, zone: safeZone, placement: Object.assign({}, placement) });
       }
-      if (!opts.ghost && (id === 'bookcase' || id === 'cold-spares')) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10);
+      if (!opts.ghost && (id === 'bookcase' || id === 'cold-spares' || id === 'server-island')) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10);
       this.root.add(group);
       return group;
     }
@@ -4512,7 +4633,9 @@
         'maintenance-clock': { x: 0.66, y: 0.62, face: 'left' },
         'fiber-art': { x: 0.30, y: 0.45, face: 'left' },
         'incident-board': { x: 0.76, y: 0.43, face: 'right' },
-        'snack-shelf': { x: 0.18, y: 0.28, face: 'right' }
+        'snack-shelf': { x: 0.18, y: 0.28, face: 'right' },
+        'ops-beacon': { x: 0.86, y: 0.62, face: 'left' },
+        'runbook-board': { x: 0.54, y: 0.48, face: 'front' }
       };
       const deskDefaults = {
         'desk-mat': { x: 0.56, y: 0.54, rotation: 0 },
@@ -4538,7 +4661,9 @@
         'bookcase': { x: 0.96, y: 0.41, rotation: 0 },
         'model-sat': { x: 0.94, y: 0.02, rotation: 0 },
         'cold-spares': { x: 0.96, y: 0.75, rotation: 0 },
-        'pendant-light': { x: 0.18, y: 0.78, rotation: -Math.PI / 10 }
+        'pendant-light': { x: 0.18, y: 0.78, rotation: -Math.PI / 10 },
+        'server-island': { x: 0.78, y: 0.28, rotation: Math.PI / 2 },
+        'uplink-radio': { x: 0.84, y: 0.64, rotation: Math.PI / 2 }
       };
       if (safeZone === 'wall') return Object.assign({ x: 0.5, y: 0.56, face: 'back' }, wallDefaults[id] || {});
       if (safeZone === 'desk') return Object.assign({ x: 0.5, y: 0.5, rotation: 0 }, deskDefaults[id] || {});
@@ -4583,6 +4708,62 @@
         const placement = stored || this.getDefaultDecorPlacement(id, zone);
         if (zone === 'wall') this.addPlacedWallDecoration(id, placement);
         else this.addPlacedPropDecoration(id, zone, placement);
+      });
+    }
+
+    registerWorldStation(station = {}) {
+      if (!station.id || !Number.isFinite(station.x) || !Number.isFinite(station.z)) return;
+      this.worldStations = this.worldStations.filter(existing => existing.id !== station.id);
+      this.worldStations.push(Object.assign({ label: 'Operations station', radius: 1.35, yaw: this.player.yaw }, station));
+    }
+
+    createWorldOperationsDisplay({ id, type, title, x, y, z, rotationY = 0, width = 1.1, height = 0.72, interactive = false, label = '' }) {
+      const THREE = this.THREE;
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      group.rotation.y = rotationY;
+      group.userData.worldDisplayId = id;
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x14222d, metalness: 0.42, roughness: 0.42, emissive: 0x071b29, emissiveIntensity: 0.18 });
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(width + 0.13, height + 0.13, 0.055), frameMat);
+      panel.position.z = 0;
+      group.add(panel);
+      const bevel = new THREE.Mesh(new THREE.BoxGeometry(width + 0.06, height + 0.06, 0.030), new THREE.MeshStandardMaterial({ color: 0x274354, metalness: 0.48, roughness: 0.30, emissive: 0x14384b, emissiveIntensity: 0.22 }));
+      bevel.position.z = 0.037;
+      group.add(bevel);
+      const canvas = makeCanvas(1024, 512);
+      const ctx = canvas.getContext('2d');
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace || texture.colorSpace;
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshStandardMaterial({ map: texture, emissive: 0x64dfff, emissiveIntensity: 0.46, roughness: 0.30, metalness: 0.04 }));
+      screen.position.z = 0.062;
+      group.add(screen);
+      const status = new THREE.Mesh(new THREE.BoxGeometry(width * 0.13, 0.022, 0.018), new THREE.MeshStandardMaterial({ color: 0x72f3c6, emissive: 0x72f3c6, emissiveIntensity: 0.66, roughness: 0.28 }));
+      status.position.set(-width * 0.40, -height * 0.46, 0.072);
+      group.add(status);
+      const light = new THREE.PointLight(type === 'missionBoard' ? 0xffb45c : 0x59dcff, 0.30, 1.7, 2);
+      light.position.set(0, 0, 0.18);
+      group.add(light);
+      this.root.add(group);
+      this.dynamicDisplays.push({ type, title, canvas, ctx, texture, screen, seed: Math.random() * 1000, nextFrameAt: 0, interval: 0.16 });
+      if (interactive) this.registerWorldStation({ id, label, x, y, z, yaw: rotationY, radius: 1.52 });
+      return group;
+    }
+
+    buildWorldOperationsStations() {
+      const room = this.room;
+      const wallX = room.width / 2 - 0.035;
+      const wallRotation = -Math.PI / 2;
+      this.createWorldOperationsDisplay({
+        id: 'missionBoard', type: 'missionBoard', title: 'MISSION BOARD', x: wallX, y: 1.58, z: -1.48,
+        rotationY: wallRotation, width: 1.24, height: 0.82, interactive: true, label: 'Mission Board'
+      });
+      this.createWorldOperationsDisplay({
+        id: 'network', type: 'network', title: 'UPLINK MAP', x: wallX, y: 1.58, z: 0.34,
+        rotationY: wallRotation, width: 1.24, height: 0.82, interactive: true, label: 'Uplink Map'
+      });
+      this.createWorldOperationsDisplay({
+        id: 'founderRelay', type: 'relay', title: 'FOUNDER\'S RELAY', x: wallX, y: 1.18, z: 2.12,
+        rotationY: wallRotation, width: 1.06, height: 0.54, interactive: false
       });
     }
 
@@ -4678,7 +4859,9 @@
         'brushed-steel': ['#55626c', '#46505a'],
         'rose-panel': ['#6e5260', '#59414f'],
         'midnight-grid': ['#182131', '#111825'],
-        'emerald-acoustic': ['#285244', '#1d4034']
+        'emerald-acoustic': ['#285244', '#1d4034'],
+        'signal-blue': ['#365c71', '#20384a'],
+        'archive-slate': ['#3d4752', '#252e37']
       };
       const colors = presets[id] || presets.default;
       ctx.fillStyle = colors[0];
@@ -4688,7 +4871,7 @@
           ctx.fillStyle = y % 16 === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)';
           ctx.fillRect(0, y, 512, 4);
         }
-      } else if (id === 'rose-panel' || id === 'emerald-acoustic') {
+      } else if (id === 'rose-panel' || id === 'emerald-acoustic' || id === 'archive-slate') {
         ctx.fillStyle = colors[1];
         for (let y = 0; y < 512; y += 64) ctx.fillRect(0, y, 512, 48);
         ctx.fillStyle = 'rgba(255,255,255,0.06)';
@@ -4700,6 +4883,11 @@
         ctx.lineWidth = 2;
         for (let x = 0; x <= 512; x += 32) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,512); ctx.stroke(); }
         for (let y = 0; y <= 512; y += 32) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(512,y); ctx.stroke(); }
+      } else if (id === 'signal-blue') {
+        ctx.fillStyle = colors[1];
+        for (let x = 0; x < 512; x += 56) ctx.fillRect(x + 48, 0, 4, 512);
+        ctx.fillStyle = 'rgba(185,236,255,0.08)';
+        for (let y = 0; y < 512; y += 72) ctx.fillRect(0, y, 512, 5);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.025)';
         for (let x = 0; x < 512; x += 32) ctx.fillRect(x, 0, 3, 512);
@@ -4793,7 +4981,8 @@
         'hex-epoxy': ['#253b53', '#182433'],
         'aurora-laminate': ['#23283a', '#1a1e2e'],
         'aesthetic-tile': ['#17141a', '#ef8aad'],
-        'sci-fi-tile': ['#0e1419', '#0aa5b4']
+        'sci-fi-tile': ['#0e1419', '#0aa5b4'],
+        'amber-grid': ['#343233', '#202123']
       };
       const colors = presets[id] || presets.default;
       ctx.fillStyle = colors[0];
@@ -4877,6 +5066,15 @@
             ctx.strokeRect(x + 12, y + 12, cell - 24, cell - 24);
           }
         }
+      } else if (id === 'amber-grid') {
+        ctx.fillStyle = colors[1];
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.strokeStyle = 'rgba(255,192,95,0.28)';
+        ctx.lineWidth = 2;
+        for (let x = 0; x <= 512; x += 44) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke(); }
+        for (let y = 0; y <= 512; y += 44) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,208,119,0.18)';
+        for (let x = 22; x < 512; x += 88) for (let y = 22; y < 512; y += 88) ctx.fillRect(x, y, 6, 6);
       } else {
         ctx.fillStyle = colors[1];
         for (let y = 0; y < 512; y += 64) ctx.fillRect(0, y, 512, 32);
@@ -5553,6 +5751,16 @@
       return Math.hypot(this.player.x - target.x, this.player.z - target.z);
     }
 
+    getNearbyWorldStation() {
+      let closest = null;
+      (this.worldStations || []).forEach(station => {
+        const dist = Math.hypot(this.player.x - station.x, this.player.z - station.z);
+        if (dist > (station.radius || 1.35)) return;
+        if (!closest || dist < closest.dist) closest = Object.assign({ dist }, station);
+      });
+      return closest;
+    }
+
     getArcadeDistance() {
       const target = this.screenInteractive?.position || this.arcadeAnchor;
       if (!target) return 999;
@@ -5987,31 +6195,169 @@
           texture.needsUpdate = true;
           return;
         }
-        if (display.type !== 'noc') return;
-        const { ctx, canvas, texture, title, seed, screen } = display;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const bg = ctx.createLinearGradient(0,0,canvas.width,canvas.height);
-        bg.addColorStop(0,'#081118'); bg.addColorStop(1,'#101727');
-        ctx.fillStyle = bg; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.strokeStyle = '#66e0ff'; ctx.lineWidth = 5; ctx.strokeRect(10,10,canvas.width-20,canvas.height-20);
-        const gridA = 26;
-        ctx.strokeStyle = 'rgba(102,224,255,0.12)'; ctx.lineWidth = 1;
-        for (let gx = 24; gx < canvas.width - 24; gx += gridA) { ctx.beginPath(); ctx.moveTo(gx, 74); ctx.lineTo(gx, canvas.height - 28); ctx.stroke(); }
-        for (let gy = 74; gy < canvas.height - 28; gy += gridA) { ctx.beginPath(); ctx.moveTo(24, gy); ctx.lineTo(canvas.width - 24, gy); ctx.stroke(); }
-        ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.shadowColor='rgba(104,216,255,0.35)'; ctx.shadowBlur=12;
-        ctx.fillStyle='#7fffd1'; ctx.font='800 58px Arial'; ctx.fillText(title,34,50);
-        ctx.fillStyle='#8fd4ff'; ctx.font='700 28px Arial'; ctx.fillText('REGION STATUS // INCIDENT GRID',34,94);
-        const time = t*1.65 + seed;
-        const barColors=['rgba(127,255,209,0.85)','rgba(143,212,255,0.80)','rgba(255,208,122,0.80)','rgba(255,155,212,0.78)','rgba(193,162,255,0.78)','rgba(255,120,120,0.76)'];
-        for (let i=0;i<6;i++){ const y=150+i*42; const w=130+Math.floor((0.5+0.5*Math.sin(time+i*0.8))*240); ctx.fillStyle=barColors[i%barColors.length]; ctx.fillRect(38,y,w,16); ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(38,y+18,320,3);} 
-        const dotColors=['#68d8ff','#7fffd1','#ffcf7a','#ff9bd4','#c1a2ff','#ff6f91'];
-        for (let i=0;i<22;i++){ const px=430+((i*31+Math.sin(time*0.7+i)*18)%520); const py=128+((i*19+Math.cos(time*0.9+i*0.7)*24)%300); ctx.fillStyle=dotColors[i%dotColors.length]; ctx.globalAlpha=0.45+0.5*Math.abs(Math.sin(time*1.4+i)); ctx.fillRect(px,py,10,10); ctx.globalAlpha=1; }
-        for (let i=0;i<4;i++){ ctx.fillStyle=barColors[(i+2)%barColors.length]; ctx.fillRect(742,152+i*52, 100 + Math.sin(time+i)*80, 10); }
-        ctx.fillStyle='rgba(255,255,255,0.82)'; ctx.font='600 18px Arial'; ctx.fillText(`Live refresh ${Math.floor(t*10)%10}`,816,94);
-        const scanY=118+((t*110)%330); ctx.fillStyle='rgba(127,255,209,0.14)'; ctx.fillRect(24,scanY,canvas.width-48,10);
-        if (screen && screen.material) screen.material.emissiveIntensity = 0.42 + Math.abs(Math.sin(time*1.2))*0.12;
-        texture.needsUpdate=true;
+        if (!['noc', 'missionBoard', 'network', 'relay'].includes(display.type)) return;
+        if (display.type === 'noc') this.drawNocOperationsDisplay(display, t);
+        if (display.type === 'missionBoard') this.drawMissionBoardDisplay(display, t);
+        if (display.type === 'network') this.drawNetworkDisplay(display, t);
+        if (display.type === 'relay') this.drawFounderRelayDisplay(display, t);
       });
+    }
+
+    drawDisplayShell(display, accent, fill) {
+      const { ctx, canvas } = display;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = fill;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 5;
+      ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      for (let y = 84; y < canvas.height - 26; y += 28) {
+        ctx.beginPath(); ctx.moveTo(26, y); ctx.lineTo(canvas.width - 26, y); ctx.stroke();
+      }
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+    }
+
+    drawDisplayTitle(ctx, title, subline, accent) {
+      ctx.fillStyle = accent;
+      ctx.font = '800 42px "Courier New", monospace';
+      ctx.fillText(title, 34, 48);
+      ctx.fillStyle = 'rgba(220,245,255,0.65)';
+      ctx.font = '700 18px "Courier New", monospace';
+      ctx.fillText(subline, 36, 80);
+    }
+
+    drawNocOperationsDisplay(display, t) {
+      const { ctx, canvas, texture, screen } = display;
+      const data = this.operationsData || {};
+      const alert = (data.activeIncidents || []).length > 0;
+      const accent = alert ? '#ff8f9a' : '#72efcb';
+      this.drawDisplayShell(display, accent, '#07131b');
+      this.drawDisplayTitle(ctx, 'NOC // LIVE', alert ? `${data.activeIncidents.length} INCIDENT${data.activeIncidents.length === 1 ? '' : 'S'} NEED RESPONSE` : 'SYSTEMS NOMINAL // LIVE TELEMETRY', accent);
+      const metrics = [
+        ['TREASURY', data.credits || '0 CC'], ['NET', data.income || '0 CC/s'], ['CAPACITY', data.capacity || '0 / 0'], ['TEAMS', `${data.availableTeams || 0} / ${data.totalTeams || 0}`]
+      ];
+      metrics.forEach(([label, value], index) => {
+        const x = 34 + index * 244;
+        ctx.fillStyle = 'rgba(104,218,255,0.10)'; ctx.fillRect(x, 104, 218, 66);
+        ctx.strokeStyle = 'rgba(104,218,255,0.22)'; ctx.strokeRect(x, 104, 218, 66);
+        ctx.fillStyle = 'rgba(181,233,248,0.65)'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(label, x + 12, 123);
+        ctx.fillStyle = '#effcff'; ctx.font = '800 23px "Courier New", monospace'; ctx.fillText(String(value).slice(0, 16), x + 12, 151);
+      });
+      const incidents = data.activeIncidents || [];
+      const missions = data.activeMissions || [];
+      ctx.fillStyle = alert ? '#ff9da7' : '#8debc7'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText(alert ? 'ACTIVE ALERTS' : 'ACTIVE MISSIONS', 38, 210);
+      const entries = (alert ? incidents : missions).slice(0, 3);
+      if (!entries.length) {
+        ctx.fillStyle = 'rgba(214,239,247,0.58)'; ctx.font = '700 17px "Courier New", monospace';
+        ctx.fillText(alert ? 'No unresolved incidents.' : 'No teams currently deployed.', 38, 246);
+      }
+      entries.forEach((entry, index) => {
+        const y = 246 + index * 48;
+        ctx.fillStyle = index % 2 ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.065)'; ctx.fillRect(34, y - 18, 534, 34);
+        ctx.fillStyle = alert ? '#ffd4d8' : '#d7fff0'; ctx.font = '700 17px "Courier New", monospace'; ctx.fillText(String(entry.name || 'OPERATIONS').slice(0, 34), 48, y);
+        ctx.fillStyle = 'rgba(190,224,240,0.68)'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(entry.remaining || '', 438, y);
+      });
+      ctx.fillStyle = '#8ddfff'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText('REGION UPLINKS', 626, 210);
+      const regions = data.unlockedRegions || [];
+      const cx = 810; const cy = 338;
+      const count = Math.max(1, Math.min(8, regions.length || 1));
+      ctx.strokeStyle = 'rgba(111,224,255,0.36)'; ctx.lineWidth = 2;
+      for (let i = 0; i < count; i += 1) {
+        const angle = (i / count) * TAU + t * 0.12;
+        const x = cx + Math.cos(angle) * 122;
+        const y = cy + Math.sin(angle) * 74;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = i === 0 ? '#78f5c9' : '#72dfff'; ctx.fillRect(x - 7, y - 7, 14, 14);
+      }
+      ctx.fillStyle = '#e7fbff'; ctx.fillRect(cx - 12, cy - 12, 24, 24);
+      ctx.fillStyle = 'rgba(190,224,240,0.66)'; ctx.font = '700 14px "Courier New", monospace'; ctx.fillText(`${regions.length || 0} REGIONS ONLINE`, 704, 454);
+      const scanY = 100 + ((t * 26) % 350); ctx.fillStyle = 'rgba(114,239,203,0.07)'; ctx.fillRect(24, scanY, canvas.width - 48, 4);
+      if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.42 + Math.abs(Math.sin(t * 1.15)) * 0.12;
+      texture.needsUpdate = true;
+    }
+
+    drawMissionBoardDisplay(display, t) {
+      const { ctx, canvas, texture, screen } = display;
+      const data = this.operationsData || {};
+      this.drawDisplayShell(display, '#ffbd70', '#1a1209');
+      this.drawDisplayTitle(ctx, 'MISSION BOARD', `${data.availableTeams || 0} TEAMS READY // ${data.availableMissionCount || 0} JOBS AVAILABLE`, '#ffca7d');
+      const missions = (data.activeMissions || []).slice(0, 3);
+      const cards = missions.length ? missions : [{ name: 'OPEN QUEUE', remaining: `${data.availableMissionCount || 0} jobs awaiting dispatch`, teams: data.availableTeams || 0 }];
+      cards.forEach((mission, index) => {
+        const x = 40 + index * 318;
+        const cardColor = ['#f4d692', '#bce9ff', '#ffd2e5'][index % 3];
+        ctx.fillStyle = cardColor; ctx.fillRect(x, 122, 276, 274);
+        ctx.fillStyle = 'rgba(35,28,18,0.24)'; ctx.fillRect(x + 12, 138, 252, 2);
+        ctx.fillStyle = '#332819'; ctx.font = '800 18px "Courier New", monospace'; ctx.fillText(index < missions.length ? 'ACTIVE DISPATCH' : 'NEXT ACTION', x + 16, 166);
+        ctx.font = '800 22px "Courier New", monospace';
+        const words = String(mission.name || 'MISSION').toUpperCase().slice(0, 21).match(/.{1,13}(?:\s|$)|.{1,13}/g) || [];
+        words.slice(0, 2).forEach((line, lineIndex) => ctx.fillText(line.trim(), x + 16, 212 + lineIndex * 30));
+        ctx.fillStyle = '#5e482c'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText(String(mission.remaining || '').slice(0, 25), x + 16, 308);
+        ctx.fillText(`${mission.teams || 0} TEAM${mission.teams === 1 ? '' : 'S'}`, x + 16, 342);
+        ctx.strokeStyle = 'rgba(65,46,25,0.40)'; ctx.lineWidth = 2; ctx.strokeRect(x + 10, 112, 296, 304);
+      });
+      const pulse = 0.4 + Math.abs(Math.sin(t * 1.4)) * 0.6;
+      ctx.fillStyle = `rgba(255,202,125,${0.18 + pulse * 0.18})`; ctx.fillRect(38, 438, canvas.width - 76, 16);
+      ctx.fillStyle = '#f9e7c1'; ctx.font = '800 16px "Courier New", monospace'; ctx.fillText('PRESS E FOR THE FULL OPERATIONS BOARD', 266, 468);
+      if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.34 + pulse * 0.12;
+      texture.needsUpdate = true;
+    }
+
+    drawNetworkDisplay(display, t) {
+      const { ctx, canvas, texture, screen } = display;
+      const data = this.operationsData || {};
+      this.drawDisplayShell(display, '#82c6ff', '#07101e');
+      this.drawDisplayTitle(ctx, 'UPLINK MAP', `${(data.unlockedRegions || []).length} REGIONAL SITES // EXPANSION ROUTE`, '#91d4ff');
+      const regions = (data.unlockedRegions || []).slice(0, 8);
+      const centerX = 510; const centerY = 290;
+      const count = Math.max(1, regions.length);
+      ctx.strokeStyle = 'rgba(123,212,255,0.34)'; ctx.lineWidth = 3;
+      regions.forEach((region, index) => {
+        const angle = -Math.PI / 2 + (index / count) * TAU + Math.sin(t * 0.35) * 0.03;
+        const x = centerX + Math.cos(angle) * 310;
+        const y = centerY + Math.sin(angle) * 130;
+        ctx.beginPath(); ctx.moveTo(centerX, centerY); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = index === 0 ? '#8cf3ce' : '#89ceff'; ctx.beginPath(); ctx.arc(x, y, 16, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#e8f8ff'; ctx.font = '800 15px "Courier New", monospace'; ctx.fillText(String(region.name || 'SITE').toUpperCase().slice(0, 14), x - 48, y + 34);
+        ctx.fillStyle = 'rgba(194,229,255,0.68)'; ctx.font = '700 13px "Courier New", monospace'; ctx.fillText(`LV ${region.level || 1}`, x - 20, y + 52);
+      });
+      ctx.fillStyle = '#f1fdff'; ctx.beginPath(); ctx.arc(centerX, centerY, 28, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#183a5a'; ctx.font = '900 15px "Courier New", monospace'; ctx.fillText('HQ', centerX - 15, centerY + 5);
+      if (!regions.length) {
+        ctx.fillStyle = 'rgba(213,238,255,0.72)'; ctx.font = '800 20px "Courier New", monospace'; ctx.fillText('FIRST EXPANSION AWAITS', 372, 438);
+      }
+      ctx.fillStyle = 'rgba(145,212,255,0.16)'; ctx.fillRect(28, 470, canvas.width - 56, 8);
+      if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.36 + Math.abs(Math.sin(t * 0.9)) * 0.10;
+      texture.needsUpdate = true;
+    }
+
+    drawFounderRelayDisplay(display, t) {
+      const { ctx, canvas, texture, screen } = display;
+      const data = this.operationsData || {};
+      this.drawDisplayShell(display, '#b9d5e5', '#0a1015');
+      this.drawDisplayTitle(ctx, 'FOUNDER\'S RELAY', 'FIELD NOTES // EMPIRE MEMORY', '#d6f0ff');
+      const debt = data.debt;
+      const pct = debt?.total ? Math.max(0, Math.min(1, debt.paid / debt.total)) : 0;
+      ctx.fillStyle = 'rgba(215,240,255,0.68)'; ctx.font = '800 17px "Courier New", monospace'; ctx.fillText(debt?.complete ? 'LAUNCH DEBT: CLEARED' : 'LAUNCH DEBT PAYOFF', 38, 124);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(38, 142, canvas.width - 76, 18);
+      ctx.fillStyle = debt?.complete ? '#83f1be' : '#76d8ff'; ctx.fillRect(38, 142, (canvas.width - 76) * pct, 18);
+      const logs = (data.logs || []).slice(-3);
+      ctx.fillStyle = '#b9d5e5'; ctx.font = '700 16px "Courier New", monospace'; ctx.fillText('RECENT ACTIVITY', 38, 208);
+      logs.forEach((entry, index) => {
+        const y = 248 + index * 64;
+        const tone = entry.level === 'danger' ? '#ffabb2' : entry.level === 'success' ? '#a9ffd6' : '#c7e6f4';
+        ctx.fillStyle = tone; ctx.font = '700 15px "Courier New", monospace';
+        ctx.fillText(`> ${String(entry.message || 'Awaiting the next operation.').slice(0, 88)}`, 42, y);
+      });
+      if (!logs.length) { ctx.fillStyle = '#c7e6f4'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText('> Awaiting the first operation.', 42, 248); }
+      const cursor = Math.floor(t * 2) % 2 ? '_' : ' ';
+      ctx.fillStyle = '#74e6ff'; ctx.font = '700 15px "Courier New", monospace'; ctx.fillText(`RELAY ONLINE ${cursor}`, 38, 452);
+      if (screen?.material?.emissive) screen.material.emissiveIntensity = 0.24 + Math.abs(Math.sin(t * 0.75)) * 0.07;
+      texture.needsUpdate = true;
     }
 
     animateLavaLamps(t) {
@@ -6095,7 +6441,7 @@
     rebuildAnimatedSceneObjectCache() {
       this.animatedSceneObjects = [];
       this.root.traverse(obj => {
-        if (obj.userData && (obj.userData.spin || obj.userData.blink)) {
+        if (obj.userData && (obj.userData.spin || obj.userData.blink || obj.userData.float || obj.userData.swim || obj.userData.wag)) {
           this.animatedSceneObjects.push(obj);
         }
       });
@@ -6109,6 +6455,23 @@
       this.animatedSceneObjects.forEach(obj => {
         if (!obj || !obj.parent || !obj.userData) return;
         if (obj.userData.spin) obj.rotation.y += obj.userData.spin * 0.01;
+        if (obj.userData.float) {
+          const motion = obj.userData.float;
+          const baseY = Number.isFinite(motion.baseY) ? motion.baseY : obj.position.y;
+          obj.position.y = baseY + Math.sin(t * (motion.speed || 1.2) + (motion.phase || 0)) * (motion.amount || 0.02);
+        }
+        if (obj.userData.swim) {
+          const motion = obj.userData.swim;
+          const phase = t * (motion.speed || 0.85) + (motion.phase || 0);
+          obj.position.x = motion.baseX + Math.sin(phase) * (motion.spanX || 0.12);
+          obj.position.y = motion.baseY + Math.sin(phase * 1.8) * (motion.bob || 0.018);
+          obj.position.z = motion.baseZ + Math.cos(phase * 0.7) * (motion.spanZ || 0.025);
+          obj.rotation.y = Math.cos(phase) >= 0 ? 0 : Math.PI;
+        }
+        if (obj.userData.wag) {
+          const motion = obj.userData.wag;
+          obj.rotation.z = Math.sin(t * (motion.speed || 3.2) + (motion.phase || 0)) * (motion.amount || 0.22);
+        }
         if (obj.userData.blink && obj.material) {
           const speed = obj.userData.blink;
           const base = Number.isFinite(obj.userData.blinkBase) ? obj.userData.blinkBase : 0.25;

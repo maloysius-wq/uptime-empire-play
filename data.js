@@ -4256,6 +4256,21 @@ window.UptimeEmpireData = {
         "desc": "A glowing circuit-board wall finish with bright yellow traces over deep green panels.",
         "cost": 1350000
       }
+      ,
+      {
+        "id": "signal-blue",
+        "icon": "[]",
+        "name": "Signal Blue Panels",
+        "desc": "Calm blue control-room panels with subtle illuminated seams.",
+        "cost": 690000
+      },
+      {
+        "id": "archive-slate",
+        "icon": "##",
+        "name": "Archive Slate",
+        "desc": "Layered slate panels for a quieter, more focused operations room.",
+        "cost": 1850000
+      }
     ],
     "floorFinish": [
       {
@@ -4306,6 +4321,14 @@ window.UptimeEmpireData = {
         "name": "Sci-Fi Tile",
         "desc": "A futuristic panel floor with glowing teal sci-fi accents.",
         "cost": 1600000
+      }
+      ,
+      {
+        "id": "amber-grid",
+        "icon": "++",
+        "name": "Amber Grid",
+        "desc": "Low-glare graphite flooring with warm amber guidance lines.",
+        "cost": 1050000
       }
     ],
     "outfit": [
@@ -4402,6 +4425,21 @@ window.UptimeEmpireData = {
         "desc": "A red-tinted board full of clipped tickets and solved disasters.",
         "cost": 7200000
       }
+      ,
+      {
+        "id": "ops-beacon",
+        "icon": "!",
+        "name": "Ops Beacon",
+        "desc": "A small pulse beacon that gives the office a live operations heartbeat.",
+        "cost": 960000
+      },
+      {
+        "id": "runbook-board",
+        "icon": "=",
+        "name": "Runbook Board",
+        "desc": "A whiteboard full of deployment notes, checklists, and carefully contained optimism.",
+        "cost": 1750000
+      }
     ],
     "floor": [
       {
@@ -4453,6 +4491,14 @@ window.UptimeEmpireData = {
         "desc": "A warm imported lamp that actually lights the office around it.",
         "cost": 2800000
       }
+      ,
+      {
+        "id": "server-island",
+        "icon": "[]",
+        "name": "Edge Rack Island",
+        "desc": "A compact free-standing service rack with a quiet line of live hardware.",
+        "cost": 6400000
+      }
     ],
     "shelf": [
       {
@@ -4496,6 +4542,14 @@ window.UptimeEmpireData = {
         "name": "Cold Spare Locker",
         "desc": "Drives, fans, and the smell of future preparedness.",
         "cost": 8800000
+      }
+      ,
+      {
+        "id": "uplink-radio",
+        "icon": "~",
+        "name": "Uplink Radio",
+        "desc": "A compact relay receiver that keeps a little signal moving through the room.",
+        "cost": 1850000
       }
     ]
   }

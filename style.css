@@ -6055,40 +6055,48 @@ body.arcade-active .command-notice-badge {
   z-index: 120;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   max-width: calc(100vw - 32px);
-  padding: 8px;
-  border-radius: 18px;
-  border: 1px solid rgba(126, 225, 255, 0.18);
-  background: rgba(5, 12, 18, 0.68);
-  box-shadow: 0 16px 34px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.035);
-  backdrop-filter: blur(10px);
+  padding: 7px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(126, 225, 255, 0.24);
+  background: rgba(4, 14, 21, 0.76);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.30), inset 0 1px 0 rgba(213,250,255,0.08);
+  backdrop-filter: blur(14px);
   pointer-events: none;
 }
 
 .world-hud-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--display-font);
-  font-size: 0.78rem;
-  letter-spacing: 0.16em;
-  font-weight: 900;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
   color: #dff9ff;
-  padding: 0 6px;
+  padding: 0 7px 0 3px;
   white-space: nowrap;
   text-shadow: 0 0 14px rgba(70,216,255,0.2);
 }
 
+.world-hud-brand b,
+.world-hud-brand small { display: block; }
+.world-hud-brand b { font-weight: 900; }
+.world-hud-brand small { margin-top: 3px; color: rgba(166,215,232,0.66); font-size: 0.54rem; letter-spacing: 0.16em; }
+.world-hud-mark { width: 25px; height: 25px; border: 1px solid rgba(115,232,255,0.76); background: repeating-linear-gradient(180deg, rgba(84,218,255,0.82) 0 3px, rgba(14,75,96,0.45) 3px 5px); box-shadow: inset 0 0 0 3px rgba(5,22,31,0.74), 0 0 12px rgba(73,210,255,0.22); }
+
 .world-hud-chip {
-  min-width: 108px;
-  padding: 7px 9px;
-  border-radius: 13px;
-  background: rgba(255,255,255,0.045);
-  border: 1px solid rgba(255,255,255,0.07);
+  min-width: 104px;
+  padding: 6px 9px 7px;
+  border-radius: 5px;
+  background: rgba(87,174,198,0.07);
+  border: 1px solid rgba(155,226,244,0.10);
 }
 
 .world-hud-chip span,
-.world-hud-prompt {
+.world-hud-context {
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.60rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6098,21 +6106,12 @@ body.arcade-active .command-notice-badge {
   display: block;
   margin-top: 2px;
   color: var(--cyan);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-family: var(--display-font);
 }
 
-.world-hud-prompt {
-  max-width: 340px;
-  padding: 0 8px;
-  line-height: 1.25;
-  text-transform: none;
-  letter-spacing: 0.02em;
-}
-
-.world-hud-prompt strong {
-  color: var(--green);
-}
+.world-hud-ops strong { color: #ffcf83; }
+.world-hud-context { min-width: 180px; max-width: 270px; padding: 0 7px; line-height: 1.25; text-transform: none; letter-spacing: 0.01em; }
 
 .desk-computer-close {
   position: fixed;
@@ -6244,7 +6243,7 @@ body.office-computer-mode .world-hud {
     flex-wrap: wrap;
   }
   .world-hud-brand,
-  .world-hud-prompt {
+  .world-hud-context {
     flex: 1 1 100%;
   }
   .world-hud-chip {
@@ -7868,7 +7867,7 @@ body.mobile-office-controls-visible .mobile-office-controls {
     bottom: calc(max(24px, env(safe-area-inset-bottom)) + 192px);
   }
 
-  body.mobile-office-controls-visible .world-hud-prompt {
+  body.mobile-office-controls-visible .world-hud-context {
     display: none;
   }
 }
@@ -8779,6 +8778,31 @@ body.office-computer-mode .panel-stack {
 }
 body.office-computer-mode .panel { min-width: 0; }
 body.office-computer-mode .panel.active { display: grid !important; gap: 18px !important; align-content: start; }
+
+/* Each desk workspace has its own material language, so switching tasks feels
+   like moving to a different operational surface instead of another card list. */
+body.office-computer-mode[data-workspace-panel="infrastructure"] .panel-stack { --workspace-accent: #68dcff; }
+body.office-computer-mode[data-workspace-panel="people"] .panel-stack { --workspace-accent: #ffbd70; }
+body.office-computer-mode[data-workspace-panel="network"] .panel-stack { --workspace-accent: #8fb8ff; }
+body.office-computer-mode[data-workspace-panel="command"] .panel-stack { --workspace-accent: #8ee8bd; }
+body.office-computer-mode[data-workspace-panel="progress"] .panel-stack { --workspace-accent: #d6a6ff; }
+body.office-computer-mode .panel.active > .section-head {
+  border-left: 3px solid var(--workspace-accent, var(--idle-primary)) !important;
+  padding-left: 10px !important;
+}
+body.office-computer-mode #panel-upgrades::before { border-left: 3px solid var(--workspace-accent, var(--idle-primary)); padding-left: 10px; }
+body.office-computer-mode[data-workspace-panel="infrastructure"] #panel-ops { background-image: repeating-linear-gradient(0deg, transparent 0 41px, rgba(104,220,255,0.035) 41px 42px); }
+body.office-computer-mode[data-workspace-panel="infrastructure"] .resource-row { padding-left: 10px !important; border-left: 2px solid rgba(104,220,255,0.18) !important; }
+body.office-computer-mode[data-workspace-panel="infrastructure"] .resource-row:hover { border-left-color: var(--workspace-accent) !important; background: rgba(104,220,255,0.045) !important; }
+body.office-computer-mode[data-workspace-panel="people"] .mission-layout { gap: 16px !important; }
+body.office-computer-mode[data-workspace-panel="people"] .mission-layout > .section-card { border-top: 3px solid rgba(255,189,112,0.54) !important; background: color-mix(in srgb, var(--idle-panel-strong) 92%, #5d3614) !important; }
+body.office-computer-mode[data-workspace-panel="people"] .incident-card.boss { border-left: 3px solid #ff7d8b !important; }
+body.office-computer-mode[data-workspace-panel="people"] .mission-card.active { border-left: 3px solid #ffcf87 !important; }
+body.office-computer-mode[data-workspace-panel="network"] #panel-regions { padding: 4px 2px 18px; background-image: linear-gradient(90deg, rgba(143,184,255,0.05) 1px, transparent 1px), linear-gradient(rgba(143,184,255,0.04) 1px, transparent 1px); background-size: 30px 30px; }
+body.office-computer-mode[data-workspace-panel="network"] .region-card { border-left: 3px solid #91bfff !important; background: color-mix(in srgb, var(--idle-panel-strong) 92%, #152447) !important; }
+body.office-computer-mode[data-workspace-panel="command"] .command-metric-grid { border-color: rgba(142,232,189,0.42) !important; }
+body.office-computer-mode[data-workspace-panel="command"] .big-bet-ledger { border-left: 3px solid #8ee8bd !important; background: color-mix(in srgb, var(--idle-panel-strong) 92%, #15392b) !important; }
+body.office-computer-mode[data-workspace-panel="progress"] .prestige-summary { border-top: 3px solid #d6a6ff !important; background: color-mix(in srgb, var(--idle-panel-strong) 92%, #322046) !important; }
 
 body.office-computer-mode .panel .card,
 body.office-computer-mode .panel .section-card,
