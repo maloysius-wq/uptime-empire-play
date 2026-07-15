@@ -4139,6 +4139,36 @@ window.UptimeEmpireData = {
         "cost": 4600000
       }
     ],
+    "deskFrame": [
+      {
+        "id": "default",
+        "icon": "[]",
+        "name": "Starter Sit-Stand Desk",
+        "desc": "The original command surface. Compact, dependable, and already working hard.",
+        "cost": 0
+      },
+      {
+        "id": "wide",
+        "icon": "[==]",
+        "name": "Wide Operations Desk",
+        "desc": "A broader sit-stand frame with room for the next stack of very important objects.",
+        "cost": 180000
+      },
+      {
+        "id": "command",
+        "icon": "[L]",
+        "name": "Corner Command Desk",
+        "desc": "A deep work surface with a right-side command wing and a proper cable tray.",
+        "cost": 1250000
+      },
+      {
+        "id": "studio",
+        "icon": "[===]",
+        "name": "Studio Command Table",
+        "desc": "A wide studio-grade desk with a rear equipment riser for the full founder setup.",
+        "cost": 6500000
+      }
+    ],
     "deskFinish": [
       {
         "id": "default",
@@ -4498,6 +4528,43 @@ window.UptimeEmpireData = {
         "name": "Edge Rack Island",
         "desc": "A compact free-standing service rack with a quiet line of live hardware.",
         "cost": 6400000
+      }
+    ],
+    "furniture": [
+      {
+        "id": "default",
+        "icon": "[]",
+        "name": "No Extra Furniture",
+        "desc": "The room remains admirably un-furnished.",
+        "cost": 0
+      },
+      {
+        "id": "ops-workbench",
+        "icon": "[=]",
+        "name": "Ops Workbench",
+        "desc": "An industrial workbench with a peg rail, cable shelf, and a broad usable top.",
+        "cost": 900000
+      },
+      {
+        "id": "sidecar-table",
+        "icon": "[_]",
+        "name": "Rolling Sidecar Table",
+        "desc": "A compact rolling drawer table for a lamp, drone dock, or emergency coffee hardware.",
+        "cost": 1600000
+      },
+      {
+        "id": "display-shelf",
+        "icon": "[#]",
+        "name": "Showcase Shelf",
+        "desc": "An open equipment shelf with a top display surface and lower bays for tiny infrastructure.",
+        "cost": 2750000
+      },
+      {
+        "id": "lab-shelving",
+        "icon": "[+]",
+        "name": "Lab Storage Shelving",
+        "desc": "A wider steel shelving unit with labeled bins, status lights, and room for desk gear on top.",
+        "cost": 4800000
       }
     ],
     "shelf": [

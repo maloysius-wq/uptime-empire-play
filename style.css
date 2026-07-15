@@ -6775,6 +6775,79 @@ body.decor-move-mode .placement-wall-arrow {
     linear-gradient(180deg, rgba(30, 21, 7, 0.93), rgba(9, 8, 4, 0.88));
 }
 
+/* v3.126 furniture surfaces and focused Move Mode */
+.placement-surface-controls,
+.move-browse-controls {
+  position: fixed;
+  left: 50%;
+  top: 196px;
+  transform: translateX(-50%);
+  z-index: 224;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: min(520px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid rgba(126, 225, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(5, 14, 22, 0.87);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(8px);
+}
+
+.placement-surface-controls.hidden,
+.move-browse-controls.hidden { display: none !important; }
+
+.placement-surface-label {
+  min-width: 150px;
+  color: #dffaff;
+  font-family: var(--display-font);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.placement-surface-controls .soft-btn {
+  min-width: 38px;
+  padding-inline: 10px;
+}
+
+.move-browse-controls {
+  border-color: rgba(255, 207, 122, 0.34);
+}
+
+.move-browse-controls .soft-btn {
+  min-height: 34px;
+  color: #fff0ca;
+  border-color: rgba(255, 207, 122, 0.24);
+}
+
+.move-browse-controls .move-focus-btn {
+  background: rgba(255, 207, 122, 0.12);
+}
+
+@media (max-width: 720px) {
+  .placement-surface-controls,
+  .move-browse-controls {
+    top: 208px;
+    width: min(500px, calc(100vw - 22px));
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .move-browse-controls .soft-btn {
+    min-height: 40px;
+    padding-inline: 7px;
+    font-size: 0.67rem;
+  }
+
+  .placement-surface-label {
+    min-width: 118px;
+    font-size: 0.65rem;
+  }
+}
+
 
 /* v3.83 staged desk terminal transition: keep the 3D zoom visible before the manager screen fills the view */
 body.office-computer-transitioning .app-shell {

@@ -8,7 +8,7 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const resultsDir = resolve(projectRoot, 'qa-results');
 const targetUrl = process.env.UPTIME_QA_URL || 'https://maloysius-wq.github.io/uptime-empire-play/';
 const useHeadless = /^1|true$/i.test(process.env.UPTIME_QA_HEADLESS || '');
-const views = ['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet'];
+const views = ['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture'];
 
 function fail(message) {
   throw new Error(`[GPU visual QA] ${message}`);

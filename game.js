@@ -87,17 +87,19 @@
     };
   }
 
-  const SLOTLESS_COSMETIC_CATEGORIES = ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish'];
-  const PLACEMENT_SCHEMA_VERSION = 2;
+  const SLOTLESS_COSMETIC_CATEGORIES = ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish', 'deskFrame'];
+  const PLACEMENT_SCHEMA_VERSION = 3;
   const PLACEMENT_ZONES = ['wall', 'floor', 'desk'];
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
+  const DESK_SUPPORT_IDS = ['desk', 'ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
   const PLACEMENT_ZONE_BY_DECOR_ID = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
     'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor',
+    'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
 
   function emptyPlacementBuckets() {
@@ -119,7 +121,9 @@
       return { x, y, face };
     }
     const rotation = Number.isFinite(Number(placement.rotation)) ? Number(placement.rotation) : 0;
-    return { x, y, rotation };
+    const normalized = { x, y, rotation };
+    if (safeZone === 'desk' && DESK_SUPPORT_IDS.includes(placement.support)) normalized.support = placement.support;
+    return normalized;
   }
 
   function forEachPlacementEntry(source, visit) {
@@ -237,7 +241,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         wallFinish: 'default',
         floorFinish: 'default',
         deskFinish: 'default',
-        chairFinish: 'default'
+        chairFinish: 'default',
+        deskFrame: 'default'
       },
       uiSkin: 'founder',
       purchasedUiSkins: { founder: true },
@@ -340,7 +345,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       wallFinish: ((loaded.equippedCosmetics || {}).wallFinish) || 'default',
       floorFinish: ((loaded.equippedCosmetics || {}).floorFinish) || 'default',
       deskFinish: ((loaded.equippedCosmetics || {}).deskFinish) || 'default',
-      chairFinish: ((loaded.equippedCosmetics || {}).chairFinish) || 'default'
+      chairFinish: ((loaded.equippedCosmetics || {}).chairFinish) || 'default',
+      deskFrame: ((loaded.equippedCosmetics || {}).deskFrame) || 'default'
     };
     merged.purchasedUiSkins = Object.assign({ founder: true }, loaded.purchasedUiSkins || {});
     merged.uiSkin = (DATA.uiSkinDefs || []).some(def => def.id === loaded.uiSkin) ? loaded.uiSkin : 'founder';

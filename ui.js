@@ -7,7 +7,8 @@
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
     'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor'
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor',
+    'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
   const WORLD_OPERATION_FIXTURES = {
     missionBoard: { id: 'missionBoard', name: 'Mission Board', zone: 'wall' },
@@ -300,6 +301,15 @@ const WORKSPACE_SECTION_DEFS = {
         placementRotateControls: $('placementRotateControls'),
         placementRotateLeftBtn: $('placementRotateLeftBtn'),
         placementRotateRightBtn: $('placementRotateRightBtn'),
+        placementSurfaceControls: $('placementSurfaceControls'),
+        placementSurfacePrevBtn: $('placementSurfacePrevBtn'),
+        placementSurfaceNextBtn: $('placementSurfaceNextBtn'),
+        placementSurfaceLabel: $('placementSurfaceLabel'),
+        moveBrowseControls: $('moveBrowseControls'),
+        moveViewWallsBtn: $('moveViewWallsBtn'),
+        moveViewFloorBtn: $('moveViewFloorBtn'),
+        moveViewDeskBtn: $('moveViewDeskBtn'),
+        moveFocusNextBtn: $('moveFocusNextBtn'),
         placementBackToMoveBtn: $('placementBackToMoveBtn'),
         creditsValue: $('creditsValue'),
         ipsValue: $('ipsValue'),
@@ -436,8 +446,14 @@ const WORKSPACE_SECTION_DEFS = {
     startVisualQAFromQuery() {
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get('qa');
-      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet']);
+      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture']);
       if (!allowedViews.has(requestedView)) return;
+
+      if (requestedView === 'furniture') {
+        this.app.state.equippedCosmetics.deskFrame = 'studio';
+        this.app.state.equippedDecorations = ['ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
+        this.renderOffice();
+      }
 
       document.body.classList.add('visual-qa-mode');
       const deadline = performance.now() + 30000;
@@ -959,6 +975,37 @@ const WORKSPACE_SECTION_DEFS = {
         e.preventDefault();
         e.stopPropagation();
         if (this.office3D && this.office3D.rotatePlacementItem) this.office3D.rotatePlacementItem(1);
+      });
+      if (this.els.placementSurfacePrevBtn) this.els.placementSurfacePrevBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.office3D?.cyclePlacementSupportSurface) this.office3D.cyclePlacementSupportSurface(-1);
+        this.syncPlacementSurfaceLabel();
+      });
+      if (this.els.placementSurfaceNextBtn) this.els.placementSurfaceNextBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.office3D?.cyclePlacementSupportSurface) this.office3D.cyclePlacementSupportSurface(1);
+        this.syncPlacementSurfaceLabel();
+      });
+      if (this.els.moveViewWallsBtn) this.els.moveViewWallsBtn.addEventListener('click', () => {
+        if (!this.office3D?.setDecorMoveModeView) return;
+        this.office3D.setDecorMoveModeView({ viewZone: 'wall', face: this.office3D.moveMode?.face || 'back' });
+        this.syncMoveModeHud(true);
+      });
+      if (this.els.moveViewFloorBtn) this.els.moveViewFloorBtn.addEventListener('click', () => {
+        if (!this.office3D?.setDecorMoveModeView) return;
+        this.office3D.setDecorMoveModeView({ viewZone: 'floor', viewIndex: this.office3D.moveMode?.viewIndex || 0 });
+        this.syncMoveModeHud(true);
+      });
+      if (this.els.moveViewDeskBtn) this.els.moveViewDeskBtn.addEventListener('click', () => {
+        if (!this.office3D?.setDecorMoveModeView) return;
+        this.office3D.setDecorMoveModeView({ viewZone: 'desk', supportSurface: this.office3D.moveMode?.supportSurface || 'desk' });
+        this.syncMoveModeHud(true);
+      });
+      if (this.els.moveFocusNextBtn) this.els.moveFocusNextBtn.addEventListener('click', () => {
+        if (this.office3D?.focusNextDecorMoveTarget) this.office3D.focusNextDecorMoveTarget(1);
+        this.syncMoveModeHud(true);
       });
       if (this.els.worldUtilityCloseBtn) this.els.worldUtilityCloseBtn.addEventListener('click', () => this.closeWorldUtility());
       if (this.els.worldUtilityOverlay) {
@@ -5662,6 +5709,7 @@ const WORKSPACE_SECTION_DEFS = {
       const floorFinish = this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic('floorFinish') : ((this.app.state.equippedCosmetics || {}).floorFinish || 'default');
       const deskFinish = this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic('deskFinish') : ((this.app.state.equippedCosmetics || {}).deskFinish || 'default');
       const chairFinish = this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic('chairFinish') : ((this.app.state.equippedCosmetics || {}).chairFinish || 'default');
+      const deskFrame = this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic('deskFrame') : ((this.app.state.equippedCosmetics || {}).deskFrame || 'default');
       if (this.els.officeScene) {
         this.els.officeScene.dataset.officeTier = String(this.app.state.officeTier);
         this.els.officeScene.dataset.era = this.app.state.activeEraId || 'foundation';
@@ -5679,6 +5727,7 @@ const WORKSPACE_SECTION_DEFS = {
           floorFinish,
           deskFinish,
           chairFinish,
+          deskFrame,
           graphicsQuality: this.app.state.graphicsQuality,
           placements: {
             wall: Object.assign({}, placementState.wall || {}),
@@ -5740,7 +5789,7 @@ const WORKSPACE_SECTION_DEFS = {
       if (!id || id === 'default') return null;
       const zone = DECOR_PLACEMENT_ZONES[id] || null;
       if (!zone) return null;
-      if (!['office', 'wall', 'desk', 'floor', 'shelf'].includes(category)) return null;
+      if (!['office', 'wall', 'desk', 'floor', 'furniture', 'shelf'].includes(category)) return null;
       return zone;
     },
 
@@ -5757,7 +5806,7 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     getPlacementZoneDisplayName(zone = '') {
-      return ({ wall: 'Wall Placement', floor: 'Floor Placement', desk: 'Desk Placement' })[zone] || 'Decor Placement';
+      return ({ wall: 'Wall Placement', floor: 'Floor Placement', desk: 'Display Surface Placement' })[zone] || 'Decor Placement';
     },
 
     syncPlacementWallLabel() {
@@ -5769,6 +5818,12 @@ const WORKSPACE_SECTION_DEFS = {
       } else {
         this.els.placementWallLabel.textContent = this.getPlacementZoneDisplayName(zone).replace(' Placement', '');
       }
+    },
+
+    syncPlacementSurfaceLabel() {
+      if (!this.els.placementSurfaceLabel) return;
+      const label = this.office3D?.getPlacementSupportLabel ? this.office3D.getPlacementSupportLabel() : 'Main Desk';
+      this.els.placementSurfaceLabel.textContent = label || 'Main Desk';
     },
 
     syncMoveModeWallLabel() {
@@ -5821,6 +5876,7 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && (normalizedZone === 'floor' || normalizedZone === 'desk')));
+      if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.toggle('hidden', !(active && normalizedZone === 'desk'));
       const showBackToMove = !!(active && options.fromMoveMode && normalizedZone !== 'wall');
       if (this.els.placementBackToMoveBtn) {
         this.els.placementBackToMoveBtn.classList.toggle('hidden', !showBackToMove);
@@ -5839,11 +5895,14 @@ const WORKSPACE_SECTION_DEFS = {
       const kicker = this.els.placementHud?.querySelector?.('.placement-kicker');
       if (kicker) kicker.textContent = zoneName;
       if (this.els.placementCopy) this.els.placementCopy.innerHTML = active ? instructions : 'Move the ghost object, then click to place. Floor items can rotate with the mouse wheel or rotate buttons.';
-      if (active) this.syncPlacementWallLabel();
+      if (active) {
+        this.syncPlacementWallLabel();
+        this.syncPlacementSurfaceLabel();
+      }
     },
 
     getPlaceableCosmeticEntryById(id) {
-      const categories = ['office', 'wall', 'desk', 'floor', 'shelf'];
+      const categories = ['office', 'wall', 'desk', 'floor', 'furniture', 'shelf'];
       for (const category of categories) {
         const item = (DATA.cosmetics[category] || []).find(entry => entry.id === id);
         if (!item) continue;
@@ -5875,6 +5934,8 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.add('hidden');
+      if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.add('hidden');
+      if (this.els.moveBrowseControls) this.els.moveBrowseControls.classList.toggle('hidden', !active);
       if (this.els.placementBackToMoveBtn) {
         this.els.placementBackToMoveBtn.classList.toggle('hidden', !(active && viewZone !== 'wall'));
         this.els.placementBackToMoveBtn.textContent = '↓ Wall View';
@@ -5884,7 +5945,7 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.worldQuickActions) this.els.worldQuickActions.classList.toggle('hidden', !!active);
       const kicker = this.els.placementHud?.querySelector?.('.placement-kicker');
       if (kicker) kicker.textContent = viewZone === 'desk' ? 'Move Mode · Desk' : viewZone === 'floor' ? 'Move Mode · Floor' : 'Move Mode';
-      if (this.els.placementTitle) this.els.placementTitle.textContent = active ? 'Grab placed decor' : 'Place decor';
+      if (this.els.placementTitle) this.els.placementTitle.textContent = active ? 'Arrange the office' : 'Place decor';
       if (active) this.syncMoveModeWallLabel();
       else if (this.els.placementWallLabel) this.els.placementWallLabel.textContent = 'Back Wall';
       if (this.els.placementCopy) {
@@ -6044,6 +6105,7 @@ const WORKSPACE_SECTION_DEFS = {
         }
       });
       this.syncPlacementWallLabel();
+      this.syncPlacementSurfaceLabel();
     },
 
     startWallDecorPlacement(category, id) {
@@ -6051,7 +6113,7 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     renderShop() {
-      const allowedCategories = ['office', 'wall', 'desk', 'floor', 'shelf', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish'];
+      const allowedCategories = ['office', 'wall', 'desk', 'floor', 'furniture', 'shelf', 'wallFinish', 'floorFinish', 'deskFinish', 'deskFrame', 'chairFinish'];
       const category = allowedCategories.includes(this.app.state.currentShopView) ? this.app.state.currentShopView : 'office';
       if (category !== this.app.state.currentShopView) this.app.state.currentShopView = category;
       const currentSuite = this.app.getOfficeSuiteDef();
@@ -6069,7 +6131,7 @@ const WORKSPACE_SECTION_DEFS = {
           </div>
         </article>` : `<article class="manager-card card suite-card done"><div class="manager-top"><div class="manager-name"><span class="icon-badge">🏢</span> ${currentSuite.name}</div><span class="tag">maxed</span></div><p class="muted">Your office suite is as ridiculous as it needs to be.</p></article>`;
 
-      const slotlessCategory = this.app.isSlotlessCosmeticCategory ? this.app.isSlotlessCosmeticCategory(category) : ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish'].includes(category);
+      const slotlessCategory = this.app.isSlotlessCosmeticCategory ? this.app.isSlotlessCosmeticCategory(category) : ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish', 'deskFrame'].includes(category);
       const items = (DATA.cosmetics[category] || []).filter(item => slotlessCategory || item.id !== 'default');
       this.els.shopList.innerHTML = items.map(item => {
         const owned = !!this.app.state.purchasedCosmetics[category][item.id];
