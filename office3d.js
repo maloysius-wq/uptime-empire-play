@@ -5039,7 +5039,7 @@
       return this.getFloorFootprint(world.x, world.z, spec.w, spec.d, world.rotationY);
     }
 
-    placementFootprintFitsSurface(footprint, support, clearance = 0.004) {
+    placementFootprintFitsSurface(footprint, support, clearance = 0) {
       if (!footprint || !support) return false;
       const supportFootprint = this.getFloorFootprint(support.x, support.z, support.width, support.depth, support.rotationY || 0);
       const dx = footprint.x - supportFootprint.x;
@@ -5050,8 +5050,11 @@
       );
       const alongWidth = Math.abs(dx * supportFootprint.axisWidth.x + dz * supportFootprint.axisWidth.z) + projectRadius(supportFootprint.axisWidth);
       const alongDepth = Math.abs(dx * supportFootprint.axisDepth.x + dz * supportFootprint.axisDepth.z) + projectRadius(supportFootprint.axisDepth);
-      return alongWidth <= supportFootprint.halfWidth - clearance
-        && alongDepth <= supportFootprint.halfDepth - clearance;
+      // Allow an item to meet the edge exactly. The epsilon is purely to keep
+      // a mathematically exact fit from flickering red through float rounding.
+      const edgeEpsilon = 0.0000001;
+      return alongWidth <= supportFootprint.halfWidth - clearance + edgeEpsilon
+        && alongDepth <= supportFootprint.halfDepth - clearance + edgeEpsilon;
     }
 
     placementFootprintsIntersect(a, b, clearance = 0.018) {
@@ -5379,7 +5382,6 @@
         const topY = spec.h - 0.035;
         addBox(spec.w, 0.07, spec.d, 0x465562, 0, topY);
         addBox(spec.w - 0.11, 0.025, spec.d - 0.12, 0x2a3d48, 0, topY + 0.046);
-        addBox(spec.w - 0.16, 0.26, spec.d - 0.10, 0x263541, 0, 0.43);
         [-0.11, 0.11].forEach(y => addBox(spec.w - 0.28, 0.024, 0.020, 0x91a8b7, 0, 0.43 + y, -spec.d / 2 - 0.012));
         [-1, 1].forEach(x => [-1, 1].forEach(z => {
           addCylinder(0.055, 0.055, 0.035, 0x151e26, x * (spec.w / 2 - 0.11), 0.035, z * (spec.d / 2 - 0.11));
