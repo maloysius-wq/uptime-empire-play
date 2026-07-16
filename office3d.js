@@ -1368,7 +1368,7 @@
     handlePlacementWheel(event) {
       if (!this.placementMode || !this.loaded) return;
       const zone = this.normalizePlacementZone(this.placementMode.zone || 'wall');
-      if (zone !== 'floor') return;
+      if (zone === 'wall') return;
       const delta = Number(event.deltaY || 0);
       if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) return;
       this.rotatePlacementItem(delta < 0 ? 1 : -1);
