@@ -297,6 +297,7 @@ const WORKSPACE_SECTION_DEFS = {
         placementWallLabel: $('placementWallLabel'),
         placementCopy: $('placementCopy'),
         placementCancelBtn: $('placementCancelBtn'),
+        placementFloorplanBtn: $('placementFloorplanBtn'),
         placementWallPrevBtn: $('placementWallPrevBtn'),
         placementWallNextBtn: $('placementWallNextBtn'),
         placementRotateControls: $('placementRotateControls'),
@@ -929,6 +930,18 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.placementCancelBtn) this.els.placementCancelBtn.addEventListener('click', () => {
         if (this.office3D?.placementMode && this.office3D.cancelPlacementMode) this.office3D.cancelPlacementMode();
         else if (this.office3D?.moveMode && this.office3D.cancelDecorMoveMode) this.office3D.cancelDecorMoveMode();
+      });
+      if (this.els.placementFloorplanBtn) this.els.placementFloorplanBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.office3D?.toggleTopDownEditView) return;
+        this.office3D.toggleTopDownEditView();
+        if (this.office3D.placementMode) {
+          const mode = this.office3D.placementMode;
+          this.syncPlacementHud(true, mode.itemName || 'decor', mode.zone || 'floor');
+        } else if (this.office3D.moveMode) {
+          this.syncMoveModeHud(true);
+        }
       });
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.addEventListener('click', e => {
         e.preventDefault();
@@ -5873,28 +5886,30 @@ const WORKSPACE_SECTION_DEFS = {
     syncPlacementHud(active, itemName = '', zone = 'wall', options = {}) {
       const normalizedZone = ['wall', 'floor', 'desk'].includes(zone) ? zone : 'wall';
       const freeRoam = !!this.office3D?.placementMode?.freeRoam;
+      const topDown = !!this.office3D?.isTopDownEditActive?.();
       if (this.els.placementHud) this.els.placementHud.classList.toggle('hidden', !active);
       if (this.els.placementReticle) this.els.placementReticle.classList.toggle('hidden', !(active && freeRoam));
-      const showSideArrows = active && !freeRoam && (normalizedZone === 'wall' || normalizedZone === 'floor');
+      const showSideArrows = false;
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && (normalizedZone === 'floor' || normalizedZone === 'desk')));
       if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.toggle('hidden', !(active && normalizedZone === 'desk'));
-      const showBackToMove = !!(active && options.fromMoveMode && normalizedZone !== 'wall');
+      if (this.els.placementFloorplanBtn) {
+        const showFloorplan = active && normalizedZone === 'floor';
+        this.els.placementFloorplanBtn.classList.toggle('hidden', !showFloorplan);
+        this.els.placementFloorplanBtn.classList.toggle('is-active', topDown);
+        this.els.placementFloorplanBtn.textContent = topDown ? 'Exit Floorplan' : 'Floorplan';
+      }
       if (this.els.placementBackToMoveBtn) {
-        this.els.placementBackToMoveBtn.classList.toggle('hidden', !showBackToMove);
-        this.els.placementBackToMoveBtn.textContent = '↓ Wall View';
+        this.els.placementBackToMoveBtn.classList.add('hidden');
       }
       document.body.classList.toggle('wall-placement-mode', !!active);
       if (!active) document.body.classList.remove('decor-move-mode');
       if (this.els.worldQuickActions) this.els.worldQuickActions.classList.toggle('hidden', !!active);
       const zoneName = this.getPlacementZoneDisplayName(normalizedZone);
-      const instructions = normalizedZone === 'wall'
-        ? 'Move the ghost object with your mouse, then <strong>click</strong> to place. Use the side arrows to switch walls. Press <strong>Esc</strong> or Cancel to stop placing.'
-        : normalizedZone === 'floor'
-          ? `Move the ghost object on the floor, then <strong>click</strong> to place. Use the mouse wheel or Rotate 90° buttons to turn the object. Use the side arrows to rotate the view.${showBackToMove ? ' Use <strong>↓ Wall View</strong> to zoom back out and keep searching.' : ''} Press <strong>Esc</strong> or Cancel to stop placing.`
-          : `Move the ghost object within the ${normalizedZone} zone, then <strong>click</strong> to place.${showBackToMove ? ' Use <strong>↓ Wall View</strong> to zoom back out and keep searching.' : ''} Press <strong>Esc</strong> or Cancel to stop placing.`;
-      const compactInstructions = normalizedZone === 'desk'
+      const compactInstructions = topDown
+        ? 'Floorplan active. Aim across the floor and click or use the action control to place.'
+        : normalizedZone === 'desk'
         ? 'Walk and aim at the selected surface. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.'
         : `Walk and aim at the ${normalizedZone}. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.`;
       if (this.els.placementTitle) this.els.placementTitle.textContent = active ? `Place ${itemName || 'decor'}` : 'Place decor';
@@ -5936,35 +5951,38 @@ const WORKSPACE_SECTION_DEFS = {
       const moveView = this.getCurrentMoveModeView();
       const viewZone = moveView.viewZone || 'wall';
       const freeRoam = !!this.office3D?.moveMode?.freeRoam;
+      const topDown = !!this.office3D?.isTopDownEditActive?.();
       if (this.els.placementHud) this.els.placementHud.classList.toggle('hidden', !active);
       if (this.els.placementReticle) this.els.placementReticle.classList.toggle('hidden', !(active && freeRoam));
-      const showSideArrows = !!(active && !freeRoam && (viewZone === 'wall' || viewZone === 'floor'));
+      const showSideArrows = false;
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.add('hidden');
       if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.add('hidden');
-      if (this.els.moveBrowseControls) this.els.moveBrowseControls.classList.toggle('hidden', !active || freeRoam);
+      if (this.els.moveBrowseControls) this.els.moveBrowseControls.classList.add('hidden');
+      if (this.els.placementFloorplanBtn) {
+        this.els.placementFloorplanBtn.classList.toggle('hidden', !active);
+        this.els.placementFloorplanBtn.classList.toggle('is-active', topDown);
+        this.els.placementFloorplanBtn.textContent = topDown ? 'Exit Floorplan' : 'Floorplan';
+      }
       if (this.els.placementBackToMoveBtn) {
-        this.els.placementBackToMoveBtn.classList.toggle('hidden', !(active && viewZone !== 'wall'));
-        this.els.placementBackToMoveBtn.textContent = '↓ Wall View';
+        this.els.placementBackToMoveBtn.classList.add('hidden');
       }
       document.body.classList.toggle('wall-placement-mode', !!active);
       document.body.classList.toggle('decor-move-mode', !!active);
       if (this.els.worldQuickActions) this.els.worldQuickActions.classList.toggle('hidden', !!active);
       const kicker = this.els.placementHud?.querySelector?.('.placement-kicker');
-      if (kicker) kicker.textContent = viewZone === 'desk' ? 'Move Mode · Desk' : viewZone === 'floor' ? 'Move Mode · Floor' : 'Move Mode';
+      if (kicker) kicker.textContent = topDown ? 'Move Mode · Floorplan' : 'Move Mode';
       if (this.els.placementTitle) this.els.placementTitle.textContent = active ? 'Arrange the office' : 'Place decor';
-      if (active) this.syncMoveModeWallLabel();
+      if (active && topDown && this.els.placementWallLabel) this.els.placementWallLabel.textContent = 'Floorplan';
+      else if (active) this.syncMoveModeWallLabel();
       else if (this.els.placementWallLabel) this.els.placementWallLabel.textContent = 'Back Wall';
       if (this.els.placementCopy) {
-        const copy = viewZone === 'desk'
-          ? 'Click another desk item to grab it, or use <strong>↓ Wall View</strong> to zoom back out. Press <strong>Esc</strong> or Cancel to exit Move Mode.'
-          : viewZone === 'floor'
-            ? 'Use the side arrows to rotate the floor view, then click any placed shop item to grab it. Use <strong>↓ Wall View</strong> to zoom back out. Press <strong>Esc</strong> or Cancel to exit Move Mode.'
-            : 'Use the side arrows to look around each wall, then click any placed shop item to grab it. Floor and desk items will zoom into their placement view. Press <strong>Esc</strong> or Cancel to exit Move Mode.';
-        this.els.placementCopy.innerHTML = active && freeRoam
+        this.els.placementCopy.innerHTML = active && topDown
+          ? 'Floorplan active. Click a floor item to grab it, then place it from above.'
+          : active && freeRoam
           ? 'Walk up to an item, center it in the reticle, then <strong>click</strong> to grab it.'
-          : active ? copy : 'Move the ghost object, then click to place.';
+          : 'Move the ghost object, then click to place.';
       }
     },
 
@@ -6042,7 +6060,10 @@ const WORKSPACE_SECTION_DEFS = {
           this.app.renderAll();
           requestAnimationFrame(() => {
             if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, options.returnMoveView || {}));
-            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            else {
+              this.office3D?.exitTopDownEditView?.();
+              if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            }
           });
         },
         onCancel: () => {
@@ -6051,7 +6072,10 @@ const WORKSPACE_SECTION_DEFS = {
           this.toast(options.returnToMoveMode ? 'Grab cancelled. Pick another item.' : 'Placement cancelled.');
           requestAnimationFrame(() => {
             if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, options.returnMoveView || {}));
-            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            else {
+              this.office3D?.exitTopDownEditView?.();
+              if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            }
           });
         }
       });
@@ -6100,7 +6124,10 @@ const WORKSPACE_SECTION_DEFS = {
           this.app.renderAll();
           requestAnimationFrame(() => {
             if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, returnView));
-            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            else {
+              this.office3D?.exitTopDownEditView?.();
+              if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            }
           });
         },
         onCancel: () => {
@@ -6110,7 +6137,10 @@ const WORKSPACE_SECTION_DEFS = {
           this.toast(options.returnToMoveMode ? 'Grab cancelled. Pick another item.' : 'Placement cancelled.');
           requestAnimationFrame(() => {
             if (options.returnToMoveMode) this.startShopMoveMode(Object.assign({ silent: true }, returnView));
-            else if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            else {
+              this.office3D?.exitTopDownEditView?.();
+              if (!this.computerOpen && !this.worldUtilityOpen && this.office3D?.resumeManualControl) this.office3D.resumeManualControl();
+            }
           });
         }
       });

@@ -148,6 +148,7 @@
       this.renderCostSamples = [];
       this.performanceStats = { renderedFrames: 0, totalRenderCostMs: 0, lastRenderCostMs: 0 };
       this.obstacles = [];
+      this.placementObstacles = [];
       this.autoPath = [];
       this.autoStuckTimer = 0;
       this.autoIndex = 0;
@@ -292,6 +293,7 @@
       };
       this.placementMode = null;
       this.moveMode = null;
+      this.topDownEditView = null;
       this.moveFocusMarker = null;
       this.selectableDecor = [];
       this.moveFocusMarker = null;
@@ -439,11 +441,29 @@
         if (!this.loaded) return;
         this.primeOfficeAudio();
         if (this.placementMode) {
+          if (this.placementMode.freeRoam && !this.isTopDownEditActive() && !this.mobileControls.available && !this.pointerLocked) {
+            this.resumeManualControl();
+            event.preventDefault();
+            return;
+          }
+          if (this.isTopDownEditActive()) {
+            const placement = this.getFreeRoamPlacement(event);
+            if (placement) {
+              this.placementMode.placement = placement;
+              if (placement.face) this.placementMode.face = placement.face;
+              this.positionPlacementGhost(placement);
+            }
+          }
           this.commitPlacementMode();
           event.preventDefault();
           return;
         }
         if (this.moveMode) {
+          if (this.moveMode.freeRoam && !this.isTopDownEditActive() && !this.mobileControls.available && !this.pointerLocked) {
+            this.resumeManualControl();
+            event.preventDefault();
+            return;
+          }
           this.handleMoveModeClick(event);
           event.preventDefault();
           return;
@@ -564,8 +584,16 @@
       document.body?.classList.toggle('mobile-office-controls-visible', visible);
     }
 
+    isFreeRoamEditing() {
+      return !!(this.placementMode?.freeRoam || this.moveMode?.freeRoam);
+    }
+
+    isTopDownEditActive() {
+      return !!this.topDownEditView?.active;
+    }
+
     isManualControlActive() {
-      return this.pointerLocked || !!(this.mobileControls?.available && this.mobileControls.active);
+      return this.pointerLocked || !!(this.mobileControls?.available && this.mobileControls.active) || this.isFreeRoamEditing();
     }
 
     activateMobileControls() {
@@ -768,6 +796,70 @@
         this.arcadeTransition = null;
         this.arcadeView = null;
       }
+    }
+
+    getTopDownEditPose() {
+      const room = this.room || { width: 7.4, depth: 9.2, height: 3.4 };
+      const verticalFov = (this.camera?.fov || 66) * Math.PI / 180;
+      const aspect = Math.max(0.35, Number(this.camera?.aspect) || 1);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+      const heightForWidth = (room.width * 0.56) / Math.max(0.08, Math.tan(horizontalFov / 2));
+      const heightForDepth = (room.depth * 0.56) / Math.max(0.08, Math.tan(verticalFov / 2));
+      return {
+        x: 0,
+        y: Math.max(room.height + 1.2, heightForWidth, heightForDepth),
+        z: room.depth * 0.045,
+        yaw: 0,
+        pitch: -CAMERA_PITCH_LIMIT,
+        bob: 0,
+        walkPhase: 0
+      };
+    }
+
+    enterTopDownEditView() {
+      if ((!this.placementMode && !this.moveMode) || this.isTopDownEditActive()) return this.isTopDownEditActive();
+      this.topDownEditView = {
+        active: true,
+        returnPose: {
+          x: this.player.x,
+          y: this.player.y,
+          z: this.player.z,
+          yaw: this.player.yaw,
+          pitch: this.player.pitch,
+          bob: this.player.bob,
+          walkPhase: this.player.walkPhase
+        }
+      };
+      this.releaseManualControl();
+      Object.assign(this.player, this.getTopDownEditPose());
+      this.camera?.position.set(this.player.x, this.player.y, this.player.z);
+      this.camera?.rotation.set(this.player.pitch, this.player.yaw, 0, 'YXZ');
+      document.body?.classList.add('floorplan-edit-mode');
+      this.updateFreeRoamPlacement();
+      this.updateOverlay('floorplan view');
+      return true;
+    }
+
+    exitTopDownEditView(resumeManual = false) {
+      if (!this.isTopDownEditActive()) return false;
+      const returnPose = this.topDownEditView.returnPose;
+      this.topDownEditView = null;
+      document.body?.classList.remove('floorplan-edit-mode');
+      if (returnPose) Object.assign(this.player, returnPose);
+      if (resumeManual) this.resumeManualControl();
+      this.updateOverlay();
+      return true;
+    }
+
+    toggleTopDownEditView() {
+      return this.isTopDownEditActive()
+        ? this.exitTopDownEditView(true)
+        : this.enterTopDownEditView();
+    }
+
+    updateTopDownEditView() {
+      if (!this.isTopDownEditActive()) return;
+      Object.assign(this.player, this.getTopDownEditPose());
     }
 
     handleMouseMove(event) {
@@ -1207,7 +1299,7 @@
         face: this.normalizeWallFace(mode.face || 'back'),
         viewIndex: Number.isFinite(Number(mode.viewIndex)) ? Number(mode.viewIndex) : 0
       };
-      this.finishDecorMoveMode(false);
+      this.finishDecorMoveMode(false, { preserveTopDown: this.isTopDownEditActive() });
       if (mode.onSelect) mode.onSelect(picked);
     }
 
@@ -1232,15 +1324,16 @@
         onCancel: typeof onCancel === 'function' ? onCancel : null
       };
       this.canvas?.classList.add('is-moving-decor');
-      this.resumeManualControl();
+      if (!this.isTopDownEditActive()) this.resumeManualControl();
       this.updateOverlay('move mode');
     }
 
-    finishDecorMoveMode(notify = false) {
+    finishDecorMoveMode(notify = false, options = {}) {
       const mode = this.moveMode;
       this.moveMode = null;
       this.clearMoveFocusMarker();
       this.canvas?.classList.remove('is-moving-decor');
+      if (!options.preserveTopDown) this.exitTopDownEditView(false);
       this.updateOverlay();
       if (notify && mode?.onCancel) mode.onCancel();
     }
@@ -1548,6 +1641,9 @@
 
     updateFreeRoamPlacement() {
       if (!this.placementMode?.freeRoam || !this.loaded) return;
+      // In floorplan mode the pointer picks the floor directly. Recasting from
+      // the center each frame would pull the ghost back beneath the reticle.
+      if (this.isTopDownEditActive()) return;
       const placement = this.getFreeRoamPlacement();
       if (!placement) return;
       this.placementMode.placement = placement;
@@ -1618,7 +1714,7 @@
       };
       this.positionPlacementGhost(this.placementMode.placement);
       this.canvas?.classList.add('is-placing-wall-decor');
-      this.resumeManualControl();
+      if (!this.isTopDownEditActive()) this.resumeManualControl();
       this.updateOverlay('placement mode');
     }
 
@@ -1683,6 +1779,7 @@
 
     handleKey(event) {
       const key = (event.key || '').toLowerCase();
+      const freeRoamEditing = this.isFreeRoamEditing();
       if (event.type === 'keydown') this.primeOfficeAudio();
       if (this.arcadeHold && this.onArcadeInput) {
         if (this.onArcadeInput({ type: event.type, key, event }) !== false) event.preventDefault();
@@ -1698,12 +1795,12 @@
         event.preventDefault();
         return;
       }
-      if (this.placementMode && event.type === 'keydown' && (key === 'q' || key === 'arrowleft')) {
+      if (this.placementMode && !freeRoamEditing && event.type === 'keydown' && (key === 'q' || key === 'arrowleft')) {
         this.cyclePlacementSide(1);
         event.preventDefault();
         return;
       }
-      if (this.placementMode && event.type === 'keydown' && (key === 'e' || key === 'arrowright')) {
+      if (this.placementMode && !freeRoamEditing && event.type === 'keydown' && (key === 'e' || key === 'arrowright')) {
         this.cyclePlacementSide(-1);
         event.preventDefault();
         return;
@@ -1734,7 +1831,22 @@
         return;
       }
       if (this.placementMode || this.moveMode) {
-        event.preventDefault();
+        if (!freeRoamEditing) {
+          event.preventDefault();
+          return;
+        }
+        if (key === 'e') {
+          if (event.type === 'keydown') {
+            if (this.placementMode) this.commitPlacementMode();
+            else this.handleMoveModeClick();
+            event.preventDefault();
+          }
+          return;
+        }
+        if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift'].includes(key)) {
+          this.keys[key] = event.type === 'keydown';
+          event.preventDefault();
+        }
         return;
       }
       if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e'].includes(key)) {
@@ -1877,12 +1989,20 @@
       if (!this.loaded) return;
       const botSpeechActive = this.botSpeechText && performance.now() < this.botSpeechUntil;
       const botSpeechSuffix = botSpeechActive ? ` • ${this.botSpeechText}` : '';
-      if (this.moveMode) {
+      if (this.moveMode && this.isTopDownEditActive()) {
+        this.setHint(`Move Mode • <strong>FLOORPLAN</strong> • click a floor item to grab it • Floorplan returns you to the room view${botSpeechSuffix}`);
+      } else if (this.moveMode?.freeRoam) {
+        this.setHint(`Move Mode • <strong>FREE ROAM</strong> • walk normally • center an item and click or press <strong>E</strong> to grab it • <strong>Esc</strong> exits${botSpeechSuffix}`);
+      } else if (this.moveMode) {
         const moveZone = this.normalizePlacementZone(this.moveMode.viewZone || 'wall');
         const wallLabel = this.getWallFaceLabel(this.moveMode.face || 'back').toUpperCase();
         const viewLabel = moveZone === 'desk' ? 'DESK VIEW' : moveZone === 'floor' ? 'FLOOR VIEW' : `${wallLabel} WALL`;
         const navCopy = moveZone === 'desk' ? 'use ↓ Wall View to zoom back out' : moveZone === 'floor' ? 'use the side arrows to rotate the floor view or ↓ Wall View to zoom back out' : 'use the side arrows to look around';
         this.setHint(`Move Mode • <strong>${viewLabel}</strong> • click a placed shop object to grab it • ${navCopy} • Cancel or <strong>Esc</strong> exits${botSpeechSuffix}`);
+      } else if (this.placementMode && this.isTopDownEditActive()) {
+        this.setHint(`Placement Mode • <strong>FLOORPLAN</strong> • aim across the floor and click or press <strong>E</strong> to place • Floorplan returns you to the room view${botSpeechSuffix}`);
+      } else if (this.placementMode?.freeRoam) {
+        this.setHint(`Placement Mode • <strong>FREE ROAM</strong> • walk normally • aim the ghost, then click or press <strong>E</strong> to place • <strong>Esc</strong> cancels${botSpeechSuffix}`);
       } else if (this.placementMode) {
         const zone = this.normalizePlacementZone(this.placementMode.zone || 'wall');
         if (zone === 'wall') {
@@ -3331,7 +3451,7 @@
 
     updateFootstepAudio(moving = false, running = false, dt = 0.016) {
       const foot = this.footstepAudio;
-      if (!foot || this.state.soundEnabled === false || !this.isManualControlActive() || this.computerHold || this.arcadeHold || this.placementMode || this.moveMode) {
+      if (!foot || this.state.soundEnabled === false || !this.isManualControlActive() || this.computerHold || this.arcadeHold || ((this.placementMode || this.moveMode) && !this.isFreeRoamEditing())) {
         if (foot) {
           foot.stepTimer = 0;
           foot.wasMoving = false;
@@ -3565,6 +3685,9 @@
         this.root.remove(child);
       }
       this.obstacles = [];
+      this.placementObstacles = [];
+      this.topDownEditView = null;
+      document.body?.classList.remove('floorplan-edit-mode');
       this.autoPath = [];
       this.autoStuckTimer = 0;
       this.arcadeAnchor = { x: 0, z: 0, yaw: 0 };
@@ -3731,7 +3854,23 @@
       this.root.add(glow);
     }
 
-    addObstacle(x, z, w, d, pad = 0.18, rotationY = 0) {
+    addPlacementObstacle(x, z, w, d, pad = 0, rotationY = 0, options = {}) {
+      if (!this.placementObstacles) this.placementObstacles = [];
+      const id = String(options.id || `fixture:${this.placementObstacles.length}`);
+      this.placementObstacles.push({
+        id,
+        label: String(options.label || id.replace(/^fixture:/, '').replace(/^decor:/, '')),
+        decorId: options.decorId || '',
+        x: Number(x) || 0,
+        z: Number(z) || 0,
+        w: Math.max(0.04, Number(w) || 0.04),
+        d: Math.max(0.04, Number(d) || 0.04),
+        pad: Math.max(0, Number(pad) || 0),
+        rotationY: Number(rotationY) || 0
+      });
+    }
+
+    addObstacle(x, z, w, d, pad = 0.18, rotationY = 0, options = {}) {
       const halfWidth = Math.max(0.02, Number(w || 0) / 2);
       const halfDepth = Math.max(0.02, Number(d || 0) / 2);
       const c = Math.abs(Math.cos(Number(rotationY) || 0));
@@ -3739,6 +3878,7 @@
       const extentX = halfWidth * c + halfDepth * s + pad;
       const extentZ = halfWidth * s + halfDepth * c + pad;
       this.obstacles.push({ minX: x - extentX, maxX: x + extentX, minZ: z - extentZ, maxZ: z + extentZ });
+      if (options.placement !== false) this.addPlacementObstacle(x, z, w, d, pad, rotationY, options);
     }
 
     makeContactShadowTexture() {
@@ -3992,7 +4132,7 @@
       } else {
         this.buildExpandedDeskFrame(deskFrame, deskCenterZ, deskY, deskH, deskSpec);
       }
-      this.addObstacle(0, deskCenterZ, deskW, deskD, 0.3);
+      this.addObstacle(0, deskCenterZ, deskW, deskD, 0.3, 0, { id: 'fixture:desk', label: 'desk' });
       this.computerInteractive = { position: { x: 0, z: deskCenterZ + deskD / 2 + 0.61 }, radius: 1.85, yaw: 0 };
 
       const uploadedChair = this.createUploadedChairModel(0.92, 0.92, 1.28);
@@ -4015,7 +4155,7 @@
         chair.add(base);
         this.root.add(chair);
       }
-      this.addObstacle(0.1, deskCenterZ + deskD / 2 + 0.56, 0.92, 0.92, 0.08);
+      this.addObstacle(0.1, deskCenterZ + deskD / 2 + 0.56, 0.92, 0.92, 0.08, 0, { id: 'fixture:desk-chair', label: 'desk chair' });
 
       const rackCount = this.state.tier >= 3 ? 2 : 1;
       const leftRackX = -room.width / 2 + 0.72;
@@ -4055,7 +4195,7 @@
             }
           }
         }
-        this.addObstacle(rackX, rackZ, rackW, rackD, 0.2);
+        this.addObstacle(rackX, rackZ, rackW, rackD, 0.2, 0, { id: `fixture:server-rack-${i}`, label: 'server rack' });
       }
 
       const primaryRackX = this.layout.rackXs[0] || leftRackX;
@@ -4074,7 +4214,7 @@
       storage.receiveShadow = true;
       this.root.add(storage);
       this.addContactShadow(storageX, storageZ + 0.02, 1.02, 0.94, 0.18);
-      this.addObstacle(storageX, storageZ, 0.82, 0.78, 0.16);
+      this.addObstacle(storageX, storageZ, 0.82, 0.78, 0.16, 0, { id: 'fixture:storage-cabinet', label: 'storage cabinet' });
       const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.74, 1.36, 0.03), new THREE.MeshStandardMaterial({ color: 0x59697d, roughness: 0.82 }));
       doorFrame.castShadow = true;
       doorFrame.receiveShadow = true;
@@ -4226,6 +4366,7 @@
       const holder = new THREE.Group();
       this.root.add(holder);
       const obstacleIndex = this.obstacles.length;
+      const placementObstacleIndex = this.placementObstacles.length;
 
       const width = 0.96;
       const depth = 1.04;
@@ -4264,7 +4405,8 @@
         yaw: Math.PI
       };
       this.obstacles.length = obstacleIndex;
-      this.addObstacle(centerX, centerZ + 0.02, 1.08, 1.18, 0.18);
+      this.placementObstacles.length = placementObstacleIndex;
+      this.addObstacle(centerX, centerZ + 0.02, 1.08, 1.18, 0.18, 0, { id: 'fixture:arcade-cabinet', label: 'arcade cabinet' });
       this.addContactShadow(centerX, centerZ + 0.02, 0.92, 0.70, 0.20);
     }
 
@@ -4748,44 +4890,79 @@
         && Number(spec.h || 0) > 0.055;
     }
 
+    isPlacementBlockingFloorProp(id) {
+      const spec = this.getPlacedPropSpec(id);
+      return this.isSolidFloorProp(id) || spec.kind === 'pendant-light';
+    }
+
     getPlacementCollisionCandidates(zone, itemId) {
       const safeZone = this.normalizePlacementZone(zone);
       const placements = this.state.placements || { wall: {}, floor: {}, desk: {} };
       const candidates = [];
       const seen = new Set();
-      const addCandidate = (id, placement) => {
-        if (!id || id === itemId || seen.has(id) || !placement) return;
-        seen.add(id);
-        candidates.push({ id, placement: Object.assign({}, placement) });
+      const addCandidate = (id, placement, options = {}) => {
+        const key = String(options.key || id || '');
+        if (!id || key === itemId || options.decorId === itemId || seen.has(key) || (!placement && !options.footprint)) return;
+        seen.add(key);
+        candidates.push({
+          id,
+          placement: placement ? Object.assign({}, placement) : null,
+          footprint: options.footprint || null,
+          blocksFloor: !!options.blocksFloor
+        });
       };
 
       if (safeZone === 'wall') {
         Object.values(WORLD_OPERATION_DISPLAY_DEFS).forEach(fixture => {
           addCandidate(fixture.id, this.getWorldOperationsFixturePlacement(fixture.id));
         });
+      } else if (safeZone === 'floor') {
+        (this.placementObstacles || []).forEach(obstacle => {
+          addCandidate(obstacle.label || obstacle.id, null, {
+            key: obstacle.id,
+            decorId: obstacle.decorId,
+            footprint: this.getPlacementObstacleFootprint(obstacle),
+            blocksFloor: true
+          });
+        });
       }
 
       (this.state.decorations || []).forEach(id => {
         if (this.getDecorPlacementZone(id) !== safeZone) return;
         const placement = (placements[safeZone] || {})[id] || this.getDefaultDecorPlacement(id, safeZone);
-        addCandidate(id, placement);
+        addCandidate(id, placement, { blocksFloor: safeZone === 'floor' && this.isPlacementBlockingFloorProp(id) });
       });
       return candidates;
+    }
+
+    getFloorFootprint(x, z, width, depth, rotationY = 0) {
+      const yaw = Number(rotationY || 0);
+      return {
+        x: Number(x) || 0,
+        z: Number(z) || 0,
+        halfWidth: Math.max(0.02, Number(width || 0.42) / 2),
+        halfDepth: Math.max(0.02, Number(depth || 0.32) / 2),
+        axisWidth: { x: Math.cos(yaw), z: -Math.sin(yaw) },
+        axisDepth: { x: Math.sin(yaw), z: Math.cos(yaw) }
+      };
+    }
+
+    getPlacementObstacleFootprint(obstacle) {
+      const pad = Math.max(0, Number(obstacle?.pad) || 0);
+      return this.getFloorFootprint(
+        obstacle?.x,
+        obstacle?.z,
+        Math.max(0.04, Number(obstacle?.w) || 0.04) + pad * 2,
+        Math.max(0.04, Number(obstacle?.d) || 0.04) + pad * 2,
+        obstacle?.rotationY
+      );
     }
 
     getPlacementFootprint(zone, itemId, placement) {
       const safeZone = this.normalizePlacementZone(zone);
       const spec = this.getPlacedPropSpec(itemId);
       const world = this.decorPlacementToWorld(safeZone, placement);
-      const yaw = Number(world.rotationY || 0);
-      return {
-        x: world.x,
-        z: world.z,
-        halfWidth: Math.max(0.02, Number(spec.w || 0.42) / 2),
-        halfDepth: Math.max(0.02, Number(spec.d || 0.32) / 2),
-        axisWidth: { x: Math.cos(yaw), z: -Math.sin(yaw) },
-        axisDepth: { x: Math.sin(yaw), z: Math.cos(yaw) }
-      };
+      return this.getFloorFootprint(world.x, world.z, spec.w, spec.d, world.rotationY);
     }
 
     placementFootprintsIntersect(a, b, clearance = 0.018) {
@@ -4828,11 +5005,11 @@
           ? { valid: false, reason: `${overlap.id} already occupies this wall space.` }
           : { valid: true, reason: '' };
       }
-      if (!this.isSolidFloorProp(itemId)) return { valid: true, reason: '' };
+      if (!this.isPlacementBlockingFloorProp(itemId)) return { valid: true, reason: '' };
       const footprint = this.getPlacementFootprint(safeZone, itemId, placement);
       const overlap = candidates.find(candidate => {
-        if (!this.isSolidFloorProp(candidate.id)) return false;
-        const candidateFootprint = this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
+        if (!candidate.blocksFloor && !this.isPlacementBlockingFloorProp(candidate.id)) return false;
+        const candidateFootprint = candidate.footprint || this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
         return this.placementFootprintsIntersect(footprint, candidateFootprint);
       });
       return overlap
@@ -5149,7 +5326,11 @@
       if (!opts.ghost && id === 'ops-workbench') {
         this.visualQATargets.furniture = { x: pos.x, y: pos.y + 0.62, z: pos.z };
       }
-      if (!opts.ghost && safeZone === 'floor' && this.isSolidFloorProp(id)) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0);
+      if (!opts.ghost && safeZone === 'floor') {
+        const placementOptions = { id: `decor:${id}`, label: id, decorId: id };
+        if (this.isSolidFloorProp(id)) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0, placementOptions);
+        else if (this.isPlacementBlockingFloorProp(id)) this.addPlacementObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0, placementOptions);
+      }
       this.root.add(group);
       return group;
     }
@@ -6412,6 +6593,8 @@
         }
       } else if (this.computerHold || this.arcadeHold) {
         this.player.bob = 0;
+      } else if (this.isTopDownEditActive()) {
+        this.updateTopDownEditView();
       } else if (this.isManualControlActive()) this.updateManual(dt);
       else {
         // No room autopilot: outside pointer lock, the player stays where they left off.
