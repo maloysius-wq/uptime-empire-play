@@ -18,9 +18,9 @@
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
-    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk',
+    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor', 'uplink-radio': 'floor',
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor',
     'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
   const WORLD_OPERATION_DISPLAY_DEFS = {
@@ -1450,10 +1450,10 @@
 
     getDeskSupportDefinitions() {
       return {
-        'ops-workbench': { label: 'Ops Workbench', width: 1.42, depth: 0.54, height: 0.79 },
-        'sidecar-table': { label: 'Rolling Sidecar', width: 0.76, depth: 0.50, height: 0.68 },
-        'display-shelf': { label: 'Showcase Shelf', width: 0.82, depth: 0.30, height: 1.42 },
-        'lab-shelving': { label: 'Lab Storage Shelf', width: 1.28, depth: 0.36, height: 1.28 }
+        'ops-workbench': { label: 'Ops Workbench', width: 1.48, depth: 0.56, height: 0.79 },
+        'sidecar-table': { label: 'Rolling Sidecar', width: 0.82, depth: 0.58, height: 0.68 },
+        'display-shelf': { label: 'Showcase Shelf', width: 0.92, depth: 0.42, height: 1.42 },
+        'lab-shelving': { label: 'Lab Storage Shelf', width: 1.34, depth: 0.48, height: 1.28 }
       };
     }
 
@@ -1472,7 +1472,7 @@
         };
         return {
           id: 'desk', label: 'Main Desk', x: layout.x, z: layout.z, y: layout.surfaceY,
-          width: Math.max(0.52, layout.width - 0.18), depth: Math.max(0.32, layout.depth - 0.16), rotationY: 0
+          width: Math.max(0.52, layout.width - 0.10), depth: Math.max(0.32, layout.depth - 0.10), rotationY: 0
         };
       }
       if (id === 'fixture-storage-cabinet') {
@@ -1484,8 +1484,8 @@
           x: room.width / 2 - 1.72,
           z: deskZ + 0.22,
           y: 1.575,
-          width: 0.64,
-          depth: 0.60,
+          width: 0.72,
+          depth: 0.66,
           rotationY: 0
         };
       }
@@ -5039,7 +5039,7 @@
       return this.getFloorFootprint(world.x, world.z, spec.w, spec.d, world.rotationY);
     }
 
-    placementFootprintFitsSurface(footprint, support, clearance = 0.012) {
+    placementFootprintFitsSurface(footprint, support, clearance = 0.004) {
       if (!footprint || !support) return false;
       const supportFootprint = this.getFloorFootprint(support.x, support.z, support.width, support.depth, support.rotationY || 0);
       const dx = footprint.x - supportFootprint.x;
