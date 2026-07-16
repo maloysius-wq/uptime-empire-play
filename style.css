@@ -9425,3 +9425,140 @@ body.office-computer-mode[data-ui-skin="crt"] .terminal-dock-head > span {
 @media (prefers-reduced-motion: reduce) {
   body.office-computer-mode .idle-skin-canvas { display: none !important; }
 }
+
+/* Compact, reticle-led furniture editor. The office remains the focal point. */
+.placement-hud {
+  top: 86px;
+  width: min(390px, calc(100vw - 24px));
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(4, 12, 18, 0.92);
+  box-shadow: 0 9px 28px rgba(0, 0, 0, 0.34);
+}
+
+.placement-kicker {
+  margin-bottom: 1px;
+  font-size: 0.58rem;
+  letter-spacing: 0.11em;
+}
+
+.placement-title-row {
+  min-height: 26px;
+  gap: 7px;
+  padding-right: 44px;
+}
+
+.placement-title {
+  margin-bottom: 0;
+  font-size: 0.88rem;
+}
+
+.placement-wall-label {
+  margin-top: 2px;
+  padding: 2px 6px;
+  font-size: 0.58rem;
+}
+
+.placement-copy {
+  min-height: 17px;
+  margin-top: 4px;
+  padding-right: 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.placement-cancel-btn {
+  top: 8px;
+  right: 8px;
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 0.66rem;
+  transform: none;
+}
+
+.placement-rotate-controls,
+.placement-mode-actions {
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.placement-rotate-controls .soft-btn,
+.placement-mode-actions .soft-btn {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 0.62rem;
+}
+
+.placement-surface-controls,
+.move-browse-controls {
+  top: 184px;
+  width: min(390px, calc(100vw - 24px));
+  min-height: 32px;
+  padding: 5px 7px;
+  border-radius: 8px;
+}
+
+.placement-surface-label {
+  min-width: 112px;
+  font-size: 0.62rem;
+}
+
+.placement-surface-controls .soft-btn,
+.move-browse-controls .soft-btn {
+  min-height: 26px;
+  padding: 4px 7px;
+  font-size: 0.6rem;
+}
+
+.placement-reticle {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 218;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 5px rgba(111, 238, 211, 0.55));
+}
+
+.placement-reticle::before,
+.placement-reticle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  background: rgba(225, 255, 247, 0.9);
+  border-radius: 99px;
+  box-shadow: 0 0 4px rgba(111, 238, 211, 0.9);
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
+.placement-reticle::before { width: 20px; height: 2px; }
+.placement-reticle::after { width: 2px; height: 20px; }
+.placement-reticle.hidden { display: none; }
+
+@media (max-width: 840px) {
+  .placement-hud { top: 116px; }
+
+  .placement-surface-controls,
+  .move-browse-controls { top: 211px; }
+}
+
+@media (max-width: 720px) {
+  .placement-hud {
+    top: 110px;
+    width: min(374px, calc(100vw - 20px));
+    padding: 7px 8px;
+  }
+
+  .placement-title { font-size: 0.8rem; }
+  .placement-copy { font-size: 0.62rem; }
+
+  .placement-surface-controls,
+  .move-browse-controls {
+    top: 201px;
+    width: min(374px, calc(100vw - 20px));
+  }
+}

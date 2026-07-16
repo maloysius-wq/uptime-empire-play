@@ -559,7 +559,8 @@
 
     updateMobileControlsVisibility() {
       const controls = this.mobileControls;
-      const visible = !!controls.available && !this.computerHold && !this.arcadeHold && !this.placementMode && !this.moveMode;
+      const freeRoamEditing = !!(this.placementMode?.freeRoam || this.moveMode?.freeRoam);
+      const visible = !!controls.available && !this.computerHold && !this.arcadeHold && (!this.placementMode && !this.moveMode || freeRoamEditing);
       document.body?.classList.toggle('mobile-office-controls-visible', visible);
     }
 
@@ -568,7 +569,8 @@
     }
 
     activateMobileControls() {
-      if (!this.mobileControls.available || !this.loaded || this.computerHold || this.arcadeHold || this.placementMode || this.moveMode) return;
+      const freeRoamEditing = !!(this.placementMode?.freeRoam || this.moveMode?.freeRoam);
+      if (!this.mobileControls.available || !this.loaded || this.computerHold || this.arcadeHold || ((this.placementMode || this.moveMode) && !freeRoamEditing)) return;
       this.mobileControls.active = true;
       this.updateOverlay();
     }
@@ -653,6 +655,14 @@
       event.preventDefault();
       this.activateMobileControls();
       this.primeOfficeAudio();
+      if (this.placementMode) {
+        this.commitPlacementMode();
+        return;
+      }
+      if (this.moveMode) {
+        this.handleMoveModeClick();
+        return;
+      }
       this.performNearbyInteraction();
     }
 
@@ -739,8 +749,30 @@
       }
     }
 
+    prepareForDecorEditing() {
+      if (this.computerHold || this.computerTransition) {
+        const exit = this.getDeskExitPose();
+        this.computerTransition = null;
+        this.computerHold = false;
+        this.computerView = null;
+        this.player.x = exit.x;
+        this.player.y = exit.y || this.player.y || 1.62;
+        this.player.z = exit.z;
+        this.player.yaw = exit.yaw;
+        this.player.pitch = exit.pitch;
+        this.player.bob = 0;
+        this.player.walkPhase = 0;
+      }
+      if (this.arcadeHold || this.arcadeTransition) {
+        this.arcadeHold = false;
+        this.arcadeTransition = null;
+        this.arcadeView = null;
+      }
+    }
+
     handleMouseMove(event) {
-      if (this.placementMode || this.moveMode) return;
+      const freeRoamEditing = !!(this.placementMode?.freeRoam || this.moveMode?.freeRoam);
+      if ((this.placementMode || this.moveMode) && !freeRoamEditing) return;
       if (!this.pointerLocked || !this.loaded) return;
       this.player.yaw -= event.movementX * 0.0022;
       this.player.pitch = clamp(this.player.pitch - event.movementY * 0.0020, -CAMERA_PITCH_LIMIT, CAMERA_PITCH_LIMIT);
@@ -1060,9 +1092,10 @@
       const THREE = this.THREE;
       const rect = this.canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
+      const useReticle = !!this.moveMode?.freeRoam && (!event || this.pointerLocked || this.mobileControls?.active);
       const ndc = new THREE.Vector2(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -(((event.clientY - rect.top) / rect.height) * 2 - 1)
+        useReticle ? 0 : ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        useReticle ? 0 : -(((event.clientY - rect.top) / rect.height) * 2 - 1)
       );
       if (!this._placementRaycaster) this._placementRaycaster = new THREE.Raycaster();
       this._placementRaycaster.setFromCamera(ndc, this.camera);
@@ -1144,6 +1177,11 @@
       const target = targets[index];
       this.moveMode.focusIndex = index;
       this.moveMode.focusedId = target.id;
+      if (this.moveMode.freeRoam) {
+        this.showMoveFocusMarker(target);
+        this.updateOverlay(`focused ${target.id}; walk over and click it to grab`);
+        return target;
+      }
       if (zone === 'wall') {
         this.setDecorMoveModeView({ viewZone: 'wall', face: target.placement?.face || this.moveMode.face || 'back' });
       } else if (zone === 'floor') {
@@ -1175,6 +1213,7 @@
 
     startDecorMoveMode({ onSelect = null, onCancel = null, face = null, viewZone = 'wall', viewIndex = 0 } = {}) {
       if (!this.loaded || !this.root) return;
+      this.prepareForDecorEditing();
       const safeViewZone = this.normalizePlacementZone(viewZone);
       const startingFace = WALL_PLACEMENT_FACES.includes(face)
         ? face
@@ -1188,12 +1227,12 @@
         face: this.normalizeWallFace(startingFace),
         viewZone: safeViewZone,
         viewIndex: Number.isFinite(Number(viewIndex)) ? Number(viewIndex) : 0,
+        freeRoam: true,
         onSelect: typeof onSelect === 'function' ? onSelect : null,
         onCancel: typeof onCancel === 'function' ? onCancel : null
       };
-      this.setDecorMoveModeView({ viewZone: this.moveMode.viewZone, face: this.moveMode.face, viewIndex: this.moveMode.viewIndex });
       this.canvas?.classList.add('is-moving-decor');
-      this.focusNextDecorMoveTarget(1);
+      this.resumeManualControl();
       this.updateOverlay('move mode');
     }
 
@@ -1213,6 +1252,7 @@
 
     handlePlacementPointerMove(event) {
       if (!this.placementMode || !this.loaded) return;
+      if (this.placementMode.freeRoam && this.pointerLocked) return;
       const placement = this.getPlacementFromPointer(event);
       if (!placement) return;
       this.placementMode.placement = placement;
@@ -1443,8 +1483,76 @@
     }
 
     getPlacementFromPointer(event) {
+      if (this.placementMode?.freeRoam) return this.getFreeRoamPlacement(event);
       const zone = this.normalizePlacementZone(this.placementMode?.zone || 'wall');
       return zone === 'wall' ? this.getWallPlacementFromPointer(event) : this.getSurfacePlacementFromPointer(event, zone);
+    }
+
+    getFreeRoamPlacement(event = null) {
+      if (!this.camera || !this.canvas || !this.THREE || !this.placementMode) return null;
+      const THREE = this.THREE;
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      const clientX = Number.isFinite(Number(event?.clientX)) ? Number(event.clientX) : rect.left + rect.width / 2;
+      const clientY = Number.isFinite(Number(event?.clientY)) ? Number(event.clientY) : rect.top + rect.height / 2;
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      if (!this._placementRaycaster) this._placementRaycaster = new THREE.Raycaster();
+      this._placementRaycaster.setFromCamera(ndc, this.camera);
+      const zone = this.normalizePlacementZone(this.placementMode.zone || 'floor');
+
+      if (zone === 'wall') {
+        let nearest = null;
+        WALL_PLACEMENT_FACES.forEach(face => {
+          const bounds = this.getWallPlacementBounds(face);
+          const point = new THREE.Vector3();
+          if (!this._placementRaycaster.ray.intersectPlane(this.getWallPlacementPlane(face), point)) return;
+          const along = face === 'left' || face === 'right' ? point.z : point.x;
+          if (along < bounds.minAlong || along > bounds.maxAlong || point.y < bounds.minY || point.y > bounds.maxY) return;
+          const distance = this._placementRaycaster.ray.origin.distanceToSquared(point);
+          if (!nearest || distance < nearest.distance) nearest = { point, face, distance };
+        });
+        return nearest ? this.normalizeWallPlacement(nearest.point, nearest.face) : null;
+      }
+
+      const support = zone === 'desk' ? this.resolveDeskSupportSurface(this.placementMode.placement?.support || 'desk') : null;
+      const bounds = this.getSurfacePlacementBounds(zone);
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(support ? support.y : bounds.y));
+      const point = new THREE.Vector3();
+      if (!this._placementRaycaster.ray.intersectPlane(plane, point)) return null;
+      const rotation = Number.isFinite(Number(this.placementMode.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0;
+      if (support) {
+        const c = Math.cos(support.rotationY || 0);
+        const s = Math.sin(support.rotationY || 0);
+        const dx = point.x - support.x;
+        const dz = point.z - support.z;
+        const localX = clamp(dx * c - dz * s, -support.width / 2, support.width / 2);
+        const localZ = clamp(dx * s + dz * c, -support.depth / 2, support.depth / 2);
+        return {
+          x: clamp((localX + support.width / 2) / Math.max(0.001, support.width), 0, 1),
+          y: clamp((localZ + support.depth / 2) / Math.max(0.001, support.depth), 0, 1),
+          rotation,
+          support: support.id
+        };
+      }
+      point.x = clamp(point.x, bounds.minX, bounds.maxX);
+      point.z = clamp(point.z, bounds.minZ, bounds.maxZ);
+      return {
+        x: clamp((point.x - bounds.minX) / Math.max(0.001, bounds.maxX - bounds.minX), 0, 1),
+        y: clamp((point.z - bounds.minZ) / Math.max(0.001, bounds.maxZ - bounds.minZ), 0, 1),
+        rotation
+      };
+    }
+
+    updateFreeRoamPlacement() {
+      if (!this.placementMode?.freeRoam || !this.loaded) return;
+      const placement = this.getFreeRoamPlacement();
+      if (!placement) return;
+      this.placementMode.placement = placement;
+      if (placement.face) this.placementMode.face = placement.face;
+      this.positionPlacementGhost(placement);
     }
 
     getPlacementViewForZone(zone = 'floor', viewIndex = 0, supportSurface = 'desk') {
@@ -1471,6 +1579,7 @@
     startDecorPlacement({ zone = 'wall', itemId, itemName = 'decor', placement = null, viewIndex = 0, onPlace = null, onCancel = null } = {}) {
       const safeZone = this.normalizePlacementZone(zone);
       if (!itemId || !this.loaded || !this.root) return;
+      this.prepareForDecorEditing();
       this.releaseManualControl();
       this.pointerLocked = false;
       this.keys = Object.create(null);
@@ -1489,7 +1598,6 @@
       const initialViewIndex = safeZone === 'floor'
         ? (Number.isFinite(Number(viewIndex)) ? ((Math.round(Number(viewIndex)) % 4) + 4) % 4 : this.getNearestSurfaceViewIndexFromYaw(this.player?.yaw))
         : 0;
-      this.applyDecorPlacementView(safeZone, normalizedFace || 'back', initialViewIndex, normalizedPlacement.support || 'desk');
       const fixture = safeZone === 'wall' ? WORLD_OPERATION_DISPLAY_DEFS[itemId] : null;
       const ghost = fixture
         ? this.createWorldOperationsDisplay(Object.assign({}, fixture, { placement: normalizedPlacement, ghost: true }))
@@ -1503,12 +1611,14 @@
         itemName,
         placement: normalizedPlacement,
         viewIndex: initialViewIndex,
+        freeRoam: true,
         ghost,
         onPlace: typeof onPlace === 'function' ? onPlace : null,
         onCancel: typeof onCancel === 'function' ? onCancel : null
       };
       this.positionPlacementGhost(this.placementMode.placement);
       this.canvas?.classList.add('is-placing-wall-decor');
+      this.resumeManualControl();
       this.updateOverlay('placement mode');
     }
 
@@ -3621,8 +3731,14 @@
       this.root.add(glow);
     }
 
-    addObstacle(x, z, w, d, pad = 0.18) {
-      this.obstacles.push({ minX: x - w / 2 - pad, maxX: x + w / 2 + pad, minZ: z - d / 2 - pad, maxZ: z + d / 2 + pad });
+    addObstacle(x, z, w, d, pad = 0.18, rotationY = 0) {
+      const halfWidth = Math.max(0.02, Number(w || 0) / 2);
+      const halfDepth = Math.max(0.02, Number(d || 0) / 2);
+      const c = Math.abs(Math.cos(Number(rotationY) || 0));
+      const s = Math.abs(Math.sin(Number(rotationY) || 0));
+      const extentX = halfWidth * c + halfDepth * s + pad;
+      const extentZ = halfWidth * s + halfDepth * c + pad;
+      this.obstacles.push({ minX: x - extentX, maxX: x + extentX, minZ: z - extentZ, maxZ: z + extentZ });
     }
 
     makeContactShadowTexture() {
@@ -4627,7 +4743,9 @@
 
     isSolidFloorProp(id) {
       const spec = this.getPlacedPropSpec(id);
-      return spec.kind !== 'pendant-light' && Number(spec.h || 0) > 0.055;
+      return !['floor-bot', 'chair-upgrade'].includes(id)
+        && spec.kind !== 'pendant-light'
+        && Number(spec.h || 0) > 0.055;
     }
 
     getPlacementCollisionCandidates(zone, itemId) {
@@ -5031,7 +5149,7 @@
       if (!opts.ghost && id === 'ops-workbench') {
         this.visualQATargets.furniture = { x: pos.x, y: pos.y + 0.62, z: pos.z };
       }
-      if (!opts.ghost && ['bookcase', 'cold-spares', 'server-island', 'ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'].includes(id)) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10);
+      if (!opts.ghost && safeZone === 'floor' && this.isSolidFloorProp(id)) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0);
       this.root.add(group);
       return group;
     }
@@ -6302,6 +6420,7 @@
       this.updateFloorBot(dt);
       this.camera.position.set(this.player.x, this.player.y + this.player.bob, this.player.z);
       this.camera.rotation.set(this.player.pitch, this.player.yaw, 0, 'YXZ');
+      this.updateFreeRoamPlacement();
       const now = performance.now();
       const overlayInterval = this.graphicsProfile?.overlayInterval || 110;
       if (now >= this.nextOverlayUpdateAt) {

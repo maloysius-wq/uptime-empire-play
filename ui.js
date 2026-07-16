@@ -292,6 +292,7 @@ const WORKSPACE_SECTION_DEFS = {
         worldUtilitySubtitle: $('worldUtilitySubtitle'),
         worldUtilityCloseBtn: $('worldUtilityCloseBtn'),
         placementHud: $('placementHud'),
+        placementReticle: $('placementReticle'),
         placementTitle: $('placementTitle'),
         placementWallLabel: $('placementWallLabel'),
         placementCopy: $('placementCopy'),
@@ -5871,8 +5872,10 @@ const WORKSPACE_SECTION_DEFS = {
 
     syncPlacementHud(active, itemName = '', zone = 'wall', options = {}) {
       const normalizedZone = ['wall', 'floor', 'desk'].includes(zone) ? zone : 'wall';
+      const freeRoam = !!this.office3D?.placementMode?.freeRoam;
       if (this.els.placementHud) this.els.placementHud.classList.toggle('hidden', !active);
-      const showSideArrows = active && (normalizedZone === 'wall' || normalizedZone === 'floor');
+      if (this.els.placementReticle) this.els.placementReticle.classList.toggle('hidden', !(active && freeRoam));
+      const showSideArrows = active && !freeRoam && (normalizedZone === 'wall' || normalizedZone === 'floor');
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && (normalizedZone === 'floor' || normalizedZone === 'desk')));
@@ -5891,10 +5894,13 @@ const WORKSPACE_SECTION_DEFS = {
         : normalizedZone === 'floor'
           ? `Move the ghost object on the floor, then <strong>click</strong> to place. Use the mouse wheel or Rotate 90° buttons to turn the object. Use the side arrows to rotate the view.${showBackToMove ? ' Use <strong>↓ Wall View</strong> to zoom back out and keep searching.' : ''} Press <strong>Esc</strong> or Cancel to stop placing.`
           : `Move the ghost object within the ${normalizedZone} zone, then <strong>click</strong> to place.${showBackToMove ? ' Use <strong>↓ Wall View</strong> to zoom back out and keep searching.' : ''} Press <strong>Esc</strong> or Cancel to stop placing.`;
+      const compactInstructions = normalizedZone === 'desk'
+        ? 'Walk and aim at the selected surface. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.'
+        : `Walk and aim at the ${normalizedZone}. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.`;
       if (this.els.placementTitle) this.els.placementTitle.textContent = active ? `Place ${itemName || 'decor'}` : 'Place decor';
       const kicker = this.els.placementHud?.querySelector?.('.placement-kicker');
       if (kicker) kicker.textContent = zoneName;
-      if (this.els.placementCopy) this.els.placementCopy.innerHTML = active ? instructions : 'Move the ghost object, then click to place. Floor items can rotate with the mouse wheel or rotate buttons.';
+      if (this.els.placementCopy) this.els.placementCopy.innerHTML = active ? compactInstructions : 'Move the ghost object, then click to place.';
       if (active) {
         this.syncPlacementWallLabel();
         this.syncPlacementSurfaceLabel();
@@ -5929,13 +5935,15 @@ const WORKSPACE_SECTION_DEFS = {
       this.moveModeActive = !!active;
       const moveView = this.getCurrentMoveModeView();
       const viewZone = moveView.viewZone || 'wall';
+      const freeRoam = !!this.office3D?.moveMode?.freeRoam;
       if (this.els.placementHud) this.els.placementHud.classList.toggle('hidden', !active);
-      const showSideArrows = !!(active && (viewZone === 'wall' || viewZone === 'floor'));
+      if (this.els.placementReticle) this.els.placementReticle.classList.toggle('hidden', !(active && freeRoam));
+      const showSideArrows = !!(active && !freeRoam && (viewZone === 'wall' || viewZone === 'floor'));
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.add('hidden');
       if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.add('hidden');
-      if (this.els.moveBrowseControls) this.els.moveBrowseControls.classList.toggle('hidden', !active);
+      if (this.els.moveBrowseControls) this.els.moveBrowseControls.classList.toggle('hidden', !active || freeRoam);
       if (this.els.placementBackToMoveBtn) {
         this.els.placementBackToMoveBtn.classList.toggle('hidden', !(active && viewZone !== 'wall'));
         this.els.placementBackToMoveBtn.textContent = '↓ Wall View';
@@ -5954,7 +5962,9 @@ const WORKSPACE_SECTION_DEFS = {
           : viewZone === 'floor'
             ? 'Use the side arrows to rotate the floor view, then click any placed shop item to grab it. Use <strong>↓ Wall View</strong> to zoom back out. Press <strong>Esc</strong> or Cancel to exit Move Mode.'
             : 'Use the side arrows to look around each wall, then click any placed shop item to grab it. Floor and desk items will zoom into their placement view. Press <strong>Esc</strong> or Cancel to exit Move Mode.';
-        this.els.placementCopy.innerHTML = active ? copy : 'Move the ghost object, then click to place.';
+        this.els.placementCopy.innerHTML = active && freeRoam
+          ? 'Walk up to an item, center it in the reticle, then <strong>click</strong> to grab it.'
+          : active ? copy : 'Move the ghost object, then click to place.';
       }
     },
 
