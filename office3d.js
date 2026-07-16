@@ -83,7 +83,7 @@
   }
 
   class Office3DScene {
-    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onArcadeInput = null, onComputerInteract = null, onRobotInteract = null, onStationInteract = null }) {
+    constructor({ canvas, hintEl, modeEl, onArcadeInteract = null, onArcadeInput = null, onComputerInteract = null, onRobotInteract = null, onStationInteract = null, onEditorViewChange = null }) {
       this.canvas = canvas;
       this.hintEl = hintEl || null;
       this.modeEl = modeEl || null;
@@ -93,6 +93,7 @@
       this.onComputerInteract = typeof onComputerInteract === 'function' ? onComputerInteract : null;
       this.onRobotInteract = typeof onRobotInteract === 'function' ? onRobotInteract : null;
       this.onStationInteract = typeof onStationInteract === 'function' ? onStationInteract : null;
+      this.onEditorViewChange = typeof onEditorViewChange === 'function' ? onEditorViewChange : null;
       this.loaded = false;
       this.destroyed = false;
       this.width = 0;
@@ -808,9 +809,11 @@
       return {
         x: 0,
         y: Math.max(room.height + 1.2, heightForWidth, heightForDepth),
-        z: room.depth * 0.045,
+        z: 0,
         yaw: 0,
-        pitch: -CAMERA_PITCH_LIMIT,
+        // This is intentionally outside the first-person pitch clamp. A plan
+        // view must look straight down at the room, not almost straight down.
+        pitch: -Math.PI / 2,
         bob: 0,
         walkPhase: 0
       };
@@ -837,6 +840,7 @@
       document.body?.classList.add('floorplan-edit-mode');
       this.updateFreeRoamPlacement();
       this.updateOverlay('floorplan view');
+      this.onEditorViewChange?.({ topDown: true });
       return true;
     }
 
@@ -848,6 +852,7 @@
       if (returnPose) Object.assign(this.player, returnPose);
       if (resumeManual) this.resumeManualControl();
       this.updateOverlay();
+      this.onEditorViewChange?.({ topDown: false });
       return true;
     }
 
@@ -1121,6 +1126,7 @@
       const snapped = Math.round(current / increment) * increment;
       this.placementMode.placement.rotation = snapped + increment * direction;
       this.positionPlacementGhost(this.placementMode.placement);
+      if (zone === 'desk' && this.placementMode.surfaceTargetValid === false) this.setSurfacePlacementTargetState(false);
     }
 
     getWallPlacementFromPointer(event, face = null) {
@@ -1184,7 +1190,9 @@
       const THREE = this.THREE;
       const rect = this.canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
-      const useReticle = !!this.moveMode?.freeRoam && (!event || this.pointerLocked || this.mobileControls?.active);
+      const useReticle = !!this.moveMode?.freeRoam
+        && !this.isTopDownEditActive()
+        && (!event || this.pointerLocked || this.mobileControls?.active);
       const ndc = new THREE.Vector2(
         useReticle ? 0 : ((event.clientX - rect.left) / rect.width) * 2 - 1,
         useReticle ? 0 : -(((event.clientY - rect.top) / rect.height) * 2 - 1)
@@ -1347,6 +1355,10 @@
       if (!this.placementMode || !this.loaded) return;
       if (this.placementMode.freeRoam && this.pointerLocked) return;
       const placement = this.getPlacementFromPointer(event);
+      if (this.placementMode.freeRoam) {
+        this.applyFreeRoamPlacement(placement);
+        return;
+      }
       if (!placement) return;
       this.placementMode.placement = placement;
       if (placement.face) this.placementMode.face = placement.face;
@@ -1463,6 +1475,20 @@
           width: Math.max(0.52, layout.width - 0.18), depth: Math.max(0.32, layout.depth - 0.16), rotationY: 0
         };
       }
+      if (id === 'fixture-storage-cabinet') {
+        const room = this.room || { width: 7.4, depth: 9.2 };
+        const deskZ = -room.depth / 2 + 0.62;
+        return {
+          id,
+          label: 'Storage Cabinet',
+          x: room.width / 2 - 1.72,
+          z: deskZ + 0.22,
+          y: 1.575,
+          width: 0.64,
+          depth: 0.60,
+          rotationY: 0
+        };
+      }
       const definition = this.getDeskSupportDefinitions()[id];
       if (!definition || !(this.state.decorations || []).includes(id)) return null;
       const placement = ((this.state.placements || {}).floor || {})[id] || this.getDefaultDecorPlacement(id, 'floor');
@@ -1471,11 +1497,17 @@
     }
 
     getAvailableDeskSupportIds() {
-      const ids = ['desk'];
+      const ids = ['desk', 'fixture-storage-cabinet'];
       Object.keys(this.getDeskSupportDefinitions()).forEach(id => {
         if (this.getDeskSupportSurface(id)) ids.push(id);
       });
       return ids;
+    }
+
+    getDeskSupportSurfaces() {
+      return this.getAvailableDeskSupportIds()
+        .map(id => this.getDeskSupportSurface(id))
+        .filter(Boolean);
     }
 
     resolveDeskSupportSurface(supportId = 'desk') {
@@ -1503,8 +1535,15 @@
       const room = this.room || { width: 7.4, depth: 9.2, height: 3.4 };
       const safeZone = this.normalizePlacementZone(zone);
       if (safeZone === 'desk') {
-        const deskZ = -room.depth / 2 + 0.62;
-        return { zone: safeZone, minX: -1.05, maxX: 1.05, minZ: deskZ - 0.14, maxZ: deskZ + 0.54, y: 0.855 };
+        const support = this.resolveDeskSupportSurface(this.placementMode?.placement?.support || 'desk');
+        return {
+          zone: safeZone,
+          minX: support.x - support.width / 2,
+          maxX: support.x + support.width / 2,
+          minZ: support.z - support.depth / 2,
+          maxZ: support.z + support.depth / 2,
+          y: support.y
+        };
       }
       return { zone: 'floor', minX: -room.width / 2 + 0.7, maxX: room.width / 2 - 0.7, minZ: -room.depth / 2 + 0.7, maxZ: room.depth / 2 - 0.7, y: 0.018 };
     }
@@ -1537,41 +1576,59 @@
       return { x: lerp(b.minX, b.maxX, clamp(px, 0, 1)), y: b.y, z: lerp(b.minZ, b.maxZ, clamp(py, 0, 1)), rotationY, zone: safeZone };
     }
 
+    getDeskPlacementFromRay(ray, rotation = 0) {
+      if (!ray || !this.THREE) return null;
+      const THREE = this.THREE;
+      let nearest = null;
+      this.getDeskSupportSurfaces().forEach(support => {
+        const point = new THREE.Vector3();
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -support.y);
+        if (!ray.intersectPlane(plane, point)) return;
+        const c = Math.cos(support.rotationY || 0);
+        const s = Math.sin(support.rotationY || 0);
+        const dx = point.x - support.x;
+        const dz = point.z - support.z;
+        const localX = dx * c - dz * s;
+        const localZ = dx * s + dz * c;
+        if (Math.abs(localX) > support.width / 2 || Math.abs(localZ) > support.depth / 2) return;
+        const distance = ray.origin.distanceToSquared(point);
+        if (!nearest || distance < nearest.distance) {
+          nearest = {
+            distance,
+            placement: {
+              x: clamp((localX + support.width / 2) / Math.max(0.001, support.width), 0, 1),
+              y: clamp((localZ + support.depth / 2) / Math.max(0.001, support.depth), 0, 1),
+              rotation,
+              support: support.id
+            }
+          };
+        }
+      });
+      return nearest?.placement || null;
+    }
+
     getSurfacePlacementFromPointer(event, zone = 'floor') {
       if (!this.camera || !this.canvas || !this.THREE) return null;
       const THREE = this.THREE;
       const safeZone = this.normalizePlacementZone(zone);
-      const support = safeZone === 'desk' ? this.resolveDeskSupportSurface(this.placementMode?.placement?.support || 'desk') : null;
       const b = this.getSurfacePlacementBounds(safeZone);
       const rect = this.canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
       const ndc = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -(((event.clientY - rect.top) / rect.height) * 2 - 1));
       if (!this._placementRaycaster) this._placementRaycaster = new THREE.Raycaster();
       this._placementRaycaster.setFromCamera(ndc, this.camera);
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(support ? support.y : b.y));
+      const rotation = Number.isFinite(Number(this.placementMode?.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0;
+      if (safeZone === 'desk') return this.getDeskPlacementFromRay(this._placementRaycaster.ray, rotation);
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -b.y);
       const point = new THREE.Vector3();
       const hit = this._placementRaycaster.ray.intersectPlane(plane, point);
       if (!hit) return null;
-      if (support) {
-        const c = Math.cos(support.rotationY || 0);
-        const s = Math.sin(support.rotationY || 0);
-        const dx = point.x - support.x;
-        const dz = point.z - support.z;
-        const localX = clamp(dx * c - dz * s, -support.width / 2, support.width / 2);
-        const localZ = clamp(dx * s + dz * c, -support.depth / 2, support.depth / 2);
-        return {
-          x: clamp((localX + support.width / 2) / Math.max(0.001, support.width), 0, 1),
-          y: clamp((localZ + support.depth / 2) / Math.max(0.001, support.depth), 0, 1),
-          rotation: Number.isFinite(Number(this.placementMode?.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0,
-          support: support.id
-        };
-      }
       point.x = clamp(point.x, b.minX, b.maxX);
       point.z = clamp(point.z, b.minZ, b.maxZ);
       return {
         x: clamp((point.x - b.minX) / Math.max(0.001, b.maxX - b.minX), 0, 1),
         y: clamp((point.z - b.minZ) / Math.max(0.001, b.maxZ - b.minZ), 0, 1),
-        rotation: Number.isFinite(Number(this.placementMode?.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0
+        rotation
       };
     }
 
@@ -1610,26 +1667,12 @@
         return nearest ? this.normalizeWallPlacement(nearest.point, nearest.face) : null;
       }
 
-      const support = zone === 'desk' ? this.resolveDeskSupportSurface(this.placementMode.placement?.support || 'desk') : null;
+      const rotation = Number.isFinite(Number(this.placementMode.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0;
+      if (zone === 'desk') return this.getDeskPlacementFromRay(this._placementRaycaster.ray, rotation) || { surfaceMiss: true };
       const bounds = this.getSurfacePlacementBounds(zone);
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(support ? support.y : bounds.y));
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -bounds.y);
       const point = new THREE.Vector3();
       if (!this._placementRaycaster.ray.intersectPlane(plane, point)) return null;
-      const rotation = Number.isFinite(Number(this.placementMode.placement?.rotation)) ? Number(this.placementMode.placement.rotation) : 0;
-      if (support) {
-        const c = Math.cos(support.rotationY || 0);
-        const s = Math.sin(support.rotationY || 0);
-        const dx = point.x - support.x;
-        const dz = point.z - support.z;
-        const localX = clamp(dx * c - dz * s, -support.width / 2, support.width / 2);
-        const localZ = clamp(dx * s + dz * c, -support.depth / 2, support.depth / 2);
-        return {
-          x: clamp((localX + support.width / 2) / Math.max(0.001, support.width), 0, 1),
-          y: clamp((localZ + support.depth / 2) / Math.max(0.001, support.depth), 0, 1),
-          rotation,
-          support: support.id
-        };
-      }
       point.x = clamp(point.x, bounds.minX, bounds.maxX);
       point.z = clamp(point.z, bounds.minZ, bounds.maxZ);
       return {
@@ -1639,16 +1682,33 @@
       };
     }
 
+    setSurfacePlacementTargetState(valid, reason = '') {
+      if (!this.placementMode) return;
+      this.placementMode.surfaceTargetValid = !!valid;
+      if (!valid) this.setPlacementGhostValidity(false, reason || 'Aim at a desk, table, cabinet, or shelf.');
+    }
+
+    applyFreeRoamPlacement(placement) {
+      if (!this.placementMode) return false;
+      const zone = this.normalizePlacementZone(this.placementMode.zone || 'floor');
+      if (zone === 'desk' && (!placement || placement.surfaceMiss)) {
+        this.setSurfacePlacementTargetState(false);
+        return false;
+      }
+      if (!placement) return false;
+      this.placementMode.surfaceTargetValid = true;
+      this.placementMode.placement = placement;
+      if (placement.face) this.placementMode.face = placement.face;
+      this.positionPlacementGhost(placement);
+      return true;
+    }
+
     updateFreeRoamPlacement() {
       if (!this.placementMode?.freeRoam || !this.loaded) return;
       // In floorplan mode the pointer picks the floor directly. Recasting from
       // the center each frame would pull the ghost back beneath the reticle.
       if (this.isTopDownEditActive()) return;
-      const placement = this.getFreeRoamPlacement();
-      if (!placement) return;
-      this.placementMode.placement = placement;
-      if (placement.face) this.placementMode.face = placement.face;
-      this.positionPlacementGhost(placement);
+      this.applyFreeRoamPlacement(this.getFreeRoamPlacement());
     }
 
     getPlacementViewForZone(zone = 'floor', viewIndex = 0, supportSurface = 'desk') {
@@ -1708,11 +1768,13 @@
         placement: normalizedPlacement,
         viewIndex: initialViewIndex,
         freeRoam: true,
+        surfaceTargetValid: safeZone !== 'desk',
         ghost,
         onPlace: typeof onPlace === 'function' ? onPlace : null,
         onCancel: typeof onCancel === 'function' ? onCancel : null
       };
       this.positionPlacementGhost(this.placementMode.placement);
+      if (safeZone === 'desk') this.setSurfacePlacementTargetState(false);
       this.canvas?.classList.add('is-placing-wall-decor');
       if (!this.isTopDownEditActive()) this.resumeManualControl();
       this.updateOverlay('placement mode');
@@ -1743,6 +1805,11 @@
       if (!this.placementMode) return;
       const mode = this.placementMode;
       const zone = this.normalizePlacementZone(mode.zone || 'wall');
+      if (zone === 'desk' && mode.surfaceTargetValid === false) {
+        this.setSurfacePlacementTargetState(false);
+        this.updateOverlay('surface required');
+        return;
+      }
       const placement = {
         x: clampUnitOr(mode.placement?.x, 0.5),
         y: clampUnitOr(mode.placement?.y, zone === 'wall' ? 0.56 : 0.5)
@@ -1783,6 +1850,12 @@
       if (event.type === 'keydown') this.primeOfficeAudio();
       if (this.arcadeHold && this.onArcadeInput) {
         if (this.onArcadeInput({ type: event.type, key, event }) !== false) event.preventDefault();
+        return;
+      }
+      const canUseFloorplan = !!this.moveMode || this.normalizePlacementZone(this.placementMode?.zone || 'wall') === 'floor';
+      if ((this.placementMode || this.moveMode) && canUseFloorplan && event.type === 'keydown' && key === 'p') {
+        this.toggleTopDownEditView();
+        event.preventDefault();
         return;
       }
       if (this.placementMode && event.type === 'keydown' && (key === 'escape' || key === 'esc')) {
@@ -1990,9 +2063,9 @@
       const botSpeechActive = this.botSpeechText && performance.now() < this.botSpeechUntil;
       const botSpeechSuffix = botSpeechActive ? ` • ${this.botSpeechText}` : '';
       if (this.moveMode && this.isTopDownEditActive()) {
-        this.setHint(`Move Mode • <strong>FLOORPLAN</strong> • click a floor item to grab it • Floorplan returns you to the room view${botSpeechSuffix}`);
+        this.setHint(`Move Mode • <strong>FLOORPLAN</strong> • click a floor item to grab it • press <strong>P</strong> to return to the room${botSpeechSuffix}`);
       } else if (this.moveMode?.freeRoam) {
-        this.setHint(`Move Mode • <strong>FREE ROAM</strong> • walk normally • center an item and click or press <strong>E</strong> to grab it • <strong>Esc</strong> exits${botSpeechSuffix}`);
+        this.setHint(`Move Mode • <strong>FREE ROAM</strong> • walk normally • center an item and click or press <strong>E</strong> to grab it • <strong>P</strong> opens Floorplan • <strong>Esc</strong> exits${botSpeechSuffix}`);
       } else if (this.moveMode) {
         const moveZone = this.normalizePlacementZone(this.moveMode.viewZone || 'wall');
         const wallLabel = this.getWallFaceLabel(this.moveMode.face || 'back').toUpperCase();
@@ -2000,9 +2073,10 @@
         const navCopy = moveZone === 'desk' ? 'use ↓ Wall View to zoom back out' : moveZone === 'floor' ? 'use the side arrows to rotate the floor view or ↓ Wall View to zoom back out' : 'use the side arrows to look around';
         this.setHint(`Move Mode • <strong>${viewLabel}</strong> • click a placed shop object to grab it • ${navCopy} • Cancel or <strong>Esc</strong> exits${botSpeechSuffix}`);
       } else if (this.placementMode && this.isTopDownEditActive()) {
-        this.setHint(`Placement Mode • <strong>FLOORPLAN</strong> • aim across the floor and click or press <strong>E</strong> to place • Floorplan returns you to the room view${botSpeechSuffix}`);
+        this.setHint(`Placement Mode • <strong>FLOORPLAN</strong> • aim across the floor and click or press <strong>E</strong> to place • press <strong>P</strong> to return to the room${botSpeechSuffix}`);
       } else if (this.placementMode?.freeRoam) {
-        this.setHint(`Placement Mode • <strong>FREE ROAM</strong> • walk normally • aim the ghost, then click or press <strong>E</strong> to place • <strong>Esc</strong> cancels${botSpeechSuffix}`);
+        const floorplanHint = this.normalizePlacementZone(this.placementMode.zone || 'floor') === 'floor' ? ' • <strong>P</strong> opens Floorplan' : '';
+        this.setHint(`Placement Mode • <strong>FREE ROAM</strong> • walk normally • aim the ghost, then click or press <strong>E</strong> to place${floorplanHint} • <strong>Esc</strong> cancels${botSpeechSuffix}`);
       } else if (this.placementMode) {
         const zone = this.normalizePlacementZone(this.placementMode.zone || 'wall');
         if (zone === 'wall') {
@@ -4965,6 +5039,21 @@
       return this.getFloorFootprint(world.x, world.z, spec.w, spec.d, world.rotationY);
     }
 
+    placementFootprintFitsSurface(footprint, support, clearance = 0.012) {
+      if (!footprint || !support) return false;
+      const supportFootprint = this.getFloorFootprint(support.x, support.z, support.width, support.depth, support.rotationY || 0);
+      const dx = footprint.x - supportFootprint.x;
+      const dz = footprint.z - supportFootprint.z;
+      const projectRadius = axis => (
+        Math.abs(footprint.axisWidth.x * axis.x + footprint.axisWidth.z * axis.z) * footprint.halfWidth
+        + Math.abs(footprint.axisDepth.x * axis.x + footprint.axisDepth.z * axis.z) * footprint.halfDepth
+      );
+      const alongWidth = Math.abs(dx * supportFootprint.axisWidth.x + dz * supportFootprint.axisWidth.z) + projectRadius(supportFootprint.axisWidth);
+      const alongDepth = Math.abs(dx * supportFootprint.axisDepth.x + dz * supportFootprint.axisDepth.z) + projectRadius(supportFootprint.axisDepth);
+      return alongWidth <= supportFootprint.halfWidth - clearance
+        && alongDepth <= supportFootprint.halfDepth - clearance;
+    }
+
     placementFootprintsIntersect(a, b, clearance = 0.018) {
       const deltaX = b.x - a.x;
       const deltaZ = b.z - a.z;
@@ -4995,14 +5084,29 @@
 
     getPlacementValidity(zone, itemId, placement) {
       const safeZone = this.normalizePlacementZone(zone);
-      // Desk decorations intentionally share their support surface. A keyboard can sit on a desk mat,
-      // for example, while the support furniture itself remains protected as a floor prop.
-      if (safeZone === 'desk') return { valid: true, reason: '' };
       const candidates = this.getPlacementCollisionCandidates(safeZone, itemId);
       if (safeZone === 'wall') {
         const overlap = candidates.find(candidate => this.wallPlacementsIntersect(itemId, placement, candidate));
         return overlap
           ? { valid: false, reason: `${overlap.id} already occupies this wall space.` }
+          : { valid: true, reason: '' };
+      }
+      if (safeZone === 'desk') {
+        const support = this.getDeskSupportSurface(placement?.support || 'desk');
+        if (!support) return { valid: false, reason: 'Aim at a valid display surface.' };
+        const footprint = this.getPlacementFootprint(safeZone, itemId, placement);
+        if (!this.placementFootprintFitsSurface(footprint, support)) {
+          return { valid: false, reason: 'This item does not fit on that surface.' };
+        }
+        const overlap = candidates.find(candidate => {
+          if (!candidate.placement) return false;
+          const candidateSupport = this.getDeskSupportSurface(candidate.placement.support || 'desk');
+          if (!candidateSupport || Math.abs(candidateSupport.y - support.y) > 0.09) return false;
+          const candidateFootprint = this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
+          return this.placementFootprintsIntersect(footprint, candidateFootprint);
+        });
+        return overlap
+          ? { valid: false, reason: `${overlap.id} already occupies this surface space.` }
           : { valid: true, reason: '' };
       }
       if (!this.isPlacementBlockingFloorProp(itemId)) return { valid: true, reason: '' };

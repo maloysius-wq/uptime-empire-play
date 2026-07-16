@@ -253,7 +253,15 @@ const WORKSPACE_SECTION_DEFS = {
           onArcadeInput: input => this.handleCabinetArcadeInput(input),
           onComputerInteract: () => this.openDeskComputer(),
           onRobotInteract: () => this.openRobotModal(),
-          onStationInteract: station => this.openWorldStation(station)
+          onStationInteract: station => this.openWorldStation(station),
+          onEditorViewChange: () => {
+            if (this.office3D?.placementMode) {
+              const mode = this.office3D.placementMode;
+              this.syncPlacementHud(true, mode.itemName || 'decor', mode.zone || 'floor');
+            } else if (this.office3D?.moveMode) {
+              this.syncMoveModeHud(true);
+            }
+          }
         });
       }
       this.initArcade();
@@ -5893,7 +5901,7 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.placementWallPrevBtn) this.els.placementWallPrevBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementWallNextBtn) this.els.placementWallNextBtn.classList.toggle('hidden', !showSideArrows);
       if (this.els.placementRotateControls) this.els.placementRotateControls.classList.toggle('hidden', !(active && (normalizedZone === 'floor' || normalizedZone === 'desk')));
-      if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.toggle('hidden', !(active && normalizedZone === 'desk'));
+      if (this.els.placementSurfaceControls) this.els.placementSurfaceControls.classList.add('hidden');
       if (this.els.placementFloorplanBtn) {
         const showFloorplan = active && normalizedZone === 'floor';
         this.els.placementFloorplanBtn.classList.toggle('hidden', !showFloorplan);
@@ -5910,7 +5918,7 @@ const WORKSPACE_SECTION_DEFS = {
       const compactInstructions = topDown
         ? 'Floorplan active. Aim across the floor and click or use the action control to place.'
         : normalizedZone === 'desk'
-        ? 'Walk and aim at the selected surface. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.'
+        ? 'Aim at any desk, table, cabinet, or shelf. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.'
         : `Walk and aim at the ${normalizedZone}. <strong>Green</strong> places; <strong>red</strong> is blocked. Click or use the action control to confirm.`;
       if (this.els.placementTitle) this.els.placementTitle.textContent = active ? `Place ${itemName || 'decor'}` : 'Place decor';
       const kicker = this.els.placementHud?.querySelector?.('.placement-kicker');

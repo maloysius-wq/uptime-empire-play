@@ -91,7 +91,7 @@
   const PLACEMENT_SCHEMA_VERSION = 3;
   const PLACEMENT_ZONES = ['wall', 'floor', 'desk'];
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
-  const DESK_SUPPORT_IDS = ['desk', 'ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
+  const DESK_SUPPORT_IDS = ['desk', 'fixture-storage-cabinet', 'ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
   const PLACEMENT_ZONE_BY_DECOR_ID = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
