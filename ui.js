@@ -456,10 +456,10 @@ const WORKSPACE_SECTION_DEFS = {
     startVisualQAFromQuery() {
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get('qa');
-      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture']);
+      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture', 'sidecar-table']);
       if (!allowedViews.has(requestedView)) return;
 
-      if (requestedView === 'furniture') {
+      if (requestedView === 'furniture' || requestedView === 'sidecar-table') {
         this.app.state.equippedCosmetics.deskFrame = 'studio';
         this.app.state.equippedDecorations = ['ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
         this.renderOffice();

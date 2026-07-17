@@ -4577,7 +4577,8 @@
         'arcade-quarter': { target: 'arcade', offset: { x: 1.34, y: 0.16, z: -1.08 } },
         'desk-mount': { target: 'deskMount', offset: { x: 1.52, y: 0.2, z: 1.34 } },
         'storage-cabinet': { target: 'storageCabinet', offset: { x: 1.1, y: 0.16, z: 1.3 } },
-        'furniture': { target: 'furniture', offset: { x: 1.72, y: 0.68, z: 1.34 } }
+        'furniture': { target: 'furniture', offset: { x: 1.72, y: 0.68, z: 1.34 } },
+        'sidecar-table': { target: 'sidecarTable', offset: { x: 1.24, y: 0.66, z: 1.08 } }
       };
       const view = views[viewName] || views['arcade-front'];
       const target = this.visualQATargets?.[view.target];
@@ -5430,6 +5431,9 @@
       }
       if (!opts.ghost && id === 'ops-workbench') {
         this.visualQATargets.furniture = { x: pos.x, y: pos.y + 0.62, z: pos.z };
+      }
+      if (!opts.ghost && id === 'sidecar-table') {
+        this.visualQATargets.sidecarTable = { x: pos.x, y: pos.y + 0.39, z: pos.z };
       }
       if (!opts.ghost && safeZone === 'floor') {
         const placementOptions = { id: `decor:${id}`, label: id, decorId: id };
