@@ -5258,6 +5258,23 @@
         const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 10, 28), makeMat({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.32 }));
         ring.rotation.set(rotation[0], rotation[1], rotation[2]); ring.position.y = y; group.add(ring); return ring;
       };
+      const addTaperedSupport = (start, end, radiusTop, radiusBottom, color, material = {}) => {
+        const from = new THREE.Vector3(start[0], start[1], start[2] || 0);
+        const to = new THREE.Vector3(end[0], end[1], end[2] || 0);
+        const direction = to.clone().sub(from);
+        const length = direction.length();
+        if (length < 0.001) return null;
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, length, 16), makeMat(Object.assign({ color }, material)));
+        mesh.position.copy(from).add(to).multiplyScalar(0.5);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+        group.add(mesh);
+        return mesh;
+      };
+      const addSupport = (start, end, radius, color, material = {}) => addTaperedSupport(start, end, radius, radius, color, material);
+      const addJoint = (radius, x, y, z = 0, color = 0x536572, material = {}) => {
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), makeMat(Object.assign({ color }, material)));
+        mesh.position.set(x, y, z); group.add(mesh); return mesh;
+      };
       const addFixtureLight = (color, intensity, distance, x = 0, y = 0.5, z = 0) => {
         if (opts.ghost) return null;
         const effective = this.graphicsProfile?.effective || 'performance';
@@ -5285,69 +5302,64 @@
       } else if (id === 'lamp') {
         this.buildPendantLightProp(group, { ghost: !!opts.ghost });
       } else if (id === 'corner-tube') {
-        addCylinder(0.18, 0.21, 0.055, 0x172431, 0, 0.028);
-        addCylinder(0.10, 0.12, 0.075, 0x263746, 0, 0.090);
-        addBox(0.115, 1.62, 0.115, 0x184d62, 0, 0.90, 0, { emissive: 0x3be2ff, emissiveIntensity: 0.86, roughness: 0.30 });
-        addBox(0.145, 1.40, 0.018, 0x70f0ff, 0, 0.90, -0.068, { emissive: 0x4ce6ff, emissiveIntensity: 1.10, roughness: 0.25 });
-        addRing(0.11, 0.012, 1.72, 0x96f5ff, [0, 0, 0]);
-        addFixtureLight(0x55dfff, 1.05, 3.2, 0, 1.08);
+        addCylinder(0.20, 0.23, 0.055, 0x172431, 0, 0.028);
+        addBox(0.13, 1.82, 0.13, 0x183c4c, 0, 0.935, 0, { emissive: 0x27687d, emissiveIntensity: 0.32, roughness: 0.30 });
+        addBox(0.092, 1.70, 0.012, 0x70f0ff, 0, 0.94, -0.071, { emissive: 0x4ce6ff, emissiveIntensity: 1.04, roughness: 0.25 });
+        addBox(0.16, 0.050, 0.16, 0x284c5d, 0, 1.87, 0, { emissive: 0x60e6ff, emissiveIntensity: 0.46 });
+        addFixtureLight(0x55dfff, 1.05, 3.2, 0, 1.18);
       } else if (id === 'duo-uplighter') {
-        addCylinder(0.27, 0.31, 0.055, 0x1f2b35, 0, 0.028);
-        addCylinder(0.040, 0.048, 1.54, 0x4d5c65, 0, 0.80);
-        addCylinder(0.19, 0.38, 0.18, 0x30414c, 0, 1.76, 0, { emissive: 0xff9f51, emissiveIntensity: 0.22 });
-        addGlow(0.24, 0.040, 0.24, 0, 1.84, 0, 0xffcb82);
-        const readingArm = addBox(0.035, 0.56, 0.035, 0x4d5c65, 0.20, 1.20);
-        readingArm.rotation.z = Math.PI / 3.3;
-        const readingHead = addCylinder(0.075, 0.13, 0.16, 0x344552, 0.43, 1.44, 0, { emissive: 0xffb363, emissiveIntensity: 0.24 });
-        readingHead.rotation.z = Math.PI / 3.3;
-        addGlow(0.12, 0.024, 0.12, 0.47, 1.34, 0, 0xffce88);
-        addFixtureLight(0xffcc8b, 1.18, 3.5, 0, 1.66);
+        addCylinder(0.28, 0.32, 0.055, 0x1f2b35, 0, 0.028);
+        addSupport([0, 0.050, 0], [0, 1.78, 0], 0.043, 0x4d5c65, { metalness: 0.42, roughness: 0.36 });
+        addTaperedSupport([0, 1.70, 0], [0, 1.91, 0], 0.20, 0.38, 0x30414c, { emissive: 0xff9f51, emissiveIntensity: 0.18 });
+        addGlow(0.24, 0.032, 0.24, 0, 1.92, 0, 0xffcb82);
+        addSupport([0, 0.92, 0], [0.36, 1.28, 0], 0.032, 0x4d5c65, { metalness: 0.42, roughness: 0.36 });
+        addJoint(0.060, 0.36, 1.28, 0, 0x657681);
+        addTaperedSupport([0.36, 1.28, 0], [0.53, 1.21, 0], 0.095, 0.060, 0x344552, { emissive: 0xffb363, emissiveIntensity: 0.20 });
+        addGlow(0.12, 0.020, 0.12, 0.53, 1.18, 0, 0xffce88);
+        addFixtureLight(0xffcc8b, 1.18, 3.5, 0, 1.72);
       } else if (id === 'halo-orb') {
-        addCylinder(0.24, 0.30, 0.060, 0x1a2632, 0, 0.030);
-        addCylinder(0.060, 0.11, 0.24, 0x354a59, 0, 0.16);
-        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.29, 24, 18), makeMat({ color: 0xbff6ff, emissive: 0x53d7ff, emissiveIntensity: 0.82, transparent: true, opacity: 0.62, roughness: 0.18 }));
-        orb.position.y = 0.57;
-        orb.userData.float = opts.ghost ? null : { baseY: 0.57, amount: 0.022, speed: 0.85, phase: 0.5 };
+        addCylinder(0.25, 0.31, 0.060, 0x1a2632, 0, 0.030);
+        addTaperedSupport([0, 0.055, 0], [0, 0.40, 0], 0.080, 0.12, 0x354a59, { metalness: 0.36, roughness: 0.36 });
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 18), makeMat({ color: 0xbff6ff, emissive: 0x53d7ff, emissiveIntensity: 0.82, transparent: true, opacity: 0.62, roughness: 0.18 }));
+        orb.position.y = 0.67;
+        orb.userData.float = opts.ghost ? null : { baseY: 0.67, amount: 0.018, speed: 0.85, phase: 0.5 };
         group.add(orb);
-        addRing(0.38, 0.018, 0.57, 0x67eaff, [0, 0, Math.PI / 2]);
-        addRing(0.34, 0.010, 0.57, 0xff7fd2, [Math.PI / 2, 0, 0]);
-        addFixtureLight(0x6edfff, 1.28, 3.5, 0, 0.62);
+        addRing(0.42, 0.018, 0.67, 0x67eaff, [0, 0, Math.PI / 2]);
+        addRing(0.36, 0.010, 0.67, 0xff7fd2, [Math.PI / 2, 0, 0]);
+        addFixtureLight(0x6edfff, 1.28, 3.5, 0, 0.70);
       } else if (id === 'flex-uplighter') {
         addCylinder(0.24, 0.29, 0.060, 0x1a2430, 0, 0.030);
-        addCylinder(0.035, 0.042, 0.80, 0x3a4753, -0.07, 0.43);
-        const arm = addBox(0.040, 0.78, 0.040, 0x4a5966, 0.20, 1.02);
-        arm.rotation.z = Math.PI / 3.8;
-        const joint = addCylinder(0.075, 0.075, 0.07, 0x6a7c88, 0.42, 1.27);
-        joint.rotation.x = Math.PI / 2;
-        const head = addCylinder(0.12, 0.19, 0.26, 0x2b3945, 0.48, 1.38, 0, { emissive: 0x7046d9, emissiveIntensity: 0.30 });
-        head.rotation.z = Math.PI / 2.7;
-        addGlow(0.16, 0.028, 0.16, 0.59, 1.36, 0, 0xb69bff);
-        addFixtureLight(0xa783ff, 1.10, 3.3, 0.54, 1.30);
+        addSupport([0, 0.055, 0], [0, 0.68, 0], 0.040, 0x3a4753, { metalness: 0.42, roughness: 0.34 });
+        addJoint(0.068, 0, 0.68, 0, 0x647785);
+        addSupport([0, 0.68, 0], [0.38, 1.24, 0], 0.043, 0x4a5966, { metalness: 0.44, roughness: 0.34 });
+        addJoint(0.072, 0.38, 1.24, 0, 0x6a7c88);
+        addTaperedSupport([0.38, 1.24, 0], [0.64, 1.34, 0], 0.13, 0.075, 0x2b3945, { emissive: 0x7046d9, emissiveIntensity: 0.26 });
+        addGlow(0.16, 0.022, 0.16, 0.64, 1.31, 0, 0xb69bff);
+        addFixtureLight(0xa783ff, 1.10, 3.3, 0.62, 1.30);
       } else if (id === 'ambient-pylon') {
         addCylinder(0.20, 0.24, 0.060, 0x172531, 0, 0.030);
+        addBox(0.21, 1.46, 0.21, 0x1c3c47, 0, 0.76, 0, { emissive: 0x1c7b75, emissiveIntensity: 0.20, roughness: 0.30 });
         [0.28, 0.76, 1.24].forEach((y, index) => {
           const color = [0x4fe5b3, 0x63dfff, 0xbf8cff][index];
-          addBox(0.19, 0.36, 0.19, 0x1c3c47, 0, y, 0, { emissive: color, emissiveIntensity: 0.62, roughness: 0.28 });
-          const pulse = addGlow(0.13, 0.18, 0.014, 0, y, -0.104, color);
+          const pulse = addGlow(0.13, 0.18, 0.014, 0, y, -0.112, color);
           if (!opts.ghost) pulse.userData.blink = 0.65 + index * 0.24;
         });
-        addRing(0.17, 0.014, 1.47, 0x75f0cf, [0, 0, 0]);
+        addBox(0.24, 0.055, 0.24, 0x263f4a, 0, 1.52, 0, { emissive: 0x75f0cf, emissiveIntensity: 0.30 });
         addFixtureLight(0x5be6c0, 0.92, 3.0, 0, 0.92);
       } else if (id === 'task-lamp') {
         addCylinder(0.14, 0.17, 0.035, 0x1e2d38, 0, 0.018);
-        addCylinder(0.022, 0.030, 0.31, 0x425461, -0.05, 0.18);
-        const arm = addBox(0.028, 0.38, 0.028, 0x526773, 0.11, 0.36);
-        arm.rotation.z = Math.PI / 3.6;
-        const shade = addCylinder(0.065, 0.13, 0.15, 0x283b49, 0.25, 0.48, 0, { emissive: 0xffad5c, emissiveIntensity: 0.24 });
-        shade.rotation.z = Math.PI / 2.7;
-        addGlow(0.13, 0.018, 0.11, 0.30, 0.43, 0, 0xffd39a);
-        addFixtureLight(0xffcb8a, 0.55, 1.6, 0.28, 0.43);
+        addSupport([0, 0.032, 0], [0, 0.20, 0], 0.026, 0x425461, { metalness: 0.38, roughness: 0.36 });
+        addSupport([0, 0.20, 0], [0.20, 0.45, 0], 0.030, 0x526773, { metalness: 0.38, roughness: 0.36 });
+        addJoint(0.045, 0.20, 0.45, 0, 0x657884);
+        addTaperedSupport([0.20, 0.45, 0], [0.36, 0.40, 0], 0.11, 0.060, 0x283b49, { emissive: 0xffad5c, emissiveIntensity: 0.20 });
+        addGlow(0.11, 0.016, 0.10, 0.36, 0.38, 0, 0xffd39a);
+        addFixtureLight(0xffcb8a, 0.55, 1.6, 0.35, 0.39);
       } else if (id === 'focus-light-bar') {
-        addBox(0.20, 0.035, 0.15, 0x243542, 0, 0.018);
-        [-0.28, 0.28].forEach(x => addBox(0.035, 0.24, 0.035, 0x3e5361, x, 0.14));
-        addBox(0.78, 0.052, 0.070, 0x263946, 0, 0.28, 0, { emissive: 0x74ddff, emissiveIntensity: 0.38 });
-        addGlow(0.70, 0.018, 0.026, 0, 0.245, -0.050, 0xc3f4ff);
-        addFixtureLight(0xaeeeff, 0.46, 1.5, 0, 0.26, -0.05);
+        addBox(0.32, 0.060, 0.16, 0x243542, 0, 0.030);
+        [-0.28, 0.28].forEach(x => addBox(0.040, 0.27, 0.050, 0x3e5361, x, 0.165, 0, { metalness: 0.32, roughness: 0.38 }));
+        addBox(0.80, 0.065, 0.080, 0x263946, 0, 0.32, 0, { emissive: 0x74ddff, emissiveIntensity: 0.32 });
+        addGlow(0.70, 0.016, 0.026, 0, 0.282, -0.054, 0xc3f4ff);
+        addFixtureLight(0xaeeeff, 0.46, 1.5, 0, 0.29, -0.05);
       } else if (id === 'desk-mat') {
         addBox(spec.w, 0.010, spec.d, spec.color, 0, 0.005);
         addGlow(spec.w - 0.08, 0.006, 0.014, 0, 0.010, -spec.d * 0.40, 0x8858ff);
