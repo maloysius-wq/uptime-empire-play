@@ -4515,19 +4515,77 @@ window.UptimeEmpireData = {
         "cost": 12000000
       },
       {
-        "id": "pendant-light",
-        "icon": "💡",
-        "name": "Pendant Light",
-        "desc": "A warm imported lamp that actually lights the office around it.",
-        "cost": 2800000
-      }
-      ,
-      {
         "id": "server-island",
         "icon": "[]",
         "name": "Edge Rack Island",
         "desc": "A compact free-standing service rack with a quiet line of live hardware.",
         "cost": 6400000
+      }
+    ],
+    "lighting": [
+      {
+        "id": "lamp",
+        "icon": "💡",
+        "name": "Lamp",
+        "desc": "A warm pendant lamp with a brushed metal shade and a soft pool of light.",
+        "cost": 2800000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "corner-tube",
+        "icon": "|",
+        "name": "Corner Tube",
+        "desc": "A slim RGB tube for filling a dark corner with quiet color.",
+        "cost": 3400000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "duo-uplighter",
+        "icon": "^",
+        "name": "Duo Uplighter",
+        "desc": "A two-headed floor lamp: ceiling wash above, reading beam below.",
+        "cost": 6200000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "halo-orb",
+        "icon": "O",
+        "name": "Halo Orb",
+        "desc": "A frosted glass globe in a floating neon ring stand.",
+        "cost": 7600000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "flex-uplighter",
+        "icon": "Y",
+        "name": "Flex Uplighter",
+        "desc": "An articulated uplight that can throw color exactly where the room needs it.",
+        "cost": 9200000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "ambient-pylon",
+        "icon": "#",
+        "name": "Ambient Pylon",
+        "desc": "A stacked ambient-light column with a slow-running status glow.",
+        "cost": 11800000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "task-lamp",
+        "icon": "*",
+        "name": "Task Lamp",
+        "desc": "A compact articulated desk lamp for a focused work surface.",
+        "cost": 4100000,
+        "maxQuantity": 4
+      },
+      {
+        "id": "focus-light-bar",
+        "icon": "=",
+        "name": "Focus Light Bar",
+        "desc": "A clamp-on monitor light bar with even, low-glare desk illumination.",
+        "cost": 5400000,
+        "maxQuantity": 4
       }
     ],
     "furniture": [

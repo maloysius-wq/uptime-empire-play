@@ -14,13 +14,18 @@
   const smooth = value => value * value * (3 - 2 * value);
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
   const CAMERA_PITCH_LIMIT = 1.48;
+  const LIGHTING_LEGACY_IDS = { 'pendant-light': 'lamp' };
+  const getDecorBaseId = id => {
+    const match = /^lighting:([a-z0-9-]+):\d+$/.exec(String(id || ''));
+    return match ? match[1] : (LIGHTING_LEGACY_IDS[id] || String(id || ''));
+  };
   const DECOR_PLACEMENT_ZONES = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
-    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk',
+    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk', 'task-lamp': 'desk', 'focus-light-bar': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor',
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'lamp': 'floor', 'corner-tube': 'floor', 'duo-uplighter': 'floor', 'halo-orb': 'floor', 'flex-uplighter': 'floor', 'ambient-pylon': 'floor', 'server-island': 'floor',
     'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
   const WORLD_OPERATION_DISPLAY_DEFS = {
@@ -1397,7 +1402,7 @@
     }
 
     getDecorPlacementZone(id) {
-      return this.normalizePlacementZone(DECOR_PLACEMENT_ZONES[id] || 'floor');
+      return this.normalizePlacementZone(DECOR_PLACEMENT_ZONES[getDecorBaseId(id)] || 'floor');
     }
 
     getFloorBotDockPlacement() {
@@ -1512,6 +1517,48 @@
 
     resolveDeskSupportSurface(supportId = 'desk') {
       return this.getDeskSupportSurface(supportId) || this.getDeskSupportSurface('desk');
+    }
+
+    getMainDeskHardwareFootprints() {
+      const support = this.getDeskSupportSurface('desk');
+      if (!support) return [];
+      const room = this.room || { depth: 9.2 };
+      const deskZ = -room.depth / 2 + 0.62;
+      const tiers = [
+        { cols: 2, rows: 1, scale: 0.6 },
+        { cols: 3, rows: 1, scale: 0.56 },
+        { cols: 2, rows: 2, scale: 0.62 },
+        { cols: 3, rows: 2, scale: 0.58 }
+      ];
+      const spec = this.state.tier >= 3 ? tiers[3] : this.state.tier >= 2 ? tiers[2] : this.state.tier >= 1 ? tiers[1] : tiers[0];
+      const totalWidth = spec.cols * spec.scale + (spec.cols - 1) * 0.12;
+      const startX = -totalWidth / 2 + spec.scale / 2 + 0.12;
+      const baseZ = deskZ - 0.10;
+      const mountZ = baseZ - 0.14;
+      const entries = [
+        { id: 'monitor mount', supportId: 'desk', footprint: this.getFloorFootprint(0.12, mountZ, Math.max(0.34, totalWidth), 0.20, 0) },
+        { id: 'keyboard', supportId: 'desk', footprint: this.getFloorFootprint(0.08, deskZ + 0.18, 0.84, 0.24, 0), allowsDeskMatUnderlay: true },
+        { id: 'mouse', supportId: 'desk', footprint: this.getFloorFootprint(0.76, deskZ + 0.14, 0.12, 0.17, 0), allowsDeskMatUnderlay: true }
+      ];
+      for (let row = 0; row < spec.rows; row += 1) {
+        for (let col = 0; col < spec.cols; col += 1) {
+          const x = startX + col * (spec.scale + 0.12);
+          entries.push({ id: `monitor ${row * spec.cols + col + 1}`, supportId: 'desk', footprint: this.getFloorFootprint(x, baseZ, spec.scale + 0.035, 0.16, 0) });
+        }
+      }
+      return entries;
+    }
+
+    getDeskHardwareLift(kind) {
+      const deskMatId = (this.state.decorations || []).find(id => getDecorBaseId(id) === 'desk-mat');
+      if (!deskMatId) return -0.002;
+      const placement = ((this.state.placements || {}).desk || {})[deskMatId] || this.getDefaultDecorPlacement(deskMatId, 'desk');
+      if ((placement?.support || 'desk') !== 'desk') return -0.002;
+      const matFootprint = this.getPlacementFootprint('desk', deskMatId, placement);
+      const hardware = this.getMainDeskHardwareFootprints().find(entry => entry.id === kind);
+      if (!hardware || !this.placementFootprintsIntersect(matFootprint, hardware.footprint, 0)) return -0.002;
+      // The thin mat deliberately receives the hardware by a few millimeters.
+      return 0.006;
     }
 
     getPlacementSupportLabel() {
@@ -1986,7 +2033,7 @@
           : (priorPlacements[zone] || {});
         const out = {};
         Object.entries(source).forEach(([id, placement]) => {
-          const mappedZone = DECOR_PLACEMENT_ZONES[id] || null;
+          const mappedZone = DECOR_PLACEMENT_ZONES[getDecorBaseId(id)] || null;
           if (mappedZone && this.normalizePlacementZone(mappedZone) !== zone) return;
           const normalized = this.normalizeStoredPlacement(zone, placement);
           if (normalized) out[id] = normalized;
@@ -3814,6 +3861,7 @@
     rebuildScene() {
       if (!this.loaded) return;
       const THREE = this.THREE;
+      this.decorativeLightCount = 0;
       const heldViewState = {
         arcadeHold: this.arcadeHold,
         arcadeView: this.arcadeView ? Object.assign({}, this.arcadeView) : null,
@@ -4410,26 +4458,28 @@
 
     buildDeskDefaults(deskZ) {
       const THREE = this.THREE;
+      const deskSurfaceY = this.getDeskSupportSurface('desk')?.y || 0.855;
+      const keyboardBaseY = deskSurfaceY + this.getDeskHardwareLift('keyboard');
+      const mouseBaseY = deskSurfaceY + this.getDeskHardwareLift('mouse');
       const keyboard = this.createKeyboardModel(0.84, 0.24, 0.055);
       if (keyboard) {
         // The embedded keyboard mesh is normalized with its lowest vertex at y=0.
-        // Put that base slightly above the desktop so the key caps read as sitting on the surface.
-        keyboard.position.set(0.08, 0.852, deskZ + 0.18);
+        // A desk mat receives it slightly, rather than lifting the whole setup above the desk.
+        keyboard.position.set(0.08, keyboardBaseY, deskZ + 0.18);
         this.root.add(keyboard);
       } else {
         const fallbackKeyboard = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.03, 0.24), new THREE.MeshStandardMaterial({ color: 0x1b2127, roughness: 0.7 }));
-        fallbackKeyboard.position.set(0.08, 0.83, deskZ + 0.18);
+        fallbackKeyboard.position.set(0.08, keyboardBaseY + 0.015, deskZ + 0.18);
         this.root.add(fallbackKeyboard);
       }
       const mouse = this.createMouseModel(0.11, 0.16, 0.055);
       if (mouse) {
-        // The embedded mouse mesh is normalized with its lowest vertex at y=0.
-        // Put that base slightly above the desktop so the shell sits on top of the desk.
-        mouse.position.set(0.76, 0.824, deskZ + 0.14);
+        // The mouse uses the same shallow mat inset as the keyboard.
+        mouse.position.set(0.76, mouseBaseY, deskZ + 0.14);
         this.root.add(mouse);
       } else {
         const fallbackMouse = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.035, 0.16), new THREE.MeshStandardMaterial({ color: 0x20252a, roughness: 0.7 }));
-        fallbackMouse.position.set(0.76, 0.84, deskZ + 0.14);
+        fallbackMouse.position.set(0.76, mouseBaseY + 0.0175, deskZ + 0.14);
         this.root.add(fallbackMouse);
       }
     }
@@ -4578,7 +4628,8 @@
         'desk-mount': { target: 'deskMount', offset: { x: 1.52, y: 0.2, z: 1.34 } },
         'storage-cabinet': { target: 'storageCabinet', offset: { x: 1.1, y: 0.16, z: 1.3 } },
         'furniture': { target: 'furniture', offset: { x: 1.72, y: 0.68, z: 1.34 } },
-        'sidecar-table': { target: 'sidecarTable', offset: { x: 1.24, y: 0.66, z: 1.08 } }
+        'sidecar-table': { target: 'sidecarTable', offset: { x: 1.24, y: 0.66, z: 1.08 } },
+        'lighting': { target: 'lighting', offset: { x: -2.10, y: 0.84, z: 2.10 } }
       };
       const view = views[viewName] || views['arcade-front'];
       const target = this.visualQATargets?.[view.target];
@@ -4919,8 +4970,9 @@
 
 
     getPlacedPropSpec(id) {
+      const baseId = getDecorBaseId(id);
       const specs = {
-        'desk-mat': { w: 1.18, d: 0.52, h: 0.035, color: 0x24233a },
+        'desk-mat': { w: 1.18, d: 0.52, h: 0.014, color: 0x24233a },
         'tower-stack': { w: 0.48, d: 0.36, h: 0.50, color: 0x202934 },
         'aquarium': { w: 0.48, d: 0.26, h: 0.28, color: 0x7ceaff },
         'chair-upgrade': { w: 0.78, d: 0.78, h: 0.12, color: 0x7ceaff },
@@ -4941,7 +4993,14 @@
         'bookcase': { w: 0.86, d: 0.32, h: 1.28, color: 0x2f2c26 },
         'model-sat': { w: 0.56, d: 0.38, h: 0.56, color: 0x7ceaff },
         'cold-spares': { w: 0.62, d: 0.40, h: 1.08, color: 0x25313d },
-        'pendant-light': { kind: 'pendant-light', w: 1.25, d: 1.55, h: 2.25, color: 0xffc36f, emissive: 0xffb45c, intensity: 0.65 },
+        'lamp': { kind: 'pendant-light', w: 1.25, d: 1.55, h: 2.25, color: 0xffc36f, emissive: 0xffb45c, intensity: 0.65 },
+        'corner-tube': { w: 0.32, d: 0.32, h: 1.92, color: 0x6ce7ff, emissive: 0x40d4ff, intensity: 0.72 },
+        'duo-uplighter': { w: 0.56, d: 0.56, h: 2.02, color: 0xffd4a0, emissive: 0xffbd6a, intensity: 0.68 },
+        'halo-orb': { w: 0.64, d: 0.64, h: 1.08, color: 0x9aeaff, emissive: 0x64dfff, intensity: 0.72 },
+        'flex-uplighter': { w: 0.52, d: 0.52, h: 1.74, color: 0xc8a6ff, emissive: 0x9e76ff, intensity: 0.66 },
+        'ambient-pylon': { w: 0.48, d: 0.48, h: 1.62, color: 0x70f0bc, emissive: 0x52db9d, intensity: 0.62 },
+        'task-lamp': { w: 0.32, d: 0.42, h: 0.62, color: 0xffd7a0, emissive: 0xffbd6a, intensity: 0.58 },
+        'focus-light-bar': { w: 0.82, d: 0.18, h: 0.38, color: 0xb5f0ff, emissive: 0x75ddff, intensity: 0.56 },
         'server-island': { w: 0.72, d: 0.48, h: 1.12, color: 0x1c2934 },
         'uplink-radio': { w: 0.48, d: 0.36, h: 0.46, color: 0x2b3745 },
         'ops-workbench': { w: 1.62, d: 0.70, h: 0.79, color: 0x263641 },
@@ -4949,7 +5008,7 @@
         'display-shelf': { w: 0.98, d: 0.46, h: 1.44, color: 0x25333c },
         'lab-shelving': { w: 1.44, d: 0.56, h: 1.30, color: 0x2a3841 }
       };
-      return specs[id] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
+      return specs[baseId] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
     }
 
     getWallPlacementCollisionSpec(id) {
@@ -4959,8 +5018,9 @@
     }
 
     isSolidFloorProp(id) {
+      const baseId = getDecorBaseId(id);
       const spec = this.getPlacedPropSpec(id);
-      return !['floor-bot', 'chair-upgrade'].includes(id)
+      return !['floor-bot', 'chair-upgrade'].includes(baseId)
         && spec.kind !== 'pendant-light'
         && Number(spec.h || 0) > 0.055;
     }
@@ -4983,7 +5043,9 @@
           id,
           placement: placement ? Object.assign({}, placement) : null,
           footprint: options.footprint || null,
-          blocksFloor: !!options.blocksFloor
+          blocksFloor: !!options.blocksFloor,
+          supportId: options.supportId || null,
+          allowsDeskMatUnderlay: !!options.allowsDeskMatUnderlay
         });
       };
 
@@ -4998,6 +5060,15 @@
             decorId: obstacle.decorId,
             footprint: this.getPlacementObstacleFootprint(obstacle),
             blocksFloor: true
+          });
+        });
+      } else if (safeZone === 'desk') {
+        this.getMainDeskHardwareFootprints().forEach(hardware => {
+          addCandidate(hardware.id, null, {
+            key: `desk-hardware:${hardware.id}`,
+            footprint: hardware.footprint,
+            supportId: hardware.supportId,
+            allowsDeskMatUnderlay: hardware.allowsDeskMatUnderlay
           });
         });
       }
@@ -5103,10 +5174,12 @@
           return { valid: false, reason: 'This item does not fit on that surface.' };
         }
         const overlap = candidates.find(candidate => {
-          if (!candidate.placement) return false;
-          const candidateSupport = this.getDeskSupportSurface(candidate.placement.support || 'desk');
+          const candidateSupport = candidate.supportId
+            ? this.getDeskSupportSurface(candidate.supportId)
+            : candidate.placement ? this.getDeskSupportSurface(candidate.placement.support || 'desk') : null;
           if (!candidateSupport || Math.abs(candidateSupport.y - support.y) > 0.09) return false;
-          const candidateFootprint = this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
+          if (getDecorBaseId(itemId) === 'desk-mat' && candidate.allowsDeskMatUnderlay) return false;
+          const candidateFootprint = candidate.footprint || this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
           return this.placementFootprintsIntersect(footprint, candidateFootprint);
         });
         return overlap
@@ -5169,6 +5242,7 @@
     }
 
     buildCanonicalPropModel(group, id, spec, opts = {}) {
+      id = getDecorBaseId(id);
       const THREE = this.THREE;
       const makeMat = settings => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.76, metalness: 0.04 }, settings));
       const addBox = (w, h, d, color, x = 0, y = h / 2, z = 0, material = {}) => {
@@ -5184,6 +5258,17 @@
         const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, tube, 10, 28), makeMat({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.32 }));
         ring.rotation.set(rotation[0], rotation[1], rotation[2]); ring.position.y = y; group.add(ring); return ring;
       };
+      const addFixtureLight = (color, intensity, distance, x = 0, y = 0.5, z = 0) => {
+        if (opts.ghost) return null;
+        const effective = this.graphicsProfile?.effective || 'performance';
+        const budget = effective === 'quality' ? 12 : effective === 'balanced' ? 8 : 5;
+        if ((this.decorativeLightCount || 0) >= budget) return null;
+        this.decorativeLightCount = (this.decorativeLightCount || 0) + 1;
+        const light = new THREE.PointLight(color, intensity, distance, 1.8);
+        light.position.set(x, y, z);
+        group.add(light);
+        return light;
+      };
 
       if (id === 'lava-lamp') {
         this.buildAnimatedLavaLamp(group, {
@@ -5197,12 +5282,76 @@
           registerAnimation: !opts.ghost,
           scale: 1
         });
-      } else if (id === 'pendant-light') {
+      } else if (id === 'lamp') {
         this.buildPendantLightProp(group, { ghost: !!opts.ghost });
+      } else if (id === 'corner-tube') {
+        addCylinder(0.18, 0.21, 0.055, 0x172431, 0, 0.028);
+        addCylinder(0.10, 0.12, 0.075, 0x263746, 0, 0.090);
+        addBox(0.115, 1.62, 0.115, 0x184d62, 0, 0.90, 0, { emissive: 0x3be2ff, emissiveIntensity: 0.86, roughness: 0.30 });
+        addBox(0.145, 1.40, 0.018, 0x70f0ff, 0, 0.90, -0.068, { emissive: 0x4ce6ff, emissiveIntensity: 1.10, roughness: 0.25 });
+        addRing(0.11, 0.012, 1.72, 0x96f5ff, [0, 0, 0]);
+        addFixtureLight(0x55dfff, 1.05, 3.2, 0, 1.08);
+      } else if (id === 'duo-uplighter') {
+        addCylinder(0.27, 0.31, 0.055, 0x1f2b35, 0, 0.028);
+        addCylinder(0.040, 0.048, 1.54, 0x4d5c65, 0, 0.80);
+        addCylinder(0.19, 0.38, 0.18, 0x30414c, 0, 1.76, 0, { emissive: 0xff9f51, emissiveIntensity: 0.22 });
+        addGlow(0.24, 0.040, 0.24, 0, 1.84, 0, 0xffcb82);
+        const readingArm = addBox(0.035, 0.56, 0.035, 0x4d5c65, 0.20, 1.20);
+        readingArm.rotation.z = Math.PI / 3.3;
+        const readingHead = addCylinder(0.075, 0.13, 0.16, 0x344552, 0.43, 1.44, 0, { emissive: 0xffb363, emissiveIntensity: 0.24 });
+        readingHead.rotation.z = Math.PI / 3.3;
+        addGlow(0.12, 0.024, 0.12, 0.47, 1.34, 0, 0xffce88);
+        addFixtureLight(0xffcc8b, 1.18, 3.5, 0, 1.66);
+      } else if (id === 'halo-orb') {
+        addCylinder(0.24, 0.30, 0.060, 0x1a2632, 0, 0.030);
+        addCylinder(0.060, 0.11, 0.24, 0x354a59, 0, 0.16);
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.29, 24, 18), makeMat({ color: 0xbff6ff, emissive: 0x53d7ff, emissiveIntensity: 0.82, transparent: true, opacity: 0.62, roughness: 0.18 }));
+        orb.position.y = 0.57;
+        orb.userData.float = opts.ghost ? null : { baseY: 0.57, amount: 0.022, speed: 0.85, phase: 0.5 };
+        group.add(orb);
+        addRing(0.38, 0.018, 0.57, 0x67eaff, [0, 0, Math.PI / 2]);
+        addRing(0.34, 0.010, 0.57, 0xff7fd2, [Math.PI / 2, 0, 0]);
+        addFixtureLight(0x6edfff, 1.28, 3.5, 0, 0.62);
+      } else if (id === 'flex-uplighter') {
+        addCylinder(0.24, 0.29, 0.060, 0x1a2430, 0, 0.030);
+        addCylinder(0.035, 0.042, 0.80, 0x3a4753, -0.07, 0.43);
+        const arm = addBox(0.040, 0.78, 0.040, 0x4a5966, 0.20, 1.02);
+        arm.rotation.z = Math.PI / 3.8;
+        const joint = addCylinder(0.075, 0.075, 0.07, 0x6a7c88, 0.42, 1.27);
+        joint.rotation.x = Math.PI / 2;
+        const head = addCylinder(0.12, 0.19, 0.26, 0x2b3945, 0.48, 1.38, 0, { emissive: 0x7046d9, emissiveIntensity: 0.30 });
+        head.rotation.z = Math.PI / 2.7;
+        addGlow(0.16, 0.028, 0.16, 0.59, 1.36, 0, 0xb69bff);
+        addFixtureLight(0xa783ff, 1.10, 3.3, 0.54, 1.30);
+      } else if (id === 'ambient-pylon') {
+        addCylinder(0.20, 0.24, 0.060, 0x172531, 0, 0.030);
+        [0.28, 0.76, 1.24].forEach((y, index) => {
+          const color = [0x4fe5b3, 0x63dfff, 0xbf8cff][index];
+          addBox(0.19, 0.36, 0.19, 0x1c3c47, 0, y, 0, { emissive: color, emissiveIntensity: 0.62, roughness: 0.28 });
+          const pulse = addGlow(0.13, 0.18, 0.014, 0, y, -0.104, color);
+          if (!opts.ghost) pulse.userData.blink = 0.65 + index * 0.24;
+        });
+        addRing(0.17, 0.014, 1.47, 0x75f0cf, [0, 0, 0]);
+        addFixtureLight(0x5be6c0, 0.92, 3.0, 0, 0.92);
+      } else if (id === 'task-lamp') {
+        addCylinder(0.14, 0.17, 0.035, 0x1e2d38, 0, 0.018);
+        addCylinder(0.022, 0.030, 0.31, 0x425461, -0.05, 0.18);
+        const arm = addBox(0.028, 0.38, 0.028, 0x526773, 0.11, 0.36);
+        arm.rotation.z = Math.PI / 3.6;
+        const shade = addCylinder(0.065, 0.13, 0.15, 0x283b49, 0.25, 0.48, 0, { emissive: 0xffad5c, emissiveIntensity: 0.24 });
+        shade.rotation.z = Math.PI / 2.7;
+        addGlow(0.13, 0.018, 0.11, 0.30, 0.43, 0, 0xffd39a);
+        addFixtureLight(0xffcb8a, 0.55, 1.6, 0.28, 0.43);
+      } else if (id === 'focus-light-bar') {
+        addBox(0.20, 0.035, 0.15, 0x243542, 0, 0.018);
+        [-0.28, 0.28].forEach(x => addBox(0.035, 0.24, 0.035, 0x3e5361, x, 0.14));
+        addBox(0.78, 0.052, 0.070, 0x263946, 0, 0.28, 0, { emissive: 0x74ddff, emissiveIntensity: 0.38 });
+        addGlow(0.70, 0.018, 0.026, 0, 0.245, -0.050, 0xc3f4ff);
+        addFixtureLight(0xaeeeff, 0.46, 1.5, 0, 0.26, -0.05);
       } else if (id === 'desk-mat') {
-        addBox(spec.w, 0.025, spec.d, spec.color, 0, 0.012);
-        addGlow(spec.w - 0.08, 0.012, 0.018, 0, 0.026, -spec.d * 0.40, 0x8858ff);
-        addGlow(spec.w - 0.08, 0.012, 0.018, 0, 0.026, spec.d * 0.40, 0x3fe9d3);
+        addBox(spec.w, 0.010, spec.d, spec.color, 0, 0.005);
+        addGlow(spec.w - 0.08, 0.006, 0.014, 0, 0.010, -spec.d * 0.40, 0x8858ff);
+        addGlow(spec.w - 0.08, 0.006, 0.014, 0, 0.010, spec.d * 0.40, 0x3fe9d3);
       } else if (id === 'tower-stack') {
         [-0.13, 0.13].forEach((x, index) => {
           addBox(0.22, 0.44 + index * 0.06, 0.30, 0x1e2733, x, 0.22 + index * 0.03);
@@ -5419,6 +5568,7 @@
 
     createPlacedPropDecoration(id, zone, placement, opts = {}) {
       const safeZone = this.normalizePlacementZone(zone);
+      const baseId = getDecorBaseId(id);
       const spec = this.getPlacedPropSpec(id);
       const pos = this.decorPlacementToWorld(safeZone, placement);
       const group = new this.THREE.Group();
@@ -5432,11 +5582,14 @@
       } else if (opts.selectable !== false) {
         this.registerSelectableDecor(group, { id, zone: safeZone, placement: Object.assign({}, placement) });
       }
-      if (!opts.ghost && id === 'ops-workbench') {
+      if (!opts.ghost && baseId === 'ops-workbench') {
         this.visualQATargets.furniture = { x: pos.x, y: pos.y + 0.62, z: pos.z };
       }
-      if (!opts.ghost && id === 'sidecar-table') {
+      if (!opts.ghost && baseId === 'sidecar-table') {
         this.visualQATargets.sidecarTable = { x: pos.x, y: pos.y + 0.39, z: pos.z };
+      }
+      if (!opts.ghost && baseId === 'ambient-pylon') {
+        this.visualQATargets.lighting = { x: pos.x, y: pos.y + 0.82, z: pos.z };
       }
       if (!opts.ghost && safeZone === 'floor') {
         const placementOptions = { id: `decor:${id}`, label: id, decorId: id };
@@ -5494,6 +5647,9 @@
 
     getDefaultDecorPlacement(id, zone = null) {
       const safeZone = zone ? this.normalizePlacementZone(zone) : this.getDecorPlacementZone(id);
+      const baseId = getDecorBaseId(id);
+      const lightingMatch = /^lighting:[a-z0-9-]+:(\d+)$/.exec(String(id || ''));
+      const lightingIndex = Math.max(0, Math.min(3, Number(lightingMatch?.[1] || 1) - 1));
       const wallDefaults = {
         'neon-sign': { x: 0.50, y: 0.70, face: 'back' },
         'plant-wall': { x: 0.16, y: 0.46, face: 'back' },
@@ -5511,7 +5667,7 @@
         'runbook-board': { x: 0.54, y: 0.48, face: 'front' }
       };
       const deskDefaults = {
-        'desk-mat': { x: 0.56, y: 0.54, rotation: 0 },
+        'desk-mat': { x: 0.56, y: 0.66, rotation: 0 },
         'tower-stack': { x: 0.16, y: 0.18, rotation: 0 },
         'aquarium': { x: 0.98, y: 0.14, rotation: 0 },
         'keyboard-glow': { x: 0.53, y: 0.54, rotation: 0 },
@@ -5519,7 +5675,9 @@
         'coffee-drone': { x: 0.30, y: 0.02, rotation: 0 },
         'desk-bonsai': { x: 0.96, y: 0.45, rotation: 0 },
         'projector-pad': { x: 0.10, y: 0.38, rotation: 0 },
-        'lava-lamp': { x: 0.03, y: 0.02, rotation: 0 }
+        'lava-lamp': { x: 0.03, y: 0.02, rotation: 0 },
+        'task-lamp': { x: 0.10, y: 0.78, rotation: 0 },
+        'focus-light-bar': { x: 0.52, y: 0.11, rotation: 0 }
       };
       const floorDefaults = {
         'holo-globe': { x: 0.88, y: 0.48, rotation: 0 },
@@ -5534,7 +5692,12 @@
         'bookcase': { x: 0.96, y: 0.41, rotation: 0 },
         'model-sat': { x: 0.94, y: 0.02, rotation: 0 },
         'cold-spares': { x: 0.96, y: 0.75, rotation: 0 },
-        'pendant-light': { x: 0.18, y: 0.78, rotation: -Math.PI / 10 },
+        'lamp': { x: 0.18, y: 0.78, rotation: -Math.PI / 10 },
+        'corner-tube': { x: 0.10, y: 0.10, rotation: 0 },
+        'duo-uplighter': { x: 0.84, y: 0.76, rotation: Math.PI / 8 },
+        'halo-orb': { x: 0.72, y: 0.58, rotation: 0 },
+        'flex-uplighter': { x: 0.20, y: 0.24, rotation: Math.PI / 3 },
+        'ambient-pylon': { x: 0.86, y: 0.52, rotation: 0 },
         'server-island': { x: 0.78, y: 0.28, rotation: Math.PI / 2 },
         'uplink-radio': { x: 0.84, y: 0.64, rotation: Math.PI / 2 },
         'ops-workbench': { x: 0.24, y: 0.58, rotation: 0 },
@@ -5542,9 +5705,22 @@
         'display-shelf': { x: 0.82, y: 0.48, rotation: Math.PI / 2 },
         'lab-shelving': { x: 0.18, y: 0.76, rotation: Math.PI / 2 }
       };
-      if (safeZone === 'wall') return Object.assign({ x: 0.5, y: 0.56, face: 'back' }, wallDefaults[id] || {});
-      if (safeZone === 'desk') return Object.assign({ x: 0.5, y: 0.5, rotation: 0 }, deskDefaults[id] || {});
-      return Object.assign({ x: 0.5, y: 0.5, rotation: 0 }, floorDefaults[id] || {});
+      const lightingOffsets = {
+        'lamp': [{ x: 0.18, y: 0.78 }, { x: 0.82, y: 0.78 }, { x: 0.16, y: 0.24 }, { x: 0.80, y: 0.26 }],
+        'corner-tube': [{ x: 0.10, y: 0.10 }, { x: 0.90, y: 0.10 }, { x: 0.10, y: 0.90 }, { x: 0.90, y: 0.90 }],
+        'duo-uplighter': [{ x: 0.84, y: 0.76 }, { x: 0.16, y: 0.76 }, { x: 0.84, y: 0.22 }, { x: 0.16, y: 0.22 }],
+        'halo-orb': [{ x: 0.72, y: 0.58 }, { x: 0.28, y: 0.58 }, { x: 0.70, y: 0.34 }, { x: 0.30, y: 0.34 }],
+        'flex-uplighter': [{ x: 0.20, y: 0.24 }, { x: 0.80, y: 0.24 }, { x: 0.20, y: 0.74 }, { x: 0.80, y: 0.74 }],
+        'ambient-pylon': [{ x: 0.86, y: 0.52 }, { x: 0.14, y: 0.52 }, { x: 0.86, y: 0.20 }, { x: 0.14, y: 0.20 }],
+        'task-lamp': [{ x: 0.10, y: 0.78 }, { x: 0.90, y: 0.78 }, { x: 0.10, y: 0.18 }, { x: 0.90, y: 0.18 }],
+        'focus-light-bar': [{ x: 0.52, y: 0.11 }, { x: 0.52, y: 0.88 }, { x: 0.20, y: 0.50 }, { x: 0.80, y: 0.50 }]
+      };
+      const defaults = safeZone === 'wall' ? wallDefaults : safeZone === 'desk' ? deskDefaults : floorDefaults;
+      const baseDefault = Object.assign({}, defaults[baseId] || {});
+      if (lightingOffsets[baseId]) Object.assign(baseDefault, lightingOffsets[baseId][lightingIndex]);
+      if (safeZone === 'wall') return Object.assign({ x: 0.5, y: 0.56, face: 'back' }, baseDefault);
+      if (safeZone === 'desk') return Object.assign({ x: 0.5, y: 0.5, rotation: 0 }, baseDefault);
+      return Object.assign({ x: 0.5, y: 0.5, rotation: 0 }, baseDefault);
     }
 
     addFallbackDecorHitbox(id) {
@@ -5575,9 +5751,10 @@
     buildDecorations() {
       const items = new Set(this.state.decorations || []);
       items.forEach(id => {
-        const zone = DECOR_PLACEMENT_ZONES[id];
+        const baseId = getDecorBaseId(id);
+        const zone = DECOR_PLACEMENT_ZONES[baseId];
         if (!zone) return;
-        if (id === 'floor-bot') {
+        if (baseId === 'floor-bot') {
           this.buildBotDock();
           return;
         }

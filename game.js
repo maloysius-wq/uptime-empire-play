@@ -88,19 +88,48 @@
   }
 
   const SLOTLESS_COSMETIC_CATEGORIES = ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish', 'deskFrame'];
-  const PLACEMENT_SCHEMA_VERSION = 3;
+  const PLACEMENT_SCHEMA_VERSION = 4;
   const PLACEMENT_ZONES = ['wall', 'floor', 'desk'];
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
   const DESK_SUPPORT_IDS = ['desk', 'fixture-storage-cabinet', 'ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
+  const LIGHTING_CATEGORY = 'lighting';
+  const LIGHTING_INSTANCE_LIMIT = 4;
+  const LIGHTING_LEGACY_IDS = { 'pendant-light': 'lamp' };
+  const LIGHTING_ITEM_IDS = new Set((DATA.cosmetics[LIGHTING_CATEGORY] || []).map(item => item.id));
   const PLACEMENT_ZONE_BY_DECOR_ID = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
-    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk',
+    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk', 'task-lamp': 'desk', 'focus-light-bar': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor',
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'lamp': 'floor', 'corner-tube': 'floor', 'duo-uplighter': 'floor', 'halo-orb': 'floor', 'flex-uplighter': 'floor', 'ambient-pylon': 'floor', 'server-island': 'floor',
     'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
+
+  function parseLightingInstanceId(id) {
+    const match = /^lighting:([a-z0-9-]+):(\d+)$/.exec(String(id || ''));
+    if (!match || !LIGHTING_ITEM_IDS.has(match[1])) return null;
+    const index = Number(match[2]);
+    if (!Number.isInteger(index) || index < 1 || index > LIGHTING_INSTANCE_LIMIT) return null;
+    return { baseId: match[1], index };
+  }
+
+  function getDecorBaseId(id) {
+    const instance = parseLightingInstanceId(id);
+    if (instance) return instance.baseId;
+    return LIGHTING_LEGACY_IDS[id] || String(id || '');
+  }
+
+  function getLightingInstanceId(baseId, index = 1) {
+    return `lighting:${getDecorBaseId(baseId)}:${Math.max(1, Math.min(LIGHTING_INSTANCE_LIMIT, Math.floor(Number(index) || 1)))}`;
+  }
+
+  function normalizeDecorInstanceId(id) {
+    const instance = parseLightingInstanceId(id);
+    if (instance) return getLightingInstanceId(instance.baseId, instance.index);
+    const baseId = getDecorBaseId(id);
+    return LIGHTING_ITEM_IDS.has(baseId) ? getLightingInstanceId(baseId, 1) : String(id || '');
+  }
 
   function emptyPlacementBuckets() {
     return { wall: {}, floor: {}, desk: {} };
@@ -136,7 +165,7 @@
     Object.entries(source).forEach(([id, placement]) => {
       if (PLACEMENT_ZONES.includes(id) || !placement || typeof placement !== 'object' || Array.isArray(placement)) return;
       if (!Object.prototype.hasOwnProperty.call(placement, 'x') || !Object.prototype.hasOwnProperty.call(placement, 'y')) return;
-      const inferredZone = PLACEMENT_ZONE_BY_DECOR_ID[id] || (placement.face ? 'wall' : 'floor');
+      const inferredZone = PLACEMENT_ZONE_BY_DECOR_ID[getDecorBaseId(id)] || (placement.face ? 'wall' : 'floor');
       visit(inferredZone, id, placement);
     });
   }
@@ -146,13 +175,14 @@
     sources.forEach(source => {
       forEachPlacementEntry(source, (zone, id, placement) => {
         if (!id) return;
-        const canonicalZone = normalizePlacementZone(PLACEMENT_ZONE_BY_DECOR_ID[id] || zone);
+        const canonicalId = normalizeDecorInstanceId(id);
+        const canonicalZone = normalizePlacementZone(PLACEMENT_ZONE_BY_DECOR_ID[getDecorBaseId(canonicalId)] || zone);
         const normalized = normalizeCosmeticPlacement(canonicalZone, placement);
         if (!normalized) return;
         PLACEMENT_ZONES.forEach(otherZone => {
-          if (otherZone !== canonicalZone) delete out[otherZone][id];
+          if (otherZone !== canonicalZone) delete out[otherZone][canonicalId];
         });
-        out[canonicalZone][id] = normalized;
+        out[canonicalZone][canonicalId] = normalized;
       });
     });
     return out;
@@ -233,7 +263,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       regionLevels,
       regionProjects,
       purchasedCosmetics: Object.keys(DATA.cosmetics).reduce((acc, category) => {
-        acc[category] = { default: true };
+        acc[category] = category === LIGHTING_CATEGORY ? {} : { default: true };
         return acc;
       }, {}),
       equippedCosmetics: {
@@ -336,6 +366,18 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     delete merged.quietNetwork;
 
     merged.purchasedCosmetics = Object.keys(DATA.cosmetics).reduce((acc, category) => {
+      if (category === LIGHTING_CATEGORY) {
+        const savedLighting = (loaded.purchasedCosmetics || {})[LIGHTING_CATEGORY] || {};
+        const legacyFloor = (loaded.purchasedCosmetics || {}).floor || {};
+        acc[category] = {};
+        (DATA.cosmetics[LIGHTING_CATEGORY] || []).forEach(item => {
+          const savedCount = Number(savedLighting[item.id]);
+          const legacyCount = item.id === 'lamp' && legacyFloor['pendant-light'] ? 1 : 0;
+          const count = Math.max(legacyCount, Number.isFinite(savedCount) ? Math.floor(savedCount) : savedLighting[item.id] ? 1 : 0);
+          if (count > 0) acc[category][item.id] = Math.min(item.maxQuantity || LIGHTING_INSTANCE_LIMIT, count);
+        });
+        return acc;
+      }
       acc[category] = Object.assign({}, fresh.purchasedCosmetics[category] || { default: true }, (loaded.purchasedCosmetics || {})[category] || {});
       return acc;
     }, {});
@@ -360,12 +402,15 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       personality: ['sassy','serious','queen','funny','sad'].includes((loaded.floorBotProfile || {}).personality) ? (loaded.floorBotProfile || {}).personality : 'funny'
     };
 
-    const migratedDecor = Array.isArray(loaded.equippedDecorations) ? loaded.equippedDecorations.slice() : [];
+    const migratedDecor = Array.isArray(loaded.equippedDecorations)
+      ? loaded.equippedDecorations.map(normalizeDecorInstanceId).filter(Boolean)
+      : [];
     const oldOffice = (loaded.equippedCosmetics || {}).office;
     const oldDesk = (loaded.equippedCosmetics || {}).desk;
     if (oldOffice && oldOffice !== 'default' && !migratedDecor.includes(oldOffice)) migratedDecor.push(oldOffice);
     if (oldDesk && oldDesk !== 'default' && !migratedDecor.includes(oldDesk)) migratedDecor.push(oldDesk);
-    merged.equippedDecorations = migratedDecor;
+    if (migratedDecor.includes(getLightingInstanceId('lamp', 1)) && !merged.purchasedCosmetics[LIGHTING_CATEGORY].lamp) merged.purchasedCosmetics[LIGHTING_CATEGORY].lamp = 1;
+    merged.equippedDecorations = [...new Set(migratedDecor)];
     merged.cosmeticPlacements = normalizePlacementBuckets(
       loaded.placements,
       { wall: loaded.wallPlacements || loaded.wallDecorPlacements || {} },
@@ -641,8 +686,43 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     },
 
     getCosmeticsOwnedCount() {
-      const flat = Object.keys(DATA.cosmetics).flatMap(group => Object.entries(this.state.purchasedCosmetics[group] || {}));
-      return flat.filter(([id, owned]) => owned && id !== 'default').length;
+      return Object.keys(DATA.cosmetics).reduce((total, category) => {
+        if (category === LIGHTING_CATEGORY) {
+          return total + Object.values(this.state.purchasedCosmetics[category] || {}).reduce((sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)), 0);
+        }
+        return total + Object.entries(this.state.purchasedCosmetics[category] || {}).filter(([id, owned]) => owned && id !== 'default').length;
+      }, 0);
+    },
+
+    getDecorBaseId(id) {
+      return getDecorBaseId(id);
+    },
+
+    getLightingMaxQuantity(id) {
+      const baseId = getDecorBaseId(id);
+      const item = (DATA.cosmetics[LIGHTING_CATEGORY] || []).find(entry => entry.id === baseId);
+      return item ? Math.max(1, Math.min(LIGHTING_INSTANCE_LIMIT, Math.floor(Number(item.maxQuantity) || LIGHTING_INSTANCE_LIMIT))) : 0;
+    },
+
+    getCosmeticOwnedQuantity(category, id) {
+      const baseId = getDecorBaseId(id);
+      const owned = (this.state.purchasedCosmetics?.[category] || {})[baseId];
+      if (category === LIGHTING_CATEGORY) return Math.max(0, Math.min(this.getLightingMaxQuantity(baseId), Math.floor(Number(owned) || 0)));
+      return owned ? 1 : 0;
+    },
+
+    getLightingInstanceId(id, index = 1) {
+      return getLightingInstanceId(id, index);
+    },
+
+    getNextUnequippedLightingInstanceId(id) {
+      const baseId = getDecorBaseId(id);
+      const owned = this.getCosmeticOwnedQuantity(LIGHTING_CATEGORY, baseId);
+      for (let index = 1; index <= owned; index += 1) {
+        const instanceId = getLightingInstanceId(baseId, index);
+        if (!this.isDecorationEquipped(instanceId)) return instanceId;
+      }
+      return null;
     },
 
     getDecorSlotLimit() {
@@ -1542,6 +1622,23 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
       if (id === 'default') return { ok: false, reason: 'default' };
 
+      if (category === LIGHTING_CATEGORY) {
+        const owned = this.getCosmeticOwnedQuantity(category, id);
+        const maxQuantity = this.getLightingMaxQuantity(id);
+        if (owned >= maxQuantity) return { ok: false, reason: 'maxed' };
+        if (this.state.credits < item.cost) return { ok: false, reason: 'credits' };
+        this.state.credits -= item.cost;
+        const instanceId = getLightingInstanceId(id, owned + 1);
+        this.state.purchasedCosmetics[category][id] = owned + 1;
+        if (this.countEquippedDecorations() < this.getDecorSlotLimit()) {
+          this.state.equippedDecorations.push(instanceId);
+          this.updateAchievements();
+          return { ok: true, purchased: true, equipped: true, instanceId, quantity: owned + 1, maxQuantity };
+        }
+        this.updateAchievements();
+        return { ok: true, purchased: true, equipped: false, instanceId, quantity: owned + 1, maxQuantity };
+      }
+
       if (!this.state.purchasedCosmetics[category][id]) {
         if (this.state.credits < item.cost) return { ok: false, reason: 'credits' };
         this.state.credits -= item.cost;
@@ -1567,21 +1664,23 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     getCosmeticPlacement(zone, id) {
       const safeZone = normalizePlacementZone(zone);
-      const placement = ((this.state.cosmeticPlacements || {})[safeZone] || {})[id] || null;
+      const instanceId = normalizeDecorInstanceId(id);
+      const placement = ((this.state.cosmeticPlacements || {})[safeZone] || {})[instanceId] || null;
       return placement ? Object.assign({}, placement) : null;
     },
 
     setCosmeticPlacement(zone, id, placement) {
       if (!zone || !id || !placement) return false;
-      const safeZone = normalizePlacementZone(PLACEMENT_ZONE_BY_DECOR_ID[id] || zone);
+      const instanceId = normalizeDecorInstanceId(id);
+      const safeZone = normalizePlacementZone(PLACEMENT_ZONE_BY_DECOR_ID[getDecorBaseId(instanceId)] || zone);
       const savedPlacement = normalizeCosmeticPlacement(safeZone, placement);
       if (!savedPlacement) return false;
       if (!this.state.cosmeticPlacements) this.state.cosmeticPlacements = emptyPlacementBuckets();
       PLACEMENT_ZONES.forEach(otherZone => {
         if (!this.state.cosmeticPlacements[otherZone]) this.state.cosmeticPlacements[otherZone] = {};
-        if (otherZone !== safeZone) delete this.state.cosmeticPlacements[otherZone][id];
+        if (otherZone !== safeZone) delete this.state.cosmeticPlacements[otherZone][instanceId];
       });
-      this.state.cosmeticPlacements[safeZone][id] = savedPlacement;
+      this.state.cosmeticPlacements[safeZone][instanceId] = savedPlacement;
       syncPlacementCompatibility(this.state);
       this.save(false);
       return true;
@@ -1589,9 +1688,12 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     ensureDecorationEquipped(id) {
       if (!id || id === 'default') return { ok: false, reason: 'default' };
-      if (this.isDecorationEquipped(id)) return { ok: true, already: true };
+      const instanceId = normalizeDecorInstanceId(id);
+      const lighting = parseLightingInstanceId(instanceId);
+      if (lighting && lighting.index > this.getCosmeticOwnedQuantity(LIGHTING_CATEGORY, lighting.baseId)) return { ok: false, reason: 'owned' };
+      if (this.isDecorationEquipped(instanceId)) return { ok: true, already: true };
       if (this.countEquippedDecorations() >= this.getDecorSlotLimit()) return { ok: false, reason: 'slots' };
-      this.state.equippedDecorations.push(id);
+      this.state.equippedDecorations.push(instanceId);
       this.save(false);
       return { ok: true, equipped: true };
     },

@@ -1,13 +1,18 @@
 (function() {
   const DATA = window.UptimeEmpireData;
   const jitter = (min, max) => Math.random() * (max - min) + min;
+  const LIGHTING_LEGACY_IDS = { 'pendant-light': 'lamp' };
+  const getDecorBaseId = id => {
+    const match = /^lighting:([a-z0-9-]+):\d+$/.exec(String(id || ''));
+    return match ? match[1] : (LIGHTING_LEGACY_IDS[id] || String(id || ''));
+  };
   const DECOR_PLACEMENT_ZONES = {
     'neon-sign': 'wall', 'plant-wall': 'wall', 'wall-monitor': 'wall', 'framed-cert': 'wall', 'server-poster': 'wall', 'moon-window': 'wall',
     'uplink-map': 'wall', 'award-shelf': 'wall', 'maintenance-clock': 'wall', 'fiber-art': 'wall', 'incident-board': 'wall', 'snack-shelf': 'wall', 'ops-beacon': 'wall', 'runbook-board': 'wall',
     'desk-mat': 'desk', 'tower-stack': 'desk', 'aquarium': 'desk', 'keyboard-glow': 'desk', 'mini-rack': 'desk', 'coffee-drone': 'desk',
-    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk',
+    'desk-bonsai': 'desk', 'projector-pad': 'desk', 'lava-lamp': 'desk', 'uplink-radio': 'desk', 'task-lamp': 'desk', 'focus-light-bar': 'desk',
     'holo-globe': 'floor', 'chair-upgrade': 'floor', 'led-strip': 'floor', 'floor-runner': 'floor', 'hex-rug': 'floor', 'floor-bot': 'floor', 'light-grid': 'floor',
-    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'pendant-light': 'floor', 'server-island': 'floor',
+    'parts-bins': 'floor', 'retro-console': 'floor', 'bookcase': 'floor', 'model-sat': 'floor', 'cold-spares': 'floor', 'lamp': 'floor', 'corner-tube': 'floor', 'duo-uplighter': 'floor', 'halo-orb': 'floor', 'flex-uplighter': 'floor', 'ambient-pylon': 'floor', 'server-island': 'floor',
     'ops-workbench': 'floor', 'sidecar-table': 'floor', 'display-shelf': 'floor', 'lab-shelving': 'floor'
   };
   const WORLD_OPERATION_FIXTURES = {
@@ -456,12 +461,20 @@ const WORKSPACE_SECTION_DEFS = {
     startVisualQAFromQuery() {
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get('qa');
-      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture', 'sidecar-table']);
+      const allowedViews = new Set(['arcade-front', 'arcade-quarter', 'desk-mount', 'storage-cabinet', 'furniture', 'sidecar-table', 'lighting']);
       if (!allowedViews.has(requestedView)) return;
 
       if (requestedView === 'furniture' || requestedView === 'sidecar-table') {
         this.app.state.equippedCosmetics.deskFrame = 'studio';
         this.app.state.equippedDecorations = ['ops-workbench', 'sidecar-table', 'display-shelf', 'lab-shelving'];
+        this.renderOffice();
+      }
+      if (requestedView === 'lighting') {
+        this.app.state.equippedDecorations = [
+          'lighting:lamp:1', 'lighting:corner-tube:1', 'lighting:duo-uplighter:1',
+          'lighting:halo-orb:1', 'lighting:flex-uplighter:1', 'lighting:ambient-pylon:1',
+          'lighting:task-lamp:1', 'lighting:focus-light-bar:1'
+        ];
         this.renderOffice();
       }
 
@@ -1121,10 +1134,10 @@ const WORKSPACE_SECTION_DEFS = {
           this.playSound('buy');
           this.app.renderAll();
           if (isPlaceable && !result.unequipped) {
-            requestAnimationFrame(() => this.startDecorPlacement(category, id));
+            requestAnimationFrame(() => this.startDecorPlacement(category, result.instanceId || id));
           }
         } else {
-          this.toast(result.reason === 'slots' ? 'No decor slots left. Upgrade the office suite.' : 'Not enough credits.');
+          this.toast(result.reason === 'slots' ? 'No decor slots left. Upgrade the office suite.' : result.reason === 'maxed' ? 'You already own the maximum four of this light.' : 'Not enough credits.');
           this.app.renderAll();
         }
       });
@@ -5809,9 +5822,9 @@ const WORKSPACE_SECTION_DEFS = {
 
     getCosmeticPlacementZone(category, id) {
       if (!id || id === 'default') return null;
-      const zone = DECOR_PLACEMENT_ZONES[id] || null;
+      const zone = DECOR_PLACEMENT_ZONES[getDecorBaseId(id)] || null;
       if (!zone) return null;
-      if (!['office', 'wall', 'desk', 'floor', 'furniture', 'shelf'].includes(category)) return null;
+      if (!['office', 'wall', 'desk', 'floor', 'lighting', 'furniture', 'shelf'].includes(category)) return null;
       return zone;
     },
 
@@ -5931,15 +5944,16 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     getPlaceableCosmeticEntryById(id) {
-      const categories = ['office', 'wall', 'desk', 'floor', 'furniture', 'shelf'];
+      const baseId = getDecorBaseId(id);
+      const categories = ['office', 'wall', 'desk', 'floor', 'lighting', 'furniture', 'shelf'];
       for (const category of categories) {
-        const item = (DATA.cosmetics[category] || []).find(entry => entry.id === id);
+        const item = (DATA.cosmetics[category] || []).find(entry => entry.id === baseId);
         if (!item) continue;
-        const owned = !!((this.app.state.purchasedCosmetics || {})[category] || {})[id];
+        const owned = this.app.getCosmeticOwnedQuantity ? this.app.getCosmeticOwnedQuantity(category, baseId) > 0 : !!((this.app.state.purchasedCosmetics || {})[category] || {})[baseId];
         if (owned) return { category, item };
       }
       for (const category of categories) {
-        const item = (DATA.cosmetics[category] || []).find(entry => entry.id === id);
+        const item = (DATA.cosmetics[category] || []).find(entry => entry.id === baseId);
         if (item) return { category, item };
       }
       return null;
@@ -6095,7 +6109,8 @@ const WORKSPACE_SECTION_DEFS = {
         this.toast('This item cannot be manually placed yet.');
         return;
       }
-      const owned = !!((this.app.state.purchasedCosmetics || {})[category] || {})[id];
+      const baseId = getDecorBaseId(id);
+      const owned = this.app.getCosmeticOwnedQuantity ? this.app.getCosmeticOwnedQuantity(category, baseId) > 0 : !!((this.app.state.purchasedCosmetics || {})[category] || {})[baseId];
       if (!owned) {
         this.toast('Buy this item first, then place it.');
         return;
@@ -6106,7 +6121,7 @@ const WORKSPACE_SECTION_DEFS = {
         this.app.renderAll();
         return;
       }
-      const item = (DATA.cosmetics[category] || []).find(entry => entry.id === id) || { name: id };
+      const item = (DATA.cosmetics[category] || []).find(entry => entry.id === baseId) || { name: baseId };
       const existingPlacement = this.app.getCosmeticPlacement ? (this.app.getCosmeticPlacement(zone, id) || options.initialPlacement || null) : (options.initialPlacement || null);
       if (this.worldUtilityOpen) this.closeWorldUtility(false);
       this.syncPlacementHud(true, item.name, zone, { fromMoveMode: !!options.fromMoveMode });
@@ -6161,7 +6176,7 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     renderShop() {
-      const allowedCategories = ['office', 'wall', 'desk', 'floor', 'furniture', 'shelf', 'wallFinish', 'floorFinish', 'deskFinish', 'deskFrame', 'chairFinish'];
+      const allowedCategories = ['office', 'wall', 'desk', 'floor', 'lighting', 'furniture', 'shelf', 'wallFinish', 'floorFinish', 'deskFinish', 'deskFrame', 'chairFinish'];
       const category = allowedCategories.includes(this.app.state.currentShopView) ? this.app.state.currentShopView : 'office';
       if (category !== this.app.state.currentShopView) this.app.state.currentShopView = category;
       const currentSuite = this.app.getOfficeSuiteDef();
@@ -6182,12 +6197,17 @@ const WORKSPACE_SECTION_DEFS = {
       const slotlessCategory = this.app.isSlotlessCosmeticCategory ? this.app.isSlotlessCosmeticCategory(category) : ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish', 'deskFrame'].includes(category);
       const items = (DATA.cosmetics[category] || []).filter(item => slotlessCategory || item.id !== 'default');
       this.els.shopList.innerHTML = items.map(item => {
-        const owned = !!this.app.state.purchasedCosmetics[category][item.id];
+        const isLighting = category === 'lighting';
+        const ownedQuantity = this.app.getCosmeticOwnedQuantity ? this.app.getCosmeticOwnedQuantity(category, item.id) : (this.app.state.purchasedCosmetics[category][item.id] ? 1 : 0);
+        const maxQuantity = isLighting && this.app.getLightingMaxQuantity ? this.app.getLightingMaxQuantity(item.id) : 1;
+        const owned = ownedQuantity > 0;
         const placementZone = this.getCosmeticPlacementZone(category, item.id);
         const placeable = !!placementZone;
         const placement = placeable && this.app.getCosmeticPlacement ? this.app.getCosmeticPlacement(placementZone, item.id) : null;
-        const equipped = slotlessCategory ? (this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic(category) === item.id : ((this.app.state.equippedCosmetics || {})[category] === item.id)) : this.app.isDecorationEquipped(item.id);
-        const canAfford = this.app.state.credits >= item.cost || owned;
+        const lightingInstances = isLighting && this.app.getLightingInstanceId ? Array.from({ length: ownedQuantity }, (_, index) => this.app.getLightingInstanceId(item.id, index + 1)) : [];
+        const equippedCount = isLighting ? lightingInstances.filter(instanceId => this.app.isDecorationEquipped(instanceId)).length : 0;
+        const equipped = slotlessCategory ? (this.app.getEquippedCosmetic ? this.app.getEquippedCosmetic(category) === item.id : ((this.app.state.equippedCosmetics || {})[category] === item.id)) : isLighting ? equippedCount > 0 : this.app.isDecorationEquipped(item.id);
+        const canAfford = isLighting ? ownedQuantity < maxQuantity && this.app.state.credits >= item.cost : this.app.state.credits >= item.cost || owned;
         const isFinishCategory = category === 'wallFinish' || category === 'floorFinish' || category === 'deskFinish' || category === 'chairFinish';
         const previewClasses = `cosmetic-preview${isFinishCategory ? ' finish-swatch' : ''}`;
         const previewStyle = isFinishCategory ? ` style="${this.getFinishPreviewStyle(category, item.id)}"` : '';
@@ -6195,14 +6215,24 @@ const WORKSPACE_SECTION_DEFS = {
         const nameIcon = isFinishCategory ? '' : `<span class="icon-badge">${item.icon}</span> `;
         let label = this.app.formatNumber(item.cost) + ' CC';
         let buttonLabel = 'Buy';
-        if (owned) {
+        if (isLighting) {
+          label = `${ownedQuantity} / ${maxQuantity} owned · ${equippedCount} placed`;
+          buttonLabel = ownedQuantity < maxQuantity ? `Buy + Place (${ownedQuantity + 1}/${maxQuantity})` : 'Max owned';
+        } else if (owned) {
           label = equipped ? (placement ? 'placed' : 'equipped') : 'owned';
           buttonLabel = slotlessCategory ? (equipped ? 'Equipped' : 'Equip') : placeable ? (equipped ? 'Unequip' : 'Place') : (equipped ? 'Unequip' : 'Equip');
         } else if (placeable) {
           buttonLabel = 'Buy + Place';
         }
-        const placeButton = placeable && owned && equipped ? `<button class="soft-btn placement-card-btn" data-action="place-cosmetic" data-category="${category}" data-id="${item.id}">${placement ? 'Move' : 'Place'}</button>` : '';
-        const placementNote = placeable ? `<div class="placement-card-note">${placement ? `Manual ${placementZone} spot saved. You can move it anytime.` : `Manual ${placementZone} placement available.`}</div>` : '';
+        const placeButton = isLighting
+          ? lightingInstances.map((instanceId, index) => {
+            const instancePlacement = placeable && this.app.getCosmeticPlacement ? this.app.getCosmeticPlacement(placementZone, instanceId) : null;
+            return `<button class="soft-btn placement-card-btn" data-action="place-cosmetic" data-category="${category}" data-id="${instanceId}">${instancePlacement ? `Move ${index + 1}` : `Place ${index + 1}`}</button>`;
+          }).join('')
+          : placeable && owned && equipped ? `<button class="soft-btn placement-card-btn" data-action="place-cosmetic" data-category="${category}" data-id="${item.id}">${placement ? 'Move' : 'Place'}</button>` : '';
+        const placementNote = isLighting
+          ? `<div class="placement-card-note">Each fixture has its own saved placement. Own up to four.</div>`
+          : placeable ? `<div class="placement-card-note">${placement ? `Manual ${placementZone} spot saved. You can move it anytime.` : `Manual ${placementZone} placement available.`}</div>` : '';
         return `
           <article class="manager-card card cosmetic-card ${equipped ? 'done' : ''} ${placeable ? 'wall-placeable-card' : ''}">
             <div class="cosmetic-card-layout">
@@ -6217,7 +6247,7 @@ const WORKSPACE_SECTION_DEFS = {
                 <p class="muted">${item.desc}</p>
                 ${placementNote}
                 <div class="manager-actions">
-                  <button class="buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-cosmetic" data-category="${category}" data-id="${item.id}">${buttonLabel}</button>
+                  <button class="buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-cosmetic" data-category="${category}" data-id="${item.id}"${isLighting && ownedQuantity >= maxQuantity ? ' disabled' : ''}>${buttonLabel}</button>
                   ${placeButton}
                 </div>
               </div>
