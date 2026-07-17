@@ -5381,7 +5381,7 @@
       } else if (id === 'sidecar-table') {
         const topY = spec.h - 0.035;
         addBox(spec.w, 0.07, spec.d, 0x465562, 0, topY);
-        addBox(spec.w - 0.11, 0.025, spec.d - 0.12, 0x2a3d48, 0, topY + 0.046);
+        addBox(spec.w - 0.16, 0.26, spec.d - 0.10, 0x263541, 0, 0.43);
         [-0.11, 0.11].forEach(y => addBox(spec.w - 0.28, 0.024, 0.020, 0x91a8b7, 0, 0.43 + y, -spec.d / 2 - 0.012));
         [-1, 1].forEach(x => [-1, 1].forEach(z => {
           addCylinder(0.055, 0.055, 0.035, 0x151e26, x * (spec.w / 2 - 0.11), 0.035, z * (spec.d / 2 - 0.11));
