@@ -5382,11 +5382,14 @@
       } else if (id === 'sidecar-table') {
         const topY = spec.h - 0.035;
         addBox(spec.w, 0.07, spec.d, 0x465562, 0, topY);
-        addBox(spec.w - 0.16, 0.34, spec.d - 0.10, 0x263541, 0, topY - 0.205);
+        addBox(spec.w - 0.16, 0.43, spec.d - 0.10, 0x263541, 0, topY - 0.25);
         [-0.11, 0.11].forEach(y => addBox(spec.w - 0.28, 0.024, 0.020, 0x91a8b7, 0, 0.43 + y, -spec.d / 2 - 0.012));
         [-1, 1].forEach(x => [-1, 1].forEach(z => {
-          addCylinder(0.055, 0.055, 0.035, 0x151e26, x * (spec.w / 2 - 0.11), 0.035, z * (spec.d / 2 - 0.11));
-          addCylinder(0.025, 0.025, 0.040, 0x67dfff, x * (spec.w / 2 - 0.11), 0.050, z * (spec.d / 2 - 0.11), { emissive: 0x2d7e9b, emissiveIntensity: 0.28 });
+          const casterX = x * (spec.w / 2 - 0.11);
+          const casterZ = z * (spec.d / 2 - 0.11);
+          addBox(0.06, 0.12, 0.06, 0x202d36, casterX, 0.125, casterZ);
+          addCylinder(0.055, 0.055, 0.035, 0x151e26, casterX, 0.035, casterZ);
+          addCylinder(0.025, 0.025, 0.040, 0x67dfff, casterX, 0.050, casterZ, { emissive: 0x2d7e9b, emissiveIntensity: 0.28 });
         }));
       } else if (id === 'display-shelf') {
         [-1, 1].forEach(x => [-1, 1].forEach(z => addBox(0.055, spec.h, 0.055, 0x263946, x * (spec.w / 2 - 0.045), spec.h / 2, z * (spec.d / 2 - 0.04))));
