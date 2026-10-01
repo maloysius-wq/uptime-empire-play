@@ -79,7 +79,6 @@
       missionReward: 1,
       researchBonus: 1,
       missionCooldownReduction: 0,
-      officeSlotsBonus: 0,
       categoryIncidentShield: DATA.categories.reduce((acc, cat) => {
         acc[cat] = 0;
         return acc;
@@ -460,8 +459,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     if (typeof merged.offlineEfficiency !== 'number') merged.offlineEfficiency = 0.5;
     merged.consoleLog = Array.isArray(loaded.consoleLog) ? loaded.consoleLog.slice(-50) : [];
 
-    const maxDecor = DATA.officeSuiteDefs[Math.min(DATA.officeSuiteDefs.length - 1, merged.officeTier)].slots;
-    merged.equippedDecorations = merged.equippedDecorations.filter(id => id !== 'default').slice(0, maxDecor);
+    merged.equippedDecorations = merged.equippedDecorations.filter(id => id !== 'default');
 
     return merged;
   }
@@ -725,11 +723,6 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       return null;
     },
 
-    getDecorSlotLimit() {
-      const suiteSlots = this.getOfficeSuiteDef().slots;
-      return suiteSlots + Math.max(0, Math.floor(this.state.multipliers.officeSlotsBonus || 0));
-    },
-
     countEquippedDecorations() {
       return this.state.equippedDecorations.length;
     },
@@ -814,7 +807,6 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.offlineCapHours = target.offlineCapHours;
       this.state.offlineEfficiency = target.offlineEfficiency;
       this.state.missionSlots = target.missionSlots;
-      this.state.equippedDecorations = this.state.equippedDecorations.slice(0, this.getDecorSlotLimit());
     },
 
     applyOfflineEarnings() {
@@ -1630,26 +1622,18 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         this.state.credits -= item.cost;
         const instanceId = getLightingInstanceId(id, owned + 1);
         this.state.purchasedCosmetics[category][id] = owned + 1;
-        if (this.countEquippedDecorations() < this.getDecorSlotLimit()) {
-          this.state.equippedDecorations.push(instanceId);
-          this.updateAchievements();
-          return { ok: true, purchased: true, equipped: true, instanceId, quantity: owned + 1, maxQuantity };
-        }
+        this.state.equippedDecorations.push(instanceId);
         this.updateAchievements();
-        return { ok: true, purchased: true, equipped: false, instanceId, quantity: owned + 1, maxQuantity };
+        return { ok: true, purchased: true, equipped: true, instanceId, quantity: owned + 1, maxQuantity };
       }
 
       if (!this.state.purchasedCosmetics[category][id]) {
         if (this.state.credits < item.cost) return { ok: false, reason: 'credits' };
         this.state.credits -= item.cost;
         this.state.purchasedCosmetics[category][id] = true;
-        if (this.countEquippedDecorations() < this.getDecorSlotLimit()) {
-          this.state.equippedDecorations.push(id);
-          this.updateAchievements();
-          return { ok: true, purchased: true, equipped: true };
-        }
+        this.state.equippedDecorations.push(id);
         this.updateAchievements();
-        return { ok: true, purchased: true, equipped: false };
+        return { ok: true, purchased: true, equipped: true };
       }
 
       if (this.isDecorationEquipped(id)) {
@@ -1657,7 +1641,6 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         return { ok: true, unequipped: true };
       }
 
-      if (this.countEquippedDecorations() >= this.getDecorSlotLimit()) return { ok: false, reason: 'slots' };
       this.state.equippedDecorations.push(id);
       return { ok: true, equipped: true };
     },
@@ -1692,7 +1675,6 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       const lighting = parseLightingInstanceId(instanceId);
       if (lighting && lighting.index > this.getCosmeticOwnedQuantity(LIGHTING_CATEGORY, lighting.baseId)) return { ok: false, reason: 'owned' };
       if (this.isDecorationEquipped(instanceId)) return { ok: true, already: true };
-      if (this.countEquippedDecorations() >= this.getDecorSlotLimit()) return { ok: false, reason: 'slots' };
       this.state.equippedDecorations.push(instanceId);
       this.save(false);
       return { ok: true, equipped: true };

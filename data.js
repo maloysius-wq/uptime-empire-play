@@ -72,15 +72,13 @@ window.UptimeEmpireData = {
     {
       "id": "regular",
       "name": "Regular Office",
-      "slots": 1,
       "costCredits": 0,
       "costResearch": 0,
-      "desc": "One decor item fits. Cozy, cheap, slightly cramped."
+      "desc": "Your cozy starter office. Decorate wherever objects physically fit."
     },
     {
       "id": "suite",
       "name": "Expanded Suite",
-      "slots": 3,
       "costCredits": 150000,
       "costResearch": 4,
       "desc": "A proper room with enough wall space for hobbies and dashboards."
@@ -88,7 +86,6 @@ window.UptimeEmpireData = {
     {
       "id": "opswing",
       "name": "Ops Wing",
-      "slots": 5,
       "costCredits": 25000000,
       "costResearch": 18,
       "desc": "A bigger office with room for your favorite nonsense and a tiny bit of dignity."
@@ -96,7 +93,6 @@ window.UptimeEmpireData = {
     {
       "id": "commandfloor",
       "name": "Command Floor",
-      "slots": 8,
       "costCredits": 3500000000,
       "costResearch": 60,
       "desc": "At this point the office is practically a mini-NOC."
@@ -104,7 +100,6 @@ window.UptimeEmpireData = {
     {
       "id": "executivecampus",
       "name": "Executive Campus Suite",
-      "slots": 12,
       "costCredits": 1800000000000,
       "costResearch": 180,
       "desc": "Your little buddy now lives in a prestige aquarium of polished uptime excess."
@@ -112,7 +107,6 @@ window.UptimeEmpireData = {
     {
       "id": "skybridge",
       "name": "Skybridge Command Suite",
-      "slots": 16,
       "costCredits": 420000000000000,
       "costResearch": 420,
       "desc": "A panoramic control room with enough real estate for trophy nonsense and backup nonsense."
@@ -120,7 +114,6 @@ window.UptimeEmpireData = {
     {
       "id": "orbitaldeck",
       "name": "Orbital Command Deck",
-      "slots": 20,
       "costCredits": 190000000000000000,
       "costResearch": 960,
       "desc": "Half office, half myth, all blinking authority."
@@ -2876,13 +2869,12 @@ window.UptimeEmpireData = {
       "branch": "Energy & Facilities",
       "icon": "🪑",
       "name": "Executive Remodeling",
-      "desc": "Office slots +1 and capacity +8%.",
+      "desc": "Empire capacity +8%.",
       "cost": 6,
       "maxLevel": 1,
       "effects": {
         "add": {
-          "capacityBonus": 0.08,
-          "officeSlotsBonus": 1
+          "capacityBonus": 0.08
         }
       },
       "requires": [
@@ -3190,13 +3182,10 @@ window.UptimeEmpireData = {
       "branch": "Energy & Facilities",
       "icon": "🖼️",
       "name": "Gallery of Uptime",
-      "desc": "Office slots +2 and global income +6%.",
+      "desc": "Global income +6%.",
       "cost": 16,
       "maxLevel": 1,
       "effects": {
-        "add": {
-          "officeSlotsBonus": 2
-        },
         "multiply": {
           "globalIncome": 1.06
         }
@@ -3342,13 +3331,12 @@ window.UptimeEmpireData = {
       "branch": "Energy & Facilities",
       "icon": "🏙️",
       "name": "Luxury Command Campus",
-      "desc": "Repeatable. Office slots +1 and capacity +5% per level.",
+      "desc": "Repeatable. Empire capacity +5% per level.",
       "cost": 20,
       "costGrowth": 2.02,
       "maxLevel": 14,
       "effects": {
         "add": {
-          "officeSlotsBonus": 1,
           "capacityBonus": 0.05
         }
       },
@@ -4803,7 +4791,7 @@ window.UptimeEmpireData.eraDefs = [
     name: "Post-Quantum Era",
     icon: "⚛️",
     desc: "Ridiculous future throughput for players who refuse to stop escalating.",
-    effects: { multiply: { globalIncome: 1.15, researchBonus: 1.15 }, add: { officeSlotsBonus: 2 }, categoryMultiply: { Frontier: 1.25, Networking: 1.08 } },
+    effects: { multiply: { globalIncome: 1.15, researchBonus: 1.15 }, categoryMultiply: { Frontier: 1.25, Networking: 1.08 } },
     unlockWhen: { prestiges: 7, highestTier: 14 }
   }
 ];
@@ -4928,10 +4916,10 @@ window.UptimeEmpireData.upgradeDefs.push(
     branch: "Frontier",
     icon: "🛰️",
     name: "Skyhook Logistics",
-    desc: "Frontier income rises and the office gains 2 extra decor slots.",
+    desc: "Frontier income rises and empire capacity increases by 8%.",
     cost: 28000000,
     costResearch: 56,
-    effects: { categoryMultiply: { Frontier: 1.18 }, add: { officeSlotsBonus: 2 } },
+    effects: { categoryMultiply: { Frontier: 1.18 }, add: { capacityBonus: 0.08 } },
     visibleWhen: { highestTier: 11, research: 40 }
   }
 );
@@ -4959,8 +4947,8 @@ window.UptimeEmpireData.campaignGoalDefs = [
     unlockWhen: { officeTier: 4, unlockedRegions: 4 },
     costCredits: 6000000000000,
     costResearch: 180,
-    rewardText: "Auto income x1.12 • capacity +15% • office slots +2",
-    effects: { multiply: { automatedIncome: 1.12 }, add: { capacityBonus: 0.15, officeSlotsBonus: 2 } }
+    rewardText: "Auto income x1.12 • capacity +15%",
+    effects: { multiply: { automatedIncome: 1.12 }, add: { capacityBonus: 0.15 } }
   },
   {
     id: "fund-orbital",

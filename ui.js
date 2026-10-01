@@ -163,7 +163,7 @@ const HELP_SECTIONS = [
       <ul>
         <li><strong>Office upgrades</strong> expand what the room can support.</li>
         <li><strong>Decor</strong> shows off milestones and adds personality.</li>
-        <li><strong>Wall/Floor/Desk/Chair finishes</strong> are slotless style changes.</li>
+        <li><strong>Wall/Floor/Desk/Chair finishes</strong> change the room's appearance without placing an object.</li>
         <li><strong>3D props</strong> are the room’s visual progression language.</li>
       </ul>
       <p>The store uses one icon per item, and finishes are represented by swatches that reflect the actual color/texture.</p>
@@ -1137,7 +1137,7 @@ const WORKSPACE_SECTION_DEFS = {
             requestAnimationFrame(() => this.startDecorPlacement(category, result.instanceId || id));
           }
         } else {
-          this.toast(result.reason === 'slots' ? 'No decor slots left. Upgrade the office suite.' : result.reason === 'maxed' ? 'You already own the maximum four of this light.' : 'Not enough credits.');
+          this.toast(result.reason === 'maxed' ? 'You already own the maximum four of this light.' : 'Not enough credits.');
           this.app.renderAll();
         }
       });
@@ -1145,7 +1145,7 @@ const WORKSPACE_SECTION_DEFS = {
       this.els.officeUpgradeBtn.addEventListener('click', () => {
         const result = this.app.buyOfficeUpgrade();
         if (result.ok) {
-          this.toast('Office suite upgraded. More decor slots unlocked.');
+          this.toast('Office suite upgraded.');
           this.playSound('buy');
         } else if (result.reason === 'max') this.toast('Office suite already maxed. Tiny luxury achieved.');
         else this.toast(result.reason === 'research' ? 'Need more Research Data.' : 'Not enough credits.');
@@ -1158,7 +1158,7 @@ const WORKSPACE_SECTION_DEFS = {
           if (!btn) return;
           const result = this.app.buyOfficeUpgrade();
           if (result.ok) {
-            this.toast('Office suite upgraded. More decor slots unlocked.');
+            this.toast('Office suite upgraded.');
             this.spawnPurchaseBurst(btn, 'suite');
             this.playSound('buy');
           } else if (result.reason === 'max') this.toast('Office suite already maxed. Tiny luxury achieved.');
@@ -5776,7 +5776,7 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.officeSuiteValue) this.els.officeSuiteValue.textContent = this.app.getOfficeSuiteDef().name;
       if (this.els.wallFinishValue) this.els.wallFinishValue.textContent = ((DATA.cosmetics.wallFinish || []).find(item => item.id === wallFinish) || {}).name || 'Soft Green Walls';
       if (this.els.floorFinishValue) this.els.floorFinishValue.textContent = ((DATA.cosmetics.floorFinish || []).find(item => item.id === floorFinish) || {}).name || 'Dark Gray Floor';
-      if (this.els.officePropsValue) this.els.officePropsValue.textContent = `${this.app.countEquippedDecorations()} / ${this.app.getDecorSlotLimit()}`;
+      if (this.els.officePropsValue) this.els.officePropsValue.textContent = `${this.app.countEquippedDecorations()}`;
       if (this.els.officeUpgradeBtn) this.els.officeUpgradeBtn.textContent = this.app.state.officeTier >= DATA.officeSuiteDefs.length - 1 ? 'Max Suite' : 'Upgrade Suite';
     },
 
@@ -6117,7 +6117,7 @@ const WORKSPACE_SECTION_DEFS = {
       }
       const equip = this.app.ensureDecorationEquipped ? this.app.ensureDecorationEquipped(id) : { ok: true };
       if (!equip.ok) {
-        this.toast(equip.reason === 'slots' ? 'No decor slots left. Upgrade the office suite.' : 'Could not equip this item.');
+        this.toast('Could not equip this item.');
         this.app.renderAll();
         return;
       }
@@ -6185,7 +6185,7 @@ const WORKSPACE_SECTION_DEFS = {
         <article class="manager-card card suite-card">
           <div class="manager-top">
             <div class="manager-name"><span class="icon-badge">🏢</span> ${currentSuite.name} → ${nextSuite.name}</div>
-            <span class="tag">${currentSuite.slots} → ${nextSuite.slots} slots</span>
+            <span class="tag">Room upgrade</span>
           </div>
           <p class="muted">${nextSuite.desc}</p>
           <div class="manager-meta"><span><strong>Cost:</strong> ${this.app.formatNumber(nextSuite.costCredits)} CC + ${nextSuite.costResearch} RD</span></div>
