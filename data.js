@@ -4931,7 +4931,7 @@ window.UptimeEmpireData.campaignGoalDefs = [
     icon: "🧾",
     stage: "Stage 1",
     name: "Pay Off the Data-Center Debt",
-    desc: "Buy out the ugly launch debt and stop feeding your best gains to creditors.",
+    desc: "Repay the loan that funded your shed, at your own pace. No interest, no deadlines. File the final paperwork when the balance is cleared.",
     costCredits: 750000000,
     costResearch: 18,
     rewardText: "Global income x1.05 • mission rewards x1.05 • starting credits +25K",

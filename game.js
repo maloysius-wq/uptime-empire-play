@@ -239,7 +239,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     });
 
     return {
-      version: 9,
+      version: 10,
       credits: 20,
       lifetimeCredits: 0,
       innovationPoints: 0,
@@ -297,10 +297,15 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       activeEraId: null,
       contractClaims: {},
       sideJobIndex: 0,
+      sideJobBaseline: null,
+      prestigeMissionBaseline: 0,
       regionMastery: Object.fromEntries(DATA.regionDefs.map(region => [region.id, { xp: 0, level: 0 }])),
       bossCatalog: {},
       campaignGoals: {},
       campaignGoalMoments: {},
+      debtPaid: 0,
+      officeLightSettings: {},
+      radioProfile: { enabled: true, station: 'shuffle', volume: 0.058 },
       missionSlots: 1,
       activeMissions: [],
       missionCooldowns: {},
@@ -336,6 +341,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     const merged = deepClone(fresh);
     Object.assign(merged, loaded);
+    merged.version = Math.max(fresh.version, Number(loaded.version) || 0);
 
     merged.generators = DATA.generatorDefs.map(def => {
       const found = (loaded.generators || []).find(item => item.id === def.id);
@@ -356,6 +362,26 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     merged.activeEraId = null;
     merged.contractClaims = Object.assign({}, loaded.contractClaims || {});
     merged.sideJobIndex = Math.max(0, Math.floor(Number(loaded.sideJobIndex) || 0));
+    merged.sideJobBaseline = loaded.sideJobBaseline && Number.isFinite(loaded.sideJobBaseline.value)
+      ? { index: loaded.sideJobBaseline.index, value: Math.max(0, loaded.sideJobBaseline.value) } : null;
+    merged.prestigeMissionBaseline = Math.max(0, Number(loaded.prestigeMissionBaseline ?? loaded.stats?.missionsCompleted ?? 0) || 0);
+    merged.debtPaid = Math.max(0, Math.min(DATA.campaignGoalDefs.find(goal => goal.id === 'debt-free').costCredits, Number(loaded.debtPaid) || 0));
+    merged.officeLightSettings = {};
+    const radio = loaded.radioProfile || {};
+    const radioTracks = window.UPTIME_BACKGROUND_MUSIC_TRACKS || [];
+    merged.radioProfile = {
+      enabled: radio.enabled !== false,
+      station: radioTracks.some(track => track.id === radio.station) ? radio.station : 'shuffle',
+      volume: Number.isFinite(radio.volume) ? Math.max(0, Math.min(0.2, radio.volume)) : 0.058
+    };
+    Object.entries(loaded.officeLightSettings || {}).forEach(([id, settings]) => {
+      if (!parseLightingInstanceId(id) || !settings || typeof settings !== 'object') return;
+      merged.officeLightSettings[id] = {
+        enabled: settings.enabled !== false,
+        brightness: Number.isFinite(settings.brightness) ? Math.max(0, Math.min(2, settings.brightness)) : 1,
+        color: /^#[0-9a-f]{6}$/i.test(settings.color || '') ? settings.color : null
+      };
+    });
     merged.regionMastery = Object.fromEntries(DATA.regionDefs.map(region => {
       const saved = (loaded.regionMastery || {})[region.id] || {};
       return [region.id, { xp: Number(saved.xp || 0), level: Number(saved.level || 0) }];
@@ -418,6 +444,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     syncPlacementCompatibility(merged);
 
     merged.officeTier = typeof loaded.officeTier === 'number' ? loaded.officeTier : 0;
+    merged.officeTier = Math.max(0, Math.min(DATA.officeSuiteDefs.length - 1, Math.floor(merged.officeTier)));
     merged.achievementsClaimed = timestampMap(loaded.achievementsClaimed || {});
     merged.missionCooldowns = Object.assign({}, loaded.missionCooldowns || {});
     merged.multipliers = baseMultipliers();
@@ -447,8 +474,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     if (!['office', 'achievements', 'console'].includes(merged.currentSuiteTab)) merged.currentSuiteTab = 'office';
     if (!DATA.challengeDefs?.some(def => def.id === merged.selectedChallengeId)) merged.selectedChallengeId = null;
     if (!DATA.challengeDefs?.some(def => def.id === merged.activeChallengeId)) merged.activeChallengeId = null;
-    if (!DATA.doctrineDefs?.some(def => def.id === merged.activeDoctrineId)) merged.activeDoctrineId = 'balanced';
-    if (!DATA.eraDefs?.some(def => def.id === merged.activeEraId)) merged.activeEraId = 'foundation';
+    merged.activeDoctrineId = null;
+    merged.activeEraId = null;
     if (typeof merged.soundEnabled !== 'boolean') merged.soundEnabled = true;
     if (!['auto', 'performance', 'balanced', 'quality'].includes(merged.graphicsQuality)) merged.graphicsQuality = 'performance';
     if (typeof merged.research !== 'number') merged.research = 0;
@@ -472,33 +499,97 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     init() {
       this.state = mergeState(window.UptimeEmpireSave.load());
+      const status = window.UptimeEmpireSave.lastLoadStatus;
+      const ownsSave = window.UptimeEmpireSave.claimWriter();
+      this.readOnly = !ownsSave || ['corrupt', 'unavailable'].includes(status);
+      this.saveReadOnlyReason = ['corrupt', 'unavailable'].includes(status) ? status : !ownsSave ? 'other-tab' : '';
       this.recomputeBonuses();
       window.UptimeEmpire = this;
       this.bindGlobals();
       this.syncManagerCount();
       this.lastFrame = performance.now();
       if (window.UptimeEmpireUI) window.UptimeEmpireUI.init(this);
-      this.applyOfflineEarnings();
-      this.updateAchievements();
+      if (!this.readOnly) {
+        this.applyOfflineEarnings();
+        this.updateAchievements();
+      }
+      window.UptimeEmpireUI?.renderSaveStatus?.();
+      if (status === 'recovered') window.UptimeEmpireUI?.toast('Recovered the last good save from backup.');
       this.loop();
       this.startAutosave();
     },
 
     bindGlobals() {
+      if (this.globalsBound) return;
+      this.globalsBound = true;
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) this.save();
-        else this.applyOfflineEarnings();
+        else if (!this.readOnly) this.applyOfflineEarnings();
       });
-      window.addEventListener('beforeunload', () => this.save());
-      window.addEventListener('pagehide', () => this.save());
+      const leave = () => { this.save(); window.UptimeEmpireSave.releaseWriter(); };
+      window.addEventListener('beforeunload', leave);
+      window.addEventListener('pagehide', leave);
+      window.addEventListener('pageshow', event => {
+        if (!event.persisted) return;
+        if (window.UptimeEmpireSave.claimWriter()) {
+          const loaded = window.UptimeEmpireSave.load();
+          const status = window.UptimeEmpireSave.lastLoadStatus;
+          if (['corrupt', 'unavailable'].includes(status)) {
+            this.readOnly = true;
+            this.saveReadOnlyReason = status;
+          } else {
+            this.state = mergeState(loaded);
+            this.recomputeBonuses();
+            this.syncManagerCount();
+            this.readOnly = false;
+            this.saveReadOnlyReason = '';
+            this.applyOfflineEarnings();
+            this.renderAll();
+          }
+        } else {
+          this.readOnly = true;
+          this.saveReadOnlyReason = 'other-tab';
+        }
+        window.UptimeEmpireUI?.renderSaveStatus?.();
+      });
+      window.addEventListener('storage', event => {
+        if (event.key !== DATA.STORAGE_KEY + ':writer') return;
+        if (!window.UptimeEmpireSave.canWrite()) {
+          this.readOnly = true;
+          this.saveReadOnlyReason = 'other-tab';
+          window.UptimeEmpireUI?.renderSaveStatus?.();
+        }
+      });
     },
 
     save(showToast = false) {
-      this.state.lastActiveAt = Date.now();
+      if (this.readOnly) return false;
       this.state.lastSaveAt = Date.now();
       syncPlacementCompatibility(this.state);
       const ok = window.UptimeEmpireSave.save(this.state);
       if (ok && showToast && window.UptimeEmpireUI) window.UptimeEmpireUI.toast('Saved.');
+      if (!ok && !window.UptimeEmpireSave.canWrite()) {
+        this.readOnly = true;
+        this.saveReadOnlyReason = 'other-tab';
+        window.UptimeEmpireUI?.renderSaveStatus?.();
+      }
+      return ok;
+    },
+
+    takeSaveControl() {
+      if (['corrupt', 'unavailable'].includes(this.saveReadOnlyReason)) return false;
+      const loaded = window.UptimeEmpireSave.load();
+      if (['corrupt', 'unavailable'].includes(window.UptimeEmpireSave.lastLoadStatus) || !window.UptimeEmpireSave.claimWriter(true)) return false;
+      this.state = mergeState(loaded);
+      this.recomputeBonuses();
+      this.syncManagerCount();
+      this.readOnly = false;
+      this.saveReadOnlyReason = '';
+      this.applyOfflineEarnings();
+      this.save(false);
+      this.renderAll();
+      window.UptimeEmpireUI?.renderSaveStatus?.();
+      return true;
     },
 
     exportSave() {
@@ -507,22 +598,55 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     },
 
     importSave(encoded) {
+      if (this.saveReadOnlyReason === 'other-tab') return false;
       const incoming = window.UptimeEmpireSave.import(encoded);
       if (!incoming) return false;
-      this.state = mergeState(incoming);
-      this.recomputeBonuses();
-      this.applyOfflineEarnings();
-      this.syncManagerCount();
+      const previous = this.state;
+      const previousReadOnly = this.readOnly;
+      const previousReason = this.saveReadOnlyReason;
+      const previousFrame = this.lastFrame;
+      const previousOwner = window.UptimeEmpireSave.isWriterOwner();
+      try {
+        const candidate = mergeState(incoming);
+        if (!window.UptimeEmpireSave.claimWriter()) return false;
+        this.state = candidate;
+        this.readOnly = false;
+        this.saveReadOnlyReason = '';
+        this.recomputeBonuses();
+        this.applyOfflineEarnings();
+        this.syncManagerCount();
+        if (!this.save(false)) throw new Error('Imported save could not be persisted');
+      } catch (error) {
+        this.state = previous;
+        this.readOnly = previousReadOnly;
+        this.saveReadOnlyReason = previousReason;
+        this.lastFrame = previousFrame;
+        if (!previousOwner) window.UptimeEmpireSave.releaseWriter();
+        if (!previousReadOnly && !window.UptimeEmpireSave.isWriterOwner()) {
+          this.readOnly = true;
+          this.saveReadOnlyReason = 'other-tab';
+        }
+        this.renderAll();
+        window.UptimeEmpireUI?.renderSaveStatus?.();
+        console.warn('Save import rejected', error);
+        return false;
+      }
       this.renderAll();
+      window.UptimeEmpireUI?.renderSaveStatus?.();
       return true;
     },
 
     hardReset() {
-      window.UptimeEmpireSave.clear();
+      if (!window.UptimeEmpireSave.clear()) return false;
       this.state = createNewState();
+      this.readOnly = false;
+      this.saveReadOnlyReason = '';
       syncPlacementCompatibility(this.state);
       this.recomputeBonuses();
       this.renderAll();
+      this.save(false);
+      window.UptimeEmpireUI?.renderSaveStatus?.();
+      return true;
     },
 
     getDef(id, collection = DATA.generatorDefs) {
@@ -814,13 +938,31 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       const last = this.state.lastActiveAt || now;
       const elapsedSec = Math.max(0, Math.floor((now - last) / 1000));
       this.state.lastActiveAt = now;
+      this.lastFrame = performance.now();
       if (elapsedSec < 5) return;
       const cappedSec = Math.min(elapsedSec, Math.floor(this.state.offlineCapHours * 3600));
-      const passive = this.getAutomatedIncomePerSecond() * cappedSec * this.getEffectiveOfflineEfficiency();
+      let passive = 0;
+      let remaining = cappedSec;
+      // Integrate through incident expiry boundaries so temporary penalties do not last all night.
+      while (remaining > 0) {
+        const response = 1 + this.state.multipliers.responsePower;
+        const expires = this.state.activeIncidents.map(incident => Math.max(0, incident.remaining / (response * (incident.boss ? 0.20 : 0.35))));
+        const segment = Math.min(remaining, ...expires.filter(value => value > 0));
+        this.tickIncidents(0, true);
+        passive += this.getAutomatedIncomePerSecond() * segment * this.getEffectiveOfflineEfficiency();
+        this.tickIncidents(segment, true);
+        remaining = Math.max(0, remaining - segment);
+      }
       if (passive > 0) this.addCredits(passive);
-      this.tickIncidents(cappedSec, true);
-      const completedMissions = this.tickMissions(cappedSec, true);
-      if (this.state.incidentShieldRemaining > 0) this.state.incidentShieldRemaining = Math.max(0, this.state.incidentShieldRemaining - cappedSec);
+      this.tickIncidents(Math.max(0, elapsedSec - cappedSec), true);
+      const completedMissions = this.tickMissions(elapsedSec, true);
+      this.state.generators.forEach(gen => {
+        if (gen.automated || !gen.running) return;
+        const def = this.getDef(gen.id);
+        gen.progress += elapsedSec;
+        if (gen.progress >= this.getCycleTime(def)) this.maybeAwardCycle(def, gen);
+      });
+      if (this.state.incidentShieldRemaining > 0) this.state.incidentShieldRemaining = Math.max(0, this.state.incidentShieldRemaining - elapsedSec);
       if ((passive > 0 || (completedMissions && completedMissions.length)) && window.UptimeEmpireUI) {
         const parts = [];
         if (passive > 0) parts.push(`${this.formatNumber(passive)} CC`);
@@ -837,6 +979,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     },
 
     getRegionEffects() {
+      if (this.economySnapshot?.region) return this.economySnapshot.region;
       const totals = {
         income: 0,
         speed: 0,
@@ -862,10 +1005,12 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         }
       });
 
+      if (this.economySnapshot) this.economySnapshot.region = totals;
       return totals;
     },
 
     getDynamicIncidentModifiers() {
+      if (this.economySnapshot?.incidents) return this.economySnapshot.incidents;
       const totals = {
         incomeMult: 1,
         speedMult: 1,
@@ -879,18 +1024,26 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
       this.state.activeIncidents.forEach(incident => {
         const penalties = incident.penalties || {};
-        if (penalties.incomeMult) totals.incomeMult *= penalties.incomeMult;
-        if (penalties.speedMult) totals.speedMult *= penalties.speedMult;
-        if (penalties.automatedMult) totals.automatedMult *= penalties.automatedMult;
+        if (penalties.incomeMult != null) totals.incomeMult *= Math.max(0.05, Math.min(1, penalties.incomeMult));
+        if (penalties.speedMult != null) totals.speedMult *= Math.max(0.05, Math.min(1, penalties.speedMult));
+        if (penalties.automatedMult != null) totals.automatedMult *= Math.max(0.05, Math.min(1, penalties.automatedMult));
         if (penalties.offlineEfficiencyDelta) totals.offlineEfficiencyDelta += penalties.offlineEfficiencyDelta;
         if (penalties.categoryMult) {
           Object.entries(penalties.categoryMult).forEach(([category, value]) => {
-            totals.categoryMult[category] *= value;
+            if (category in totals.categoryMult) totals.categoryMult[category] *= Math.max(0.05, Math.min(1, value));
           });
         }
       });
 
+      if (this.economySnapshot) this.economySnapshot.incidents = totals;
       return totals;
+    },
+
+    withEconomySnapshot(callback) {
+      if (this.economySnapshot) return callback();
+      this.economySnapshot = {};
+      try { return callback(); }
+      finally { this.economySnapshot = null; }
     },
 
     getCategoryMultiplier(category) {
@@ -924,14 +1077,14 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     },
 
     getPotentialIncomePerSecond() {
-      return this.state.generators.reduce((sum, gen) => sum + this.getGeneratorPotentialPerSecond(this.getDef(gen.id), gen), 0);
+      return this.withEconomySnapshot(() => this.state.generators.reduce((sum, gen) => sum + this.getGeneratorPotentialPerSecond(this.getDef(gen.id), gen), 0));
     },
 
     getAutomatedIncomePerSecond() {
-      return this.state.generators.reduce((sum, gen) => {
+      return this.withEconomySnapshot(() => this.state.generators.reduce((sum, gen) => {
         if (!gen.automated || !gen.owned) return sum;
         return sum + this.getGeneratorPotentialPerSecond(this.getDef(gen.id), gen);
-      }, 0);
+      }, 0));
     },
 
     getEffectiveOfflineEfficiency() {
@@ -1293,8 +1446,18 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       const defs = DATA.contractDefs?.daily || [];
       if (!defs.length) return null;
       const index = Math.max(0, Math.floor(Number(this.state.sideJobIndex) || 0));
-      const def = defs[index % defs.length];
-      const progress = this.getContractProgress(def.goal);
+      let def = defs[index % defs.length];
+      const repeat = index >= defs.length;
+      if (repeat) {
+        const amount = 2 + Math.min(3, Math.floor(index / (defs.length * 5)));
+        const task = ['missionsCompleted', 'incidentsResolved', 'manualRuns'][index % 3];
+        const action = { missionsCompleted: 'complete missions', incidentsResolved: 'resolve incidents', manualRuns: 'finish manual fleet runs' }[task];
+        def = Object.assign({}, def, { goal: { [task]: amount }, desc: `For this request, ${action}: ${amount} new completions.` });
+        if (this.state.sideJobBaseline?.index !== index) {
+          this.state.sideJobBaseline = { index, value: this.getContractProgress(def.goal) };
+        }
+      }
+      const progress = Math.max(0, this.getContractProgress(def.goal) - (repeat ? this.state.sideJobBaseline.value : 0));
       const goalValue = this.getContractGoalValue(def.goal);
       const claimKey = `side-job:${index}:${def.id}`;
       return Object.assign({}, def, {
@@ -1335,6 +1498,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     getContractGoalValue(goal) {
       if (goal.managers) return goal.managers;
       if (goal.missionsCompleted) return goal.missionsCompleted;
+      if (goal.manualRuns) return goal.manualRuns;
       if (goal.incidentsResolved) return goal.incidentsResolved;
       if (goal.potentialIncomePerSecond) return goal.potentialIncomePerSecond;
       if (goal.officeTier) return goal.officeTier;
@@ -1348,6 +1512,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     getContractProgress(goal) {
       if (goal.managers) return this.state.totalManagers;
       if (goal.missionsCompleted) return this.state.stats.missionsCompleted;
+      if (goal.manualRuns) return this.state.stats.manualRuns;
       if (goal.incidentsResolved) return this.state.stats.incidentsResolved;
       if (goal.potentialIncomePerSecond) return this.getPotentialIncomePerSecond();
       if (goal.officeTier) return this.state.officeTier;
@@ -1369,6 +1534,8 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (reward.fragments) this.addIpFragments(reward.fragments);
       if (reward.ip) this.state.innovationPoints += reward.ip;
       this.state.sideJobIndex = Math.max(0, Math.floor(Number(this.state.sideJobIndex) || 0)) + 1;
+      this.state.sideJobBaseline = null;
+      this.getCurrentSideJob();
       this.pushConsoleLog(`${contract.name} side job completed. Rewards delivered.`, 'system');
       return { ok: true };
     },
@@ -1403,9 +1570,10 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
 
     getPrestigeGain() {
       const lifetime = Math.max(0, this.state.lifetimeCredits);
-      const highestRegion = this.getUnlockedRegions().length;
-      const highestTier = this.getHighestTierOwned();
-      const missions = Math.floor(this.state.stats.missionsCompleted / 8);
+      if (lifetime < 1e9) return 0;
+      const highestRegion = Math.max(0, this.getUnlockedRegions().length - 1);
+      const highestTier = Math.max(0, this.getHighestTierOwned() - 1);
+      const missions = Math.floor(Math.max(0, this.state.stats.missionsCompleted - this.state.prestigeMissionBaseline) / 8);
       return Math.floor(Math.pow(lifetime / 1e9, 0.35) + highestRegion * 2 + highestTier + missions);
     },
 
@@ -1420,6 +1588,12 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         uiSkin: this.state.uiSkin,
         purchasedUiSkins: Object.assign({}, this.state.purchasedUiSkins),
         equippedDecorations: deepClone(this.state.equippedDecorations),
+        cosmeticPlacements: deepClone(this.state.cosmeticPlacements),
+        officeLightSettings: deepClone(this.state.officeLightSettings),
+        radioProfile: deepClone(this.state.radioProfile),
+        debtPaid: this.state.debtPaid,
+        soundEnabled: this.state.soundEnabled,
+        graphicsQuality: this.state.graphicsQuality,
         officeTier: this.state.officeTier,
         achievementsClaimed: Object.assign({}, this.state.achievementsClaimed),
         research: this.state.research,
@@ -1431,6 +1605,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         activeEraId: this.state.activeEraId,
         contractClaims: Object.assign({}, this.state.contractClaims),
         sideJobIndex: this.state.sideJobIndex,
+        sideJobBaseline: deepClone(this.state.sideJobBaseline),
         regionMastery: deepClone(this.state.regionMastery),
         bossCatalog: Object.assign({}, this.state.bossCatalog),
         campaignGoals: Object.assign({}, this.state.campaignGoals),
@@ -1446,6 +1621,13 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.uiSkin = preserved.uiSkin;
       this.state.purchasedUiSkins = preserved.purchasedUiSkins;
       this.state.equippedDecorations = preserved.equippedDecorations;
+      this.state.cosmeticPlacements = preserved.cosmeticPlacements;
+      this.state.officeLightSettings = preserved.officeLightSettings;
+      this.state.radioProfile = preserved.radioProfile;
+      this.state.debtPaid = preserved.debtPaid;
+      this.state.soundEnabled = preserved.soundEnabled;
+      this.state.graphicsQuality = preserved.graphicsQuality;
+      syncPlacementCompatibility(this.state);
       this.state.officeTier = preserved.officeTier;
       this.state.achievementsClaimed = preserved.achievementsClaimed;
       this.state.research = preserved.research;
@@ -1457,17 +1639,42 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       this.state.activeEraId = preserved.activeEraId;
       this.state.contractClaims = preserved.contractClaims;
       this.state.sideJobIndex = preserved.sideJobIndex;
+      this.state.sideJobBaseline = preserved.sideJobBaseline;
       this.state.regionMastery = preserved.regionMastery;
       this.state.bossCatalog = preserved.bossCatalog;
       this.state.campaignGoals = preserved.campaignGoals;
       this.state.campaignGoalMoments = preserved.campaignGoalMoments;
       this.state.floorBotProfile = preserved.floorBotProfile;
       this.state.stats = preserved.stats;
+      this.state.prestigeMissionBaseline = preserved.stats.missionsCompleted;
       this.recomputeBonuses();
       this.state.credits += this.state.multipliers.startingCredits;
       this.renderAll();
       this.updateAchievements();
+      this.save(false);
       return { ok: true, gain };
+    },
+
+    getDebtStatus() {
+      const total = this.getCampaignGoalDef('debt-free').costCredits;
+      const complete = this.isCampaignGoalComplete('debt-free');
+      const paid = complete ? total : Math.max(0, Math.min(total, this.state.debtPaid || 0));
+      return { total, paid, remaining: total - paid, complete };
+    },
+
+    repayDebt(amount) {
+      if (!Number.isFinite(amount) || amount <= 0 || this.getDebtStatus().complete) return { ok: false, reason: 'amount' };
+      const payment = Math.min(amount, this.getDebtStatus().remaining, this.state.credits);
+      if (payment <= 0) return { ok: false, reason: 'credits' };
+      this.state.credits -= payment;
+      this.state.debtPaid += payment;
+      this.pushConsoleLog(`Launch debt repayment: ${this.formatNumber(payment)} CC. Remaining: ${this.formatNumber(this.getDebtStatus().remaining)} CC.`, 'system');
+      this.save(false);
+      return { ok: true, paid: payment, remaining: this.getDebtStatus().remaining };
+    },
+
+    getCampaignGoalCreditCost(def) {
+      return def?.id === 'debt-free' ? this.getDebtStatus().remaining : (def?.costCredits || 0);
     },
 
     getCampaignGoalDef(id) {
@@ -1495,7 +1702,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     canBuyCampaignGoal(defOrId) {
       const def = typeof defOrId === 'string' ? this.getCampaignGoalDef(defOrId) : defOrId;
       if (!def || this.isCampaignGoalComplete(def.id) || !this.campaignGoalRequirementsMet(def)) return false;
-      if (this.state.credits < (def.costCredits || 0)) return false;
+      if (this.state.credits < this.getCampaignGoalCreditCost(def)) return false;
       if (this.state.research < (def.costResearch || 0)) return false;
       if (this.state.innovationPoints < (def.costIp || 0)) return false;
       if (this.state.ipFragments < (def.costFragments || 0)) return false;
@@ -1507,11 +1714,12 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (!def) return { ok: false, reason: 'missing' };
       if (this.isCampaignGoalComplete(id)) return { ok: false, reason: 'owned' };
       if (!this.campaignGoalRequirementsMet(def)) return { ok: false, reason: 'locked' };
-      if (this.state.credits < (def.costCredits || 0)) return { ok: false, reason: 'credits' };
+      if (this.state.credits < this.getCampaignGoalCreditCost(def)) return { ok: false, reason: 'credits' };
       if (this.state.research < (def.costResearch || 0)) return { ok: false, reason: 'research' };
       if (this.state.innovationPoints < (def.costIp || 0)) return { ok: false, reason: 'ip' };
       if (this.state.ipFragments < (def.costFragments || 0)) return { ok: false, reason: 'fragments' };
-      this.state.credits -= (def.costCredits || 0);
+      this.state.credits -= this.getCampaignGoalCreditCost(def);
+      if (id === 'debt-free') this.state.debtPaid = def.costCredits;
       if (def.costResearch) this.spendResearch(def.costResearch);
       if (def.costIp) this.state.innovationPoints -= def.costIp;
       if (def.costFragments) this.state.ipFragments -= def.costFragments;
@@ -1529,6 +1737,43 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
         this.pushConsoleLog('Big Bet complete: Uptime Empire is no longer a shed dream.', 'system');
         if (window.UptimeEmpireUI) window.UptimeEmpireUI.toast('Uptime Empire built. Founder Mode unlocked.');
       }
+      return { ok: true };
+    },
+
+    getOfficeLightSettings(id) {
+      return Object.assign({ enabled: true, brightness: 1, color: null }, this.state.officeLightSettings?.[id] || {});
+    },
+
+    ownsRadio() {
+      return Object.values(this.state.purchasedCosmetics).some(category => !!category['uplink-radio']);
+    },
+
+    getRadioProfile() {
+      return Object.assign({ enabled: true, station: 'shuffle', volume: 0.058 }, this.state.radioProfile);
+    },
+
+    updateRadioProfile(patch) {
+      if (!this.ownsRadio()) return { ok: false, reason: 'owned' };
+      const next = this.getRadioProfile();
+      if (typeof patch?.enabled === 'boolean') next.enabled = patch.enabled;
+      if (Number.isFinite(patch?.volume)) next.volume = Math.max(0, Math.min(0.2, patch.volume));
+      if (patch?.station === 'shuffle' || (window.UPTIME_BACKGROUND_MUSIC_TRACKS || []).some(track => track.id === patch?.station)) next.station = patch.station;
+      this.state.radioProfile = next;
+      this.save(false);
+      this.renderAll();
+      return { ok: true };
+    },
+
+    updateOfficeLightSettings(id, patch) {
+      const instance = parseLightingInstanceId(id);
+      if (!instance || instance.index > this.getCosmeticOwnedQuantity(LIGHTING_CATEGORY, instance.baseId)) return { ok: false, reason: 'owned' };
+      const next = this.getOfficeLightSettings(id);
+      if (typeof patch?.enabled === 'boolean') next.enabled = patch.enabled;
+      if (Number.isFinite(patch?.brightness)) next.brightness = Math.max(0, Math.min(2, patch.brightness));
+      if (/^#[0-9a-f]{6}$/i.test(patch?.color || '')) next.color = patch.color;
+      this.state.officeLightSettings[id] = next;
+      this.save(false);
+      this.renderAll();
       return { ok: true };
     },
 
@@ -1873,6 +2118,7 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       if (mission.reward.ipFragments) this.addIpFragments(mission.reward.ipFragments);
       if (mission.reward.incidentShield) this.state.incidentShieldRemaining += mission.reward.incidentShield;
       this.state.stats.missionsCompleted += 1;
+      if (mission.focusRegionId && this.state.unlockedRegions[mission.focusRegionId]) this.addRegionMasteryXp(mission.focusRegionId, 6);
       if (!silent && window.UptimeEmpireUI) {
         window.UptimeEmpireUI.toast(`${mission.name} complete.`);
         window.UptimeEmpireUI.showBuddyLine('quest done');
@@ -1925,16 +2171,16 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       const severity = Math.max(def.boss ? 1.4 : 0.8, severityBase - this.state.multipliers.incidentSeverityReduction * (def.boss ? 1.6 : 2));
       const duration = def.baseDuration * severity * Math.max(0.22, 1 - this.state.multipliers.incidentDurationReduction);
       const penalties = {};
-      if (def.penalties.incomeMult) penalties.incomeMult = 1 - (1 - def.penalties.incomeMult) * severity;
-      if (def.penalties.speedMult) penalties.speedMult = 1 - (1 - def.penalties.speedMult) * severity;
-      if (def.penalties.automatedMult) penalties.automatedMult = 1 - (1 - def.penalties.automatedMult) * severity;
+      if (def.penalties.incomeMult != null) penalties.incomeMult = Math.max(0.05, Math.min(1, 1 - (1 - def.penalties.incomeMult) * severity));
+      if (def.penalties.speedMult != null) penalties.speedMult = Math.max(0.05, Math.min(1, 1 - (1 - def.penalties.speedMult) * severity));
+      if (def.penalties.automatedMult != null) penalties.automatedMult = Math.max(0.05, Math.min(1, 1 - (1 - def.penalties.automatedMult) * severity));
       if (def.penalties.offlineEfficiencyDelta) penalties.offlineEfficiencyDelta = def.penalties.offlineEfficiencyDelta * severity;
       if (def.penalties.categoryMult) {
         penalties.categoryMult = {};
         Object.entries(def.penalties.categoryMult).forEach(([category, value]) => {
           const rawPenalty = 1 - (1 - value) * severity;
           const shield = this.state.multipliers.categoryIncidentShield[category] || 0;
-          penalties.categoryMult[category] = Math.min(1, rawPenalty + shield);
+          penalties.categoryMult[category] = Math.max(0.05, Math.min(1, rawPenalty + shield));
         });
       }
       const incident = {
@@ -2063,7 +2309,12 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
       const dt = Math.min(0.25, (nowPerf - this.lastFrame) / 1000);
       this.lastFrame = nowPerf;
       const now = Date.now();
-      this.tickGenerators(dt);
+      if (document.hidden || this.readOnly) {
+        requestAnimationFrame(() => this.loop());
+        return;
+      }
+      this.state.lastActiveAt = now;
+      this.withEconomySnapshot(() => this.tickGenerators(dt));
       this.tickMissions(dt);
       this.tickIncidents(dt);
       if (this.state.incidentShieldRemaining > 0) this.state.incidentShieldRemaining = Math.max(0, this.state.incidentShieldRemaining - dt);
@@ -2095,6 +2346,20 @@ const QUEST_FOCUS_DURATION_MULT = 0.88;
     normalizeBuckets: normalizePlacementBuckets,
     normalizeState: state => syncPlacementCompatibility(state)
   };
+
+  // Save ownership guards transactions while allowing navigation, export, and explicit recovery.
+  const persistentActions = ['buyGenerator', 'runGenerator', 'hireManager', 'buyUpgrade', 'hireSpecialist', 'buyService',
+    'unlockRegion', 'expandRegion', 'buyRegionProject', 'buyPrestigeNode', 'claimContract', 'doPrestige', 'repayDebt',
+    'buyCampaignGoal', 'buyOfficeUpgrade', 'buyCosmetic', 'setCosmeticPlacement', 'ensureDecorationEquipped',
+    'startQuest', 'respondToIncident', 'updateOfficeLightSettings', 'updateRadioProfile', 'updateFloorBotProfile'];
+  persistentActions.forEach(name => {
+    const execute = App[name];
+    App[name] = function(...args) {
+      if (!this.readOnly) return execute.apply(this, args);
+      window.UptimeEmpireUI?.toast('This save is read-only. Take control or recover it before making changes.');
+      return name === 'setCosmeticPlacement' ? false : { ok: false, reason: 'read-only' };
+    };
+  });
 
   document.addEventListener('DOMContentLoaded', () => App.init());
 })();

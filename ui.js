@@ -1,6 +1,8 @@
 (function() {
   const DATA = window.UptimeEmpireData;
   const jitter = (min, max) => Math.random() * (max - min) + min;
+  const escapeManagementHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  const consoleLevel = level => ['info', 'success', 'warning', 'error', 'system'].includes(level) ? level : 'info';
   const LIGHTING_LEGACY_IDS = { 'pendant-light': 'lamp' };
   const getDecorBaseId = id => {
     const match = /^lighting:([a-z0-9-]+):\d+$/.exec(String(id || ''));
@@ -29,12 +31,12 @@ const HELP_SECTIONS = [
     label: 'Overview',
     blurb: 'What the game is really asking you to do.',
     html: `
-      <div class="help-callout"><strong>One-sentence goal:</strong> turn a scrappy little compute setup into a ridiculous multi-region empire, then repeatedly reinvent it through overhauls, seasonal systems, and long-run meta progress.</div>
+      <div class="help-callout"><strong>Goal:</strong> build a multi-region operation, repay the launch debt, and finish the Big Bet. Keep growing afterward, or choose an optional overhaul.</div>
       <p><strong>Uptime Empire</strong> is an idle/incremental management game about growing infrastructure, solving incidents, dispatching mission teams, expanding into new regions, and decorating your increasingly absurd command center.</p>
       <div class="help-grid">
         <div class="help-chip"><strong>Early game</strong><br />Buy hardware, learn the generator rhythm, unlock your first missions, and stop incidents from becoming your whole personality.</div>
         <div class="help-chip"><strong>Mid game</strong><br />Build managers, services, specialists, and region projects so the empire starts running itself while you chase better missions and office upgrades.</div>
-        <div class="help-chip"><strong>Late game</strong><br />Lean on regions, Command systems, contracts, doctrines, eras, and overhauls to stack permanent advantages and chase higher weirdness.</div>
+        <div class="help-chip"><strong>Late game</strong><br />Build regional projects, complete contracts, and secure permanent Big Bet milestones.</div>
         <div class="help-chip"><strong>Meta loop</strong><br />Each overhaul should feel like a cleaner, stronger rerun with more toys, better multipliers, and a fancier office.</div>
       </div>
       <h4>What matters most?</h4>
@@ -132,10 +134,10 @@ const HELP_SECTIONS = [
         <li><strong>Founder Mode</strong> adds optional challenge runs after the main route is complete.</li>
       </ul>
       <h4>A strong long-game arc to consider</h4>
-      <p>The best “end goal” for an endlessly replayable game is usually not a literal ending. It is a <strong>north star</strong> that keeps resetting in a bigger form.</p>
+      <p>The Big Bet has a real finish line. Completing it leaves your empire intact and opens optional founder challenges.</p>
       <div class="help-grid">
-        <div class="help-chip"><strong>Recommended arc</strong><br />Start with “pay off the data-center debt,” then graduate into “buy the campus,” then “fund the orbital command deck,” then “become the sovereign network that leases infrastructure to everyone else.”</div>
-        <div class="help-chip"><strong>Why it works</strong><br />Each stage feels like a finish line, but also unlocks a bigger finish line. That is what gives infinite-ish replayability its bite.</div>
+        <div class="help-chip"><strong>Career route</strong><br />Repay launch debt, secure the campaign milestones, and continue as founder of the completed empire.</div>
+        <div class="help-chip"><strong>After victory</strong><br />Keep improving the operation in the same run. An overhaul is always your choice, never a forced ending.</div>
       </div>
       <p>Big Bet purchases survive Overhauls, so each finish line becomes the foundation for the next one without ending the replayable idle loop.</p>
     `
@@ -249,7 +251,19 @@ const WORKSPACE_SECTION_DEFS = {
     init(app) {
       this.app = app;
       this.cacheDom();
-      if (window.UptimeOffice3D && this.els.office3dCanvas) {
+      const qaParams = new URLSearchParams(window.location.search);
+      this.managementQA = qaParams.get('qa') === 'management';
+      if (this.managementQA) {
+        this.computerOpen = true;
+        this.app.state.currentSuiteTab = 'console';
+        const panel = qaParams.get('panel');
+        if (WORKSPACE_SECTION_DEFS[panel]) this.app.state.currentPanel = panel;
+        const section = qaParams.get('section');
+        if (WORKSPACE_SECTION_DEFS[this.app.state.currentPanel]?.some(def => def.id === section)) this.app.state.currentWorkspaceSection = section;
+        const skin = qaParams.get('skin');
+        if ((DATA.uiSkinDefs || []).some(def => def.id === skin)) this.app.state.uiSkin = skin;
+      }
+      if (!this.managementQA && window.UptimeOffice3D && this.els.office3dCanvas) {
         this.office3D = new window.UptimeOffice3D({
           canvas: this.els.office3dCanvas,
           hintEl: this.els.office3dHint,
@@ -271,8 +285,9 @@ const WORKSPACE_SECTION_DEFS = {
       }
       this.initArcade();
       this.bindEvents();
+      this.renderSaveStatus();
       this.syncComputerMode();
-      this.startArcadeLoop();
+      if (!this.managementQA) this.startArcadeLoop();
       this.renderAll();
       this.startUiSkinAnimation();
       this.startVisualQAFromQuery();
@@ -283,6 +298,7 @@ const WORKSPACE_SECTION_DEFS = {
       const $ = id => document.getElementById(id);
       this.els = {
         appShell: $('appShell'),
+        saveStatusBanner: $('saveStatusBanner'),
         appMain: document.querySelector('.app-main'),
         worldHud: $('worldHud'),
         worldCreditsValue: $('worldCreditsValue'),
@@ -400,6 +416,7 @@ const WORKSPACE_SECTION_DEFS = {
         shopList: $('shopList'),
         suiteTabs: $('suiteTabs'),
         toggleSoundBtn: $('toggleSoundBtn'),
+        radioControls: $('radioControls'),
         graphicsQualityWrap: $('graphicsQualityWrap'),
         toast: $('toast'),
         fxLayer: $('fxLayer'),
@@ -519,6 +536,13 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     bindEvents() {
+      document.addEventListener('change', event => {
+        const input = event.target.closest('[data-radio-setting]');
+        if (!input) return;
+        const key = input.dataset.radioSetting;
+        const value = key === 'enabled' ? input.checked : key === 'volume' ? Number(input.value) : input.value;
+        this.app.updateRadioProfile({ [key]: value });
+      });
       this.els.mainNav.addEventListener('click', e => {
         const btn = e.target.closest('.nav-btn');
         if (!btn) return;
@@ -643,6 +667,23 @@ const WORKSPACE_SECTION_DEFS = {
           const result = this.app.buyCampaignGoal(campaignBtn.dataset.id);
           if (!result.ok) this.playSound('error');
           this.app.renderAll();
+          return;
+        }
+        const debtBtn = e.target.closest('[data-action="repay-debt"]');
+        if (debtBtn) {
+          this.repayDebtFromUI(debtBtn.dataset.amount);
+          return;
+        }
+        const saveBtn = e.target.closest('[data-action="take-save-control"]');
+        if (saveBtn && this.app.saveReadOnlyReason === 'other-tab') {
+          this.app.takeSaveControl();
+          this.renderSaveStatus();
+          return;
+        }
+        const recoveryBtn = e.target.closest('[data-action="save-recovery"]');
+        if (recoveryBtn) {
+          this.openWorldUtility('settings');
+          (recoveryBtn.dataset.recovery === 'reset' ? this.els.resetBtn : this.els.importBtn)?.focus();
           return;
         }
       });
@@ -834,19 +875,7 @@ const WORKSPACE_SECTION_DEFS = {
         this.app.renderAll();
       });
 
-      this.els.prestigeBtn.addEventListener('click', () => {
-        const gain = this.app.getPrestigeGain();
-        if (gain <= 0) {
-          this.toast('Push a little farther before overhauling.');
-          return;
-        }
-        const result = this.app.doPrestige();
-        if (result.ok) {
-          this.toast(`Overhaul complete. +${result.gain} IP`);
-          this.showBuddyLine('new run!');
-          this.playSound('prestige');
-        }
-      });
+      this.els.prestigeBtn.addEventListener('click', () => this.confirmPrestige());
 
       this.els.missionList.addEventListener('click', e => {
         const btn = e.target.closest('button[data-action="start-mission"]');
@@ -1113,6 +1142,17 @@ const WORKSPACE_SECTION_DEFS = {
         this.toast('Fresh start.');
       });
 
+      this.els.shopList.addEventListener('input', e => {
+        const input = e.target.closest('[data-light-setting]');
+        if (!input) return;
+        const setting = input.dataset.lightSetting;
+        const value = setting === 'enabled' ? input.checked : setting === 'brightness' ? Number(input.value) : input.value;
+        const result = this.app.updateOfficeLightSettings(input.dataset.lightInstance, { [setting]: value });
+        if (result.ok) {
+          if (setting === 'brightness') input.parentElement.querySelector('output').textContent = `${Math.round(value * 100)}%`;
+          this.renderOffice();
+        } else this.toast('Light setting could not be saved.');
+      });
       this.els.shopList.addEventListener('click', e => {
         const placementBtn = e.target.closest('button[data-action="place-cosmetic"]');
         if (placementBtn) {
@@ -1240,6 +1280,7 @@ const WORKSPACE_SECTION_DEFS = {
       }
       this.computerOpen = true;
       this.computerOpenFromWorldStation = !!options.worldStation;
+      this.setOperationsFocus(options.worldStation?.id === 'missionBoard' ? 'dispatch' : ['noc', 'incidentBoard'].includes(options.worldStation?.id) ? 'incidents' : 'all');
       this.mobileTerminalView = '';
       if (options.panel) this.app.state.currentPanel = options.panel;
 
@@ -1286,7 +1327,27 @@ const WORKSPACE_SECTION_DEFS = {
       this.toast('Back in the office.');
     },
 
+    setOperationsFocus(focus = 'all') {
+      const selected = ['dispatch', 'incidents'].includes(focus) ? focus : 'all';
+      const panel = document.getElementById('panel-missions');
+      if (!panel) return;
+      panel.dataset.operationsFocus = selected;
+      panel.querySelectorAll('[data-operations-focus]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.operationsFocus === selected));
+        if (!button.operationsFocusBound) {
+          button.operationsFocusBound = true;
+          button.addEventListener('click', () => this.setOperationsFocus(button.dataset.operationsFocus));
+        }
+      });
+    },
+
     openWorldStation(station = {}) {
+      if (station.id === 'uplinkRadio') {
+        this.openWorldUtility('settings');
+        this.els.radioControls?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        this.els.radioControls?.querySelector('select')?.focus();
+        return;
+      }
       const routes = {
         noc: { panel: 'people', section: 'operations', label: 'NOC Operations' },
         missionBoard: { panel: 'people', section: 'operations', label: 'Mission Board' },
@@ -1302,6 +1363,7 @@ const WORKSPACE_SECTION_DEFS = {
     syncWorldUtility() {
       const open = !!this.worldUtilityOpen;
       const utility = this.currentWorldUtility === 'settings' ? 'settings' : 'shop';
+      if (open && utility === 'settings') this.renderRadioControls();
       document.body.classList.toggle('world-utility-open', open);
       if (this.els.worldUtilityOverlay) {
         this.els.worldUtilityOverlay.classList.toggle('hidden', !open);
@@ -1502,8 +1564,33 @@ const WORKSPACE_SECTION_DEFS = {
       this.incidentFocusTimer = setTimeout(() => target.classList.remove('incident-focus'), 1700);
     },
 
+    renderSaveStatus() {
+      const banner = this.els.saveStatusBanner;
+      if (!banner) return;
+      banner.hidden = !this.app.readOnly;
+      if (!this.app.readOnly) return;
+      const reason = this.app.saveReadOnlyReason;
+      const messages = {
+        'other-tab': 'Read-only: another tab owns this save. Taking control reloads its latest saved progress.',
+        corrupt: 'Read-only: the stored save could not be validated. Import a valid backup or explicitly reset in Settings. Your stored save has not been discarded.',
+        unavailable: 'Read-only: browser storage is unavailable. Progress cannot be saved. Check storage permissions before continuing.'
+      };
+      banner.querySelector('[data-save-status-message]').textContent = messages[reason] || 'Read-only: saving is currently unavailable.';
+      banner.querySelector('[data-action="take-save-control"]').hidden = reason !== 'other-tab';
+    },
+
     renderAll() {
       this.syncComputerMode();
+      this.renderSaveStatus();
+      if (!this.computerOpen) {
+        this.renderSuitePanels();
+        this.renderOffice();
+        this.renderGraphicsQuality();
+        this.syncWorldUtility();
+        if (this.worldUtilityOpen && this.currentWorldUtility === 'shop') this.renderShop();
+        this.updateLive(true, true);
+        return;
+      }
       this.renderPurchaseModes();
       this.renderRegionChips();
       this.renderPanels();
@@ -1686,9 +1773,8 @@ const WORKSPACE_SECTION_DEFS = {
         level: (state.regionLevels?.[region.id] || 0) + 1
       }));
       const debtGoal = (DATA.campaignGoalDefs || []).find(goal => goal.id === 'debt-free');
-      const debtPaid = debtGoal ? Math.min(debtGoal.costCredits || 0, state.credits || 0) : 0;
-      const debtTotal = debtGoal?.costCredits || 0;
-      const logs = (state.consoleLog || []).slice(-3).map(entry => ({ message: String(entry.message || '').replace(/<[^>]*>/g, ''), level: entry.level || 'info' }));
+      const debt = this.app.getDebtStatus();
+      const logs = (state.consoleLog || []).slice(-3).map(entry => ({ message: String(entry.message || ''), level: consoleLevel(entry.level) }));
       this.office3D.setOperationsData({
         credits: `${this.app.formatNumber(state.credits)} CC`,
         income: `${this.app.formatNumber(this.app.getAutomatedIncomePerSecond())} CC/s`,
@@ -1700,7 +1786,7 @@ const WORKSPACE_SECTION_DEFS = {
         unlockedRegions,
         availableMissionCount: DATA.questDefs.filter(def => this.app.meetsCondition(def.visibleWhen) && this.app.getQuestCooldownRemaining(def.id) <= 0).length,
         logs,
-        debt: debtGoal ? { paid: debtPaid, total: debtTotal, complete: this.app.isCampaignGoalComplete(debtGoal.id) } : null
+        debt: debtGoal ? debt : null
       });
     },
 
@@ -1714,6 +1800,23 @@ const WORKSPACE_SECTION_DEFS = {
         button.classList.toggle('active', active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+    },
+
+    renderRadioControls() {
+      const host = this.els.radioControls;
+      if (!host) return;
+      host.hidden = !this.app.ownsRadio();
+      if (host.hidden) return;
+      const profile = this.app.getRadioProfile();
+      host.disabled = !!this.app.readOnly;
+      const key = JSON.stringify(profile) + ':' + !!this.app.readOnly;
+      if (key === this.lastRadioControlsKey) return;
+      this.lastRadioControlsKey = key;
+      const tracks = window.UPTIME_BACKGROUND_MUSIC_TRACKS || [];
+      host.innerHTML = `<legend>Uplink Radio</legend>
+        <label class="radio-power"><input type="checkbox" data-radio-setting="enabled" ${profile.enabled ? 'checked' : ''}> Power</label>
+        <label>Station <select data-radio-setting="station"><option value="shuffle" ${profile.station === 'shuffle' ? 'selected' : ''}>Shuffle</option>${tracks.map(track => `<option value="${escapeManagementHtml(track.id)}" ${profile.station === track.id ? 'selected' : ''}>${escapeManagementHtml(track.title || track.id)}</option>`).join('')}</select></label>
+        <label>Volume <input type="range" data-radio-setting="volume" min="0" max="0.2" step="0.002" value="${profile.volume}"></label>`;
     },
 
     renderPurchaseModes() {
@@ -1783,6 +1886,14 @@ const WORKSPACE_SECTION_DEFS = {
       }).join('');
     },
 
+    getFleetPurchaseEstimate(def, gen, qty) {
+      if (qty <= 0) return 'No affordable quantity';
+      const current = this.app.getGeneratorPotentialPerSecond(def, gen);
+      const projected = this.app.getGeneratorPotentialPerSecond(def, { ...gen, owned: gen.owned + qty });
+      const delta = Math.max(0, projected - current);
+      return `+${this.app.formatNumber(delta)} CC/s ${gen.automated ? 'auto' : 'potential'}`;
+    },
+
     renderOps() {
       this.renderOpsIncidentSummary();
       this.els.opsList.innerHTML = DATA.generatorDefs.map(def => {
@@ -1810,7 +1921,7 @@ const WORKSPACE_SECTION_DEFS = {
               <span class="fleet-hidden-metric" data-gen-cycle="${def.id}">${this.app.formatDuration(this.app.getCycleTime(def))}</span>
               <span class="fleet-hidden-metric" data-gen-cap="${def.id}">${this.app.getEffectiveCapacityUse(def).toFixed(1)}</span>
             </div>
-            <div class="fleet-rate"><strong data-gen-per-second="${def.id}">${this.app.formatNumber(perSecond)} CC</strong><span><span data-gen-per-cycle="${def.id}">${this.app.formatNumber(incomePerCycle)} CC</span> each</span></div>
+            <div class="fleet-rate"><strong data-gen-per-second="${def.id}">${this.app.formatNumber(perSecond)} CC/s</strong><span data-gen-rate-kind="${def.id}">${gen.automated ? 'Actual auto' : 'Potential (manual)'}</span><span><span data-gen-per-cycle="${def.id}">${this.app.formatNumber(incomePerCycle)} CC</span> each</span><small data-gen-estimate="${def.id}">${this.getFleetPurchaseEstimate(def, gen, qty)}</small></div>
             <div class="row-actions fleet-actions">
               <button class="action-btn ${(!gen.running && !gen.automated && gen.owned) ? 'can-afford' : 'nope'}" data-action="run-generator" data-id="${def.id}">${gen.automated ? 'Automated' : gen.running ? 'Running...' : 'Run'}</button>
               <button class="action-btn ${canHire ? 'can-afford' : 'nope'}" data-action="hire-manager" data-id="${def.id}">${gen.managerHired ? 'Managed' : `Hire manager ${this.app.formatNumber(managerCost)}`}</button>
@@ -1830,6 +1941,10 @@ const WORKSPACE_SECTION_DEFS = {
         const unlocked = this.app.canUnlockGenerator(def);
         const nextCost = this.app.getNextCost(def, gen.owned);
         const qty = Math.max(0, this.app.getSelectedQuantity(def));
+        const estimate = card.querySelector('[data-gen-estimate]');
+        if (estimate) estimate.textContent = this.getFleetPurchaseEstimate(def, gen, qty);
+        const rateKind = card.querySelector('[data-gen-rate-kind]');
+        if (rateKind) rateKind.textContent = gen.automated ? 'Actual auto' : 'Potential (manual)';
         const bulkCost = qty ? this.app.costForQuantity(def, gen.owned, qty) : 0;
         const capUse = this.app.getEffectiveCapacityUse(def);
         const canAfford = qty > 0 && this.app.state.credits >= bulkCost && this.app.getRemainingCapacity() >= capUse * qty;
@@ -1850,7 +1965,7 @@ const WORKSPACE_SECTION_DEFS = {
         if (cycleEl) cycleEl.textContent = this.app.formatDuration(this.app.getCycleTime(def));
         if (capEl) capEl.textContent = capUse.toFixed(1);
         if (perCycleEl) perCycleEl.textContent = `${this.app.formatNumber(incomePerCycle)} CC`;
-        if (perSecondEl) perSecondEl.textContent = `${this.app.formatNumber(perSecond)} CC`;
+        if (perSecondEl) perSecondEl.textContent = `${this.app.formatNumber(perSecond)} CC/s`;
         if (lockEl) {
           lockEl.textContent = lockMsg;
           lockEl.classList.toggle('hidden', !lockMsg);
@@ -2112,7 +2227,8 @@ const WORKSPACE_SECTION_DEFS = {
 
     describeCampaignCosts(def) {
       const bits = [];
-      if (def.costCredits) bits.push(`${this.app.formatNumber(def.costCredits)} CC`);
+      const credits = this.app.getCampaignGoalCreditCost(def);
+      if (def.costCredits) bits.push(`${this.app.formatNumber(credits)} CC`);
       if (def.costResearch) bits.push(`${this.app.formatNumber(def.costResearch)} RD`);
       if (def.costIp) bits.push(`${def.costIp} IP`);
       if (def.costFragments) bits.push(`${def.costFragments} Fragments`);
@@ -2246,6 +2362,19 @@ const WORKSPACE_SECTION_DEFS = {
       this.skinAnimationFrame = requestAnimationFrame(draw);
     },
 
+    repayDebtFromUI(amount) {
+      const remaining = this.app.getDebtStatus().remaining;
+      const input = document.getElementById('debtPaymentAmount');
+      const payment = amount === 'remaining' ? remaining : Number(input?.value);
+      if (!Number.isFinite(payment) || payment <= 0 || payment > remaining || payment > this.app.state.credits) {
+        this.toast('Enter an amount within your balance and remaining debt.');
+        return;
+      }
+      const result = this.app.repayDebt(payment);
+      this.toast(result.ok ? 'Debt payment recorded.' : 'Debt payment could not be made.');
+      this.app.renderAll();
+    },
+
     renderCommand() {
       this.renderCommandAttention();
       const goals = DATA.campaignGoalDefs || [];
@@ -2253,15 +2382,20 @@ const WORKSPACE_SECTION_DEFS = {
       const debtCleared = !!debtGoal && this.app.isCampaignGoalComplete(debtGoal.id);
       this.renderCommandOverview(goals, debtGoal, debtCleared);
       if (this.els.bigBetDebtPanel && debtGoal) {
-        const paid = debtCleared ? debtGoal.costCredits : Math.min(debtGoal.costCredits, this.app.state.credits);
-        const pct = Math.max(0, Math.min(100, paid / Math.max(1, debtGoal.costCredits) * 100));
+        const debt = this.app.getDebtStatus();
+        const pct = Math.max(0, Math.min(100, debt.paid / Math.max(1, debt.total) * 100));
+        const previousAmount = document.getElementById('debtPaymentAmount')?.value || '';
+        const debtInputFocused = document.activeElement?.id === 'debtPaymentAmount';
+        if (!debtInputFocused) {
         this.els.bigBetDebtPanel.innerHTML = `
           <article class="manager-card card big-bet-ledger ${debtCleared ? 'done' : ''}">
             <div class="manager-top"><div class="manager-name">${debtCleared ? 'Debt Cleared' : 'Launch Debt'}</div><span class="tag">${debtCleared ? 'paid' : 'founder priority'}</span></div>
             <p class="muted">${debtCleared ? 'The creditors are gone. Everything after this belongs to the empire.' : 'The shed was funded with one reckless loan. Clear it when the operation can finally afford to breathe.'}</p>
-            <div class="manager-meta"><span><strong>${debtCleared ? 'Paid:' : 'Available for payoff:'}</strong> ${this.app.formatNumber(paid)} / ${this.app.formatNumber(debtGoal.costCredits)} CC</span><span><strong>Research:</strong> ${debtGoal.costResearch || 0} RD</span></div>
+            <div class="manager-meta"><span><strong>Paid:</strong> ${this.app.formatNumber(debt.paid)} / ${this.app.formatNumber(debt.total)} CC</span><span><strong>Remaining:</strong> ${this.app.formatNumber(debt.remaining)} CC</span><span><strong>Final milestone:</strong> ${debtGoal.costResearch || 0} RD</span></div>
             <div class="progress-track slim"><div class="progress-bar mission-bar" style="width:${pct}%"></div></div>
+            ${!debtCleared && debt.remaining > 0 ? `<div class="debt-payment-controls"><label for="debtPaymentAmount">Payment (CC)</label><input id="debtPaymentAmount" type="number" min="1" max="${Math.min(debt.remaining, this.app.state.credits)}" step="any" value="${escapeManagementHtml(previousAmount)}" inputmode="decimal"><button class="action-btn" data-action="repay-debt" data-amount="custom">Pay</button><button class="action-btn" data-action="repay-debt" data-amount="remaining" ${this.app.state.credits < debt.remaining ? 'disabled' : ''}>Pay remaining</button></div>` : !debtCleared ? '<p class="muted">Loan paid. Secure the milestone below with its original research requirement.</p>' : ''}
           </article>`;
+        }
       }
       if (this.els.campaignGoalList) {
         const completed = this.app.getCampaignGoalsCompletedCount ? this.app.getCampaignGoalsCompletedCount() : 0;
@@ -2295,7 +2429,15 @@ const WORKSPACE_SECTION_DEFS = {
               <div class="manager-actions"><button class="buy-btn ${done ? 'nope' : canBuy ? 'can-afford' : 'nope'}" data-action="buy-campaign-goal" data-id="${def.id}">${done ? 'Secured' : unlocked ? 'Secure Milestone' : 'Locked Milestone'}</button></div>
             </article>`;
         }).join('');
-        this.els.campaignGoalList.innerHTML = summary + cards;
+        const victory = goals.length > 0 && goals.every(goal => !!this.app.state.campaignGoals?.[goal.id]);
+        const completionTime = victory ? Math.max(...goals.map(goal => Number(this.app.state.campaignGoalMoments?.[goal.id] || this.app.state.campaignGoals[goal.id]) || 0)) : 0;
+        const memento = victory ? `<section class="campaign-victory-memento" aria-labelledby="campaignVictoryTitle"><h3 id="campaignVictoryTitle">Big Bet complete</h3><p>The empire is yours. Every campaign milestone is secured permanently.${completionTime > 1 ? ` Secured ${new Date(completionTime).toLocaleDateString()}.` : ''}</p><p><strong>Founder targets:</strong> automate every owned fleet, finish regional projects, and clear the boss catalog. Optional challenge runs wait in Progress; this run keeps going.</p></section>` : '';
+        this.els.campaignGoalList.innerHTML = memento + summary + cards;
+        if (victory && this.campaignVictorySeen === false) {
+          this.toast('Big Bet complete. Welcome to Founder Mode. Your run continues.');
+          this.playSound('achievement');
+        }
+        this.campaignVictorySeen = victory;
       }
       if (this.els.regionMasteryList) {
         const visibleRegions = DATA.regionDefs.filter(region => this.app.state.unlockedRegions?.[region.id] || this.app.meetsCondition(region.visibleWhen) || this.app.meetsCondition(region.unlockWhen));
@@ -2323,22 +2465,6 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     renderMissions() {
-      const season = this.app.getCurrentSeasonDef();
-      if (this.els.seasonCard) {
-        const doctrine = this.app.getActiveDoctrineDef();
-        const era = this.app.getActiveEraDef();
-        this.els.seasonCard.innerHTML = season ? `
-          <article class="manager-card card meta-card season-meta">
-            <div class="manager-top">
-              <div class="manager-name"><span class="icon-badge">${season.icon}</span> ${season.name}</div>
-              <span class="tag">weekly rotation</span>
-            </div>
-            <p class="muted">${season.desc}</p>
-            <div class="manager-meta"><span><strong>Effect:</strong> ${season.summary}</span></div>
-            <div class="manager-meta"><span><strong>Doctrine:</strong> ${doctrine?.name || 'Balanced'}</span><span><strong>Era:</strong> ${era?.name || 'Foundation Era'}</span></div>
-          </article>` : `<div class="manager-card card"><p class="muted">No seasonal operation is active.</p></div>`;
-      }
-
       if (this.els.contractsList) {
         const contracts = [this.app.getCurrentSideJob?.()].filter(Boolean);
         this.els.contractsList.innerHTML = contracts.map(contract => {
@@ -2696,6 +2822,22 @@ const WORKSPACE_SECTION_DEFS = {
       return bits.join(' • ') || 'Capacity only';
     },
 
+    confirmPrestige() {
+      const gain = this.app.getPrestigeGain();
+      if (gain <= 0) {
+        this.toast('Overhaul requires at least 1B CC earned this run.');
+        return;
+      }
+      const message = `Perform overhaul for +${gain} IP? Requires at least 1B CC earned this run.\n\nReset: current credits and run earnings, hardware, managers, run upgrades, specialists, services, active missions and incidents, mission cooldowns and shields, region unlocks, expansions and projects, and temporary operating bonuses.\n\nKeep: Innovation Points and tree nodes, research and fragments, achievements, campaign milestones and debt payments, office suite and cosmetics, placements and light settings, interface skins, sound and graphics settings, challenge clears, contract claims, side-job stage and baseline, region mastery, boss catalog, robot profile, and career statistics. Your selected challenge starts in the next run.\n\nCancel keeps this run unchanged.`;
+      if (!window.confirm(message)) return;
+      const result = this.app.doPrestige();
+      if (result.ok) {
+        this.toast(`Overhaul complete. +${result.gain} IP`);
+        this.showBuddyLine('new run!');
+        this.playSound('prestige');
+      }
+    },
+
     renderPrestige() {
       const projectedGain = this.app.getPrestigeGain();
       this.els.prestigeGainValue.textContent = `${projectedGain} IP`;
@@ -2703,22 +2845,6 @@ const WORKSPACE_SECTION_DEFS = {
         this.els.prestigeBtn.disabled = projectedGain <= 0;
         this.els.prestigeBtn.classList.toggle('nope', projectedGain <= 0);
         this.els.prestigeBtn.classList.toggle('can-afford', projectedGain > 0);
-      }
-
-      if (this.els.doctrineList) {
-        this.els.doctrineList.innerHTML = (DATA.doctrineDefs || []).map(def => {
-          const unlocked = this.app.meetsCondition(def.unlockWhen);
-          const active = this.app.state.activeDoctrineId === def.id;
-          return `<article class="manager-card card ${active ? 'done' : (!unlocked ? 'locked' : '')}"><div class="manager-top"><div class="manager-name"><span class="icon-badge">${def.icon}</span> ${def.name}</div><span class="tag">${active ? 'active' : unlocked ? 'ready' : 'locked'}</span></div><p class="muted">${def.desc}</p><div class="manager-actions"><button class="buy-btn ${(unlocked && !active) ? 'can-afford' : 'nope'}" data-action="set-doctrine" data-id="${def.id}">${active ? 'Active Doctrine' : unlocked ? 'Activate Doctrine' : 'Locked'}</button></div></article>`;
-        }).join('');
-      }
-
-      if (this.els.eraList) {
-        this.els.eraList.innerHTML = (DATA.eraDefs || []).map(def => {
-          const unlocked = this.app.meetsCondition(def.unlockWhen);
-          const active = this.app.state.activeEraId === def.id;
-          return `<article class="manager-card card ${active ? 'done' : (!unlocked ? 'locked' : '')}"><div class="manager-top"><div class="manager-name"><span class="icon-badge">${def.icon}</span> ${def.name}</div><span class="tag">${active ? 'active' : unlocked ? 'unlocked' : 'locked'}</span></div><p class="muted">${def.desc}</p><div class="manager-meta"><span><strong>Effect:</strong> ${this.describeEffectBundle(def.effects || {}) || 'era flavor'}</span></div><div class="manager-actions"><button class="buy-btn ${(unlocked && !active) ? 'can-afford' : 'nope'}" data-action="set-era" data-id="${def.id}">${active ? 'Active Era' : unlocked ? 'Switch Era' : 'Locked'}</button></div></article>`;
-        }).join('');
       }
 
       const campaignComplete = this.app.getCampaignGoalsCompletedCount() >= (DATA.campaignGoalDefs || []).length;
@@ -2821,43 +2947,6 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.commandCollectionsList) this.els.commandCollectionsList.innerHTML = markup;
     },
 
-    legacyInitArcade() {
-      const storedScores = (() => {
-        try { return JSON.parse(window.localStorage.getItem('uptime_empire_arcade_scores_v1') || '{}') || {}; } catch (_e) { return {}; }
-      })();
-      this.arcade = {
-        overlayOpen: false,
-        holdView: false,
-        currentGameId: null,
-        cabinetMenuIndex: 0,
-        gamePaused: false,
-        lastTs: performance.now(),
-        keys: {},
-        selectedSolitaire: null,
-        solitaireDrag: null,
-        confirmAction: null,
-        solitaireUndo: [],
-        solitaireHintText: '',
-        solitaireHintUntil: 0,
-        solitaireHintMove: null,
-        solitaireLastClick: null,
-        games: {
-          bombmopper: null,
-          stackOverflow: null,
-          circuitBreaker: null,
-          ctrlAltDefeat: null,
-          mortalKonfig: null
-        },
-        scores: storedScores,
-        catalog: [
-          { id: 'bombmopper', title: 'Bombmopper', genre: 'Minefield cleanup puzzler', roster: 'Moppet-9 • Sir Beep • Safety Cone Prime', desc: 'A janitor-bot hazard maze with flags, reveals, and chain clears.' },
-          { id: 'stackOverflow', title: 'Stack Overflow', genre: 'Klondike solitaire clone', roster: 'Queen Cache • King Kernel • Jack Packet • Ace Stack', desc: 'A terminal-themed solitaire layout. Functionally standard Klondike, just friendlier about the clicks.' },
-          { id: 'circuitBreaker', title: 'Circuit Breaker', genre: 'Tech sprint racer', roster: 'Byte Rider • Volt Vandal • Packet Phantom', desc: 'An endless neon service-lane racer through relay gates, dropped packets, and bad merge traffic.' },
-          { id: 'ctrlAltDefeat', title: 'Ctrl+Alt+Defeat', genre: 'Tiny sysadmin RPG', roster: 'Nova Admin • Null Rat • Kernel Wraith • Patch Pixie', desc: 'A compact turn-based office RPG about debugging monsters and keeping your own HP above zero.' },
-          { id: 'mortalKonfig', title: 'Mortal Konfig', genre: 'Office-fantasy fighter', roster: 'Kernel Khan • Patch Widow • Ping Reaper • Siren.exe', desc: 'A quick one-on-one fighter where configuration errors are settled with deeply unprofessional violence.' }
-        ]
-      };
-    },
 
     startArcadeLoop() {
       const frame = now => {
@@ -2928,6 +3017,8 @@ const WORKSPACE_SECTION_DEFS = {
 
     leaveArcade(holdView = false) {
       if (!this.arcade) return;
+      this.arcade.keys = {};
+      this.arcade.touchFighter = null;
       this.arcade.overlayOpen = false;
       this.arcade.holdView = !!holdView;
       clearTimeout(this.arcade.showTimer);
@@ -3006,192 +3097,23 @@ const WORKSPACE_SECTION_DEFS = {
       }
     },
 
-    legacyRenderArcadeMenu() {
-      if (!this.arcade || !this.els.arcadeMenuScreen || !this.els.arcadeGameScreen) return;
-      this.arcade.currentGameId = null;
-      this.arcade.gamePaused = false;
-      this.hideArcadeInlineConfirm();
-      if (this.arcade.overlayOpen) {
-        this.arcade.cabinetMenuIndex = Math.max(0, Math.min(this.arcade.catalog.length - 1, this.arcade.cabinetMenuIndex || 0));
-        this.office3D?.setArcadeScreenState({ mode: 'menu', title: 'UPTIME ARCADE' });
-        if (this.els.arcadeOverlay) this.els.arcadeOverlay.classList.add('hidden');
-        return;
-      }
-      this.els.arcadeGameScreen.classList.add('hidden');
-      this.els.arcadeMenuScreen.classList.remove('hidden');
-      const cards = this.arcade.catalog.map(game => `
-        <article class="arcade-game-card">
-          <div class="manager-top"><h4>${game.title}</h4><span class="tag">${game.genre}</span></div>
-          <div class="arcade-hiscore">Hiscore: ${this.getArcadeScore(game.id)}</div>
-          <p>${game.desc}</p>
-          <button class="soft-btn" data-arcade-play="${game.id}">Play</button>
-        </article>`).join('');
-      this.els.arcadeMenuScreen.innerHTML = `
-        <div class="arcade-menu-actions">
-          <div class="muted">Five tiny cabinet games live here. Pick one, chase a hiscore, or leave the machine humming.</div>
-          <button class="soft-btn" id="arcadeLeaveBtn">Leave Arcade</button>
-        </div>
-        <div class="arcade-menu-grid">${cards}</div>`;
-      this.els.arcadeMenuScreen.querySelectorAll('[data-arcade-play]').forEach(btn => btn.addEventListener('click', () => this.openArcadeGame(btn.dataset.arcadePlay)));
-      const leaveBtn = this.els.arcadeMenuScreen.querySelector('#arcadeLeaveBtn');
-      if (leaveBtn) leaveBtn.addEventListener('click', () => this.leaveArcade(false));
-    },
 
-    legacyOpenArcadeGame(id, resume = false) {
-      if (!this.arcade || !this.els.arcadeMenuScreen || !this.els.arcadeGameScreen) return;
-      this.arcade.overlayOpen = true;
-      this.arcade.holdView = true;
-      this.arcade.currentGameId = id;
-      this.els.arcadeMenuScreen.classList.add('hidden');
-      this.els.arcadeGameScreen.classList.remove('hidden');
-      const title = this.arcade.catalog.find(g => g.id === id)?.title || id;
-      this.els.arcadeGameScreen.innerHTML = `
-        <div class="arcade-screen-controls">
-          <div class="muted"><strong>${title}</strong> • Hiscore ${this.getArcadeScore(id)}</div>
-          <div class="muted">Esc pauses and exits to the office. White X quits the game.</div>
-        </div>
-        <canvas id="arcadeCanvas" width="640" height="360"></canvas>
-        <div class="arcade-dom-game hidden" id="arcadeDomGame"></div>`;
-      this.els.arcadeCanvas = document.getElementById('arcadeCanvas');
-      this.els.arcadeDomGame = document.getElementById('arcadeDomGame');
-      if (!resume || !this.arcade.games[id]) this.createArcadeGame(id);
-      this.arcade.gamePaused = !!resume;
-      this.arcade.lastTs = performance.now();
-      this.bindArcadeDomGame(id);
-      this.renderCurrentArcadeFrame(true);
-    },
 
-    legacyBindArcadeDomGame(id) {
-      if (!this.els.arcadeDomGame) return;
-      if (id === 'bombmopper') {
-        this.els.arcadeDomGame.addEventListener('click', e => {
-          const restart = e.target.closest('[data-bomb-restart]');
-          if (restart) { this.arcade.games.bombmopper = this.createBombmopperGame(this.arcade.bombmopperCarryScore || 0); this.arcade.gamePaused = false; this.renderBombmopper(); return; }
-          const cell = e.target.closest('[data-bomb-cell]');
-          if (!cell) return;
-          this.onBombmopperCell(Number(cell.dataset.bombCell), false);
-        });
-        this.els.arcadeDomGame.addEventListener('contextmenu', e => {
-          const cell = e.target.closest('[data-bomb-cell]');
-          if (!cell) return;
-          e.preventDefault();
-          this.onBombmopperCell(Number(cell.dataset.bombCell), true);
-        });
-      }
-      if (id === 'stackOverflow') {
-        this.els.arcadeDomGame.addEventListener('click', e => {
-          const action = e.target.closest('[data-sol-action]');
-          if (!action) return;
-          this.handleSolitaireAction(action.dataset.solAction, action.dataset.solPile, Number(action.dataset.solIndex || 0));
-        });
-        this.els.arcadeDomGame.addEventListener('dragstart', e => {
-          const card = e.target.closest('[data-sol-draggable]');
-          if (!card) return;
-          this.startSolitaireDrag(card.dataset.solSource, card.dataset.solPile, Number(card.dataset.solIndex || 0));
-          try { e.dataTransfer.setData('text/plain', 'stack-overflow'); e.dataTransfer.effectAllowed = 'move'; } catch (_e) {}
-        });
-        this.els.arcadeDomGame.addEventListener('dragover', e => {
-          const target = e.target.closest('[data-sol-drop]');
-          if (!target || !this.arcade.solitaireDrag) return;
-          e.preventDefault();
-          target.classList.add('arcade-drop-target');
-        });
-        this.els.arcadeDomGame.addEventListener('dragleave', e => {
-          const target = e.target.closest('[data-sol-drop]');
-          if (target) target.classList.remove('arcade-drop-target');
-        });
-        this.els.arcadeDomGame.addEventListener('drop', e => {
-          const target = e.target.closest('[data-sol-drop]');
-          if (!target || !this.arcade.solitaireDrag) return;
-          e.preventDefault();
-          target.classList.remove('arcade-drop-target');
-          this.handleSolitaireAction(target.dataset.solDrop, target.dataset.solPile, 0);
-          this.clearSolitaireDrag();
-        });
-        this.els.arcadeDomGame.addEventListener('dragend', () => this.clearSolitaireDrag());
-        this.els.arcadeDomGame.addEventListener('dblclick', e => {
-          const card = e.target.closest('.arcade-card[data-sol-autofoundation]');
-          if (!card) return;
-          this.trySolitaireAutoFoundation(card.dataset.solSource, card.dataset.solPile, Number(card.dataset.solIndex || 0));
-        });
-      }
-      if (id === 'ctrlAltDefeat') {
-        this.els.arcadeDomGame.addEventListener('click', e => {
-          const btn = e.target.closest('[data-rpg-action]');
-          if (!btn) return;
-          this.handleRpgAction(btn.dataset.rpgAction);
-        });
-      }
-    },
 
-    legacyCreateArcadeGame(id) {
-      if (id === 'bombmopper') {
-        if (typeof this.arcade.bombmopperCarryScore !== 'number') this.arcade.bombmopperCarryScore = 0;
-        this.arcade.games[id] = this.createBombmopperGame(this.arcade.bombmopperCarryScore || 0);
-      }
-      if (id === 'stackOverflow') { this.arcade.games[id] = this.createSolitaireGame(); this.arcade.solitaireUndo = []; this.arcade.solitaireHintText = ''; this.arcade.solitaireHintUntil = 0; this.arcade.solitaireHintMove = null; }
-      if (id === 'circuitBreaker') this.arcade.games[id] = this.createCircuitBreakerGame();
-      if (id === 'ctrlAltDefeat') this.arcade.games[id] = this.createCtrlAltDefeatGame();
-      if (id === 'mortalKonfig') this.arcade.games[id] = this.createMortalKonfigGame();
-    },
 
-    legacyUpdateArcade(now) {
-      if (!this.arcade || !this.arcade.currentGameId || !this.arcade.overlayOpen || this.arcade.gamePaused) return;
-      const dt = Math.min(0.05, (now - this.arcade.lastTs) / 1000 || 0.016);
-      this.arcade.lastTs = now;
-      const id = this.arcade.currentGameId;
-      if (id === 'bombmopper') this.updateBombmopper(dt);
-      if (id === 'circuitBreaker') { this.updateCircuitBreaker(dt); this.renderCircuitBreaker(); }
-      if (id === 'ctrlAltDefeat') this.updateCtrlAltDefeat(dt);
-      if (id === 'mortalKonfig') { this.updateMortalKonfig(dt); this.renderMortalKonfig(); }
-    },
 
-    legacyRenderCurrentArcadeFrame(force = false) {
-      if (!this.arcade || !this.arcade.currentGameId) return;
-      const id = this.arcade.currentGameId;
-      if (id === 'bombmopper') this.renderBombmopper();
-      if (id === 'stackOverflow') this.renderSolitaire();
-      if (id === 'circuitBreaker') this.renderCircuitBreaker();
-      if (id === 'ctrlAltDefeat') this.renderCtrlAltDefeat();
-      if (id === 'mortalKonfig') this.renderMortalKonfig();
-    },
 
-    legacyHandleArcadeKeyDown(e) {
-      if (!this.arcade || !this.arcade.overlayOpen || !this.arcade.currentGameId) return;
-      const key = e.key.toLowerCase();
-      const activeGame = this.arcade.currentGameId;
-      if (key === 'p' && (activeGame === 'circuitBreaker' || activeGame === 'mortalKonfig')) {
-        e.preventDefault();
-        this.arcade.gamePaused = !this.arcade.gamePaused;
-        this.arcade.keys.p = false;
-        this.arcade.lastTs = this.arcadePerfNow();
-        this.arcade.lastAdvanceAt = 0;
-        return;
-      }
-      this.arcade.keys[key] = true;
-      if (this.arcade.gamePaused) this.arcade.gamePaused = false;
-      if (this.arcade.currentGameId === 'ctrlAltDefeat') {
-        if (key === 'a') this.handleRpgAction('attack');
-        if (key === 'p') this.handleRpgAction('patch');
-        if (key === 'o') this.handleRpgAction('overclock');
-      }
-      e.preventDefault();
-    },
 
-    legacyHandleArcadeKeyUp(e) {
-      if (!this.arcade) return;
-      this.arcade.keys[e.key.toLowerCase()] = false;
-    },
 
     handleCabinetArcadeInput(input) {
       const arcade = this.arcade;
+      if (arcade && input.type === 'keyup') {
+        this.handleArcadeKeyUp(input.event);
+        return true;
+      }
       if (!arcade || !arcade.overlayOpen) return false;
       if (input.type === 'pointer') {
         this.handleCabinetArcadePointer(input.x, input.y, input.button);
-        return true;
-      }
-      if (input.type === 'keyup') {
-        this.handleArcadeKeyUp(input.event);
         return true;
       }
       if (input.type !== 'keydown') return true;
@@ -3265,7 +3187,8 @@ const WORKSPACE_SECTION_DEFS = {
           else if (x >= 82 && x <= 134) this.handleSolitaireAction('selectWaste');
           else if (x >= 254 && x <= 462) {
             const suits = ['H', 'D', 'C', 'S'];
-            this.handleSolitaireAction('toFoundation', suits[Math.floor((x - 254) / 52)]);
+            const suit = suits[Math.floor((x - 254) / 52)];
+            this.handleSolitaireAction(arcade.selectedSolitaire ? 'toFoundation' : 'selectFoundation', suit);
           }
           return;
         }
@@ -3293,12 +3216,8 @@ const WORKSPACE_SECTION_DEFS = {
       }
       if (id === 'mortalKonfig' && y > 310) {
         const action = Math.max(0, Math.min(5, Math.floor((x - 10) / 82)));
-        if (action === 0) game.player.x = Math.max(54, game.player.x - 30);
-        if (action === 1) game.player.x = Math.min(586, game.player.x + 30);
-        if (action === 2 && game.player.y === 0) { game.player.vy = 330; game.player.y = 1; }
-        if (action === 3) this.startFighterAttack(game, 'player', 'punch');
-        if (action === 4) this.startFighterAttack(game, 'player', 'kick');
-        if (action === 5) { game.player.block = Math.max(game.player.block, 0.32); game.message = 'Firewall stance raised.'; }
+        if (game.player.stun > 0) return;
+        arcade.touchFighter = { key: ['a', 'd', 'w', 'j', 'k', 'l'][action], ttl: action === 5 ? 0.32 : 0.18 };
       }
     },
 
@@ -3431,7 +3350,7 @@ const WORKSPACE_SECTION_DEFS = {
       ['H', 'D', 'C', 'S'].forEach((suit, index) => {
         const card = game.foundations[suit][game.foundations[suit].length - 1];
         const x = 254 + index * 52;
-        if (card) this.drawCabinetCard(ctx, card, x, 58); else { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 58, 48, 66); this.drawCabinetText(ctx, this.arcadeSuitGlyph(suit), x + 24, 91, 18, '#6f9bb5', 'center'); }
+        if (card) this.drawCabinetCard(ctx, card, x, 58, this.arcade.selectedSolitaire?.source === 'foundation' && this.arcade.selectedSolitaire.pile === suit); else { ctx.strokeStyle = '#345367'; ctx.strokeRect(x, 58, 48, 66); this.drawCabinetText(ctx, this.arcadeSuitGlyph(suit), x + 24, 91, 18, '#6f9bb5', 'center'); }
       });
       game.tableau.forEach((pile, pileIndex) => {
         const x = 18 + pileIndex * 70;
@@ -3563,46 +3482,10 @@ const WORKSPACE_SECTION_DEFS = {
       this.drawCabinetText(ctx, game.message.toUpperCase(), 256, 370, 9, game.over ? (game.won ? '#7dff68' : '#ff5a6d') : '#d5efff', 'center');
     },
 
-    legacyDrawArcadeFrameBase(ctx, title, subtitle) {
-      if (!ctx || !this.els.arcadeCanvas) return;
-      ctx.clearRect(0, 0, this.els.arcadeCanvas.width, this.els.arcadeCanvas.height);
-      const grad = ctx.createLinearGradient(0, 0, 0, this.els.arcadeCanvas.height);
-      grad.addColorStop(0, '#0d1522');
-      grad.addColorStop(1, '#05080f');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, this.els.arcadeCanvas.width, this.els.arcadeCanvas.height);
-      ctx.strokeStyle = 'rgba(120,220,255,0.18)'; ctx.lineWidth = 2; ctx.strokeRect(8, 8, this.els.arcadeCanvas.width - 16, this.els.arcadeCanvas.height - 16);
-      ctx.fillStyle = '#ff9fd9'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'left'; ctx.fillText(title, 18, 30);
-      ctx.fillStyle = '#b5e8ff'; ctx.font = '12px monospace'; ctx.fillText(subtitle, 18, 48);
-    },
 
-    legacyDrawArcadePauseOverlay(ctx) {
-      ctx.fillStyle = 'rgba(3,6,10,0.72)'; ctx.fillRect(150, 130, 340, 90);
-      ctx.fillStyle = '#fff0cb'; ctx.font = 'bold 22px monospace'; ctx.fillText('PAUSED', 270, 165);
-      ctx.font = '13px monospace'; ctx.fillStyle = '#b5e8ff'; ctx.fillText('Press a game button to resume later.', 188, 190);
-    },
 
-    legacyCardColor(card) { return (card.suit === '♥' || card.suit === '♦') ? 'red' : ''; },
     cardLabel(card) { return `${card.rank}${card.suit}`; },
 
-    legacyCreateBombmopperGame(baseScore = 0) {
-      const mineCount = 14;
-      const total = 100;
-      const mines = new Set();
-      while (mines.size < mineCount) mines.add(Math.floor(Math.random() * total));
-      const cells = Array.from({ length: total }, (_, i) => ({ mine: mines.has(i), revealed: false, flagged: false, adjacent: 0 }));
-      const dirs = [-11,-10,-9,-1,1,9,10,11];
-      cells.forEach((cell, i) => {
-        const x = i % 10, y = Math.floor(i / 10);
-        cell.adjacent = dirs.reduce((sum, dir) => {
-          const j = i + dir;
-          if (j < 0 || j >= total) return sum;
-          const nx = j % 10, ny = Math.floor(j / 10);
-          if (Math.abs(nx - x) > 1 || Math.abs(ny - y) > 1) return sum;
-          return sum + (cells[j].mine ? 1 : 0);
-        }, 0);
-      });
-      return { cells, started: false, over: false, won: false, score: baseScore, elapsed: 0, mineCount, firstClick: true, streakScore: baseScore };
-    },
 
     floodRevealBomb(index, game) {
       const stack = [index];
@@ -3645,101 +3528,12 @@ const WORKSPACE_SECTION_DEFS = {
       });
     },
 
-    legacyOnBombmopperCell(index, flag) {
-      if (this.arcade.gamePaused) this.arcade.gamePaused = false;
-      const game = this.arcade.games.bombmopper;
-      if (!game || game.over || game.won) return;
-      game.started = true;
-      if (game.firstClick && !flag) {
-        this.relocateBombmopperFirstClick(index, game);
-        game.firstClick = false;
-      }
-      const cell = game.cells[index];
-      if (flag) {
-        if (!cell.revealed) cell.flagged = !cell.flagged;
-      } else {
-        if (cell.flagged || cell.revealed) return;
-        if (cell.mine) {
-          cell.revealed = true;
-          game.over = true;
-          game.cells.forEach(other => { if (other.mine) other.revealed = true; });
-          this.setArcadeScore('bombmopper', game.score);
-          this.arcade.bombmopperCarryScore = 0;
-        } else {
-          this.floodRevealBomb(index, game);
-          const revealed = game.cells.filter(c => c.revealed).length;
-          game.score = Math.max(game.score, (game.streakScore || 0) + revealed * 12 - Math.floor(game.elapsed));
-          if (revealed >= 86) {
-            game.won = true;
-            game.score += 500;
-            this.arcade.bombmopperCarryScore = game.score;
-            this.setArcadeScore('bombmopper', game.score);
-          } else {
-            this.arcade.bombmopperCarryScore = Math.max(this.arcade.bombmopperCarryScore || 0, game.score);
-          }
-        }
-      }
-      this.renderBombmopper();
-    },
 
-    legacyUpdateBombmopper(dt) {
-      const game = this.arcade?.games?.bombmopper;
-      if (!game || game.over || game.won || !game.started) return;
-      const prevSecond = Math.floor(game.elapsed || 0);
-      game.elapsed = (game.elapsed || 0) + dt;
-      const nextSecond = Math.floor(game.elapsed);
-      if (prevSecond !== nextSecond) this.renderBombmopper();
-    },
 
-    legacyRenderBombmopper() {
-      this.els.arcadeCanvas.classList.add('hidden');
-      this.els.arcadeDomGame.classList.remove('hidden');
-      const game = this.arcade.games.bombmopper;
-      const bombsLeft = Math.max(0, game.mineCount - game.cells.filter(cell => cell.flagged).length);
-      const content = game.cells.map((cell, index) => {
-        let cls = 'arcade-bomb-cell';
-        let value = '';
-        if (cell.revealed) {
-          cls += ' revealed';
-          if (cell.mine) { cls += ' mine'; value = '✹'; }
-          else value = cell.adjacent || '';
-        } else if (cell.flagged) { cls += ' flagged'; value = '⚑'; }
-        return `<button class="${cls}" data-bomb-cell="${index}">${value}</button>`;
-      }).join('');
-      const face = game.over ? '☠️' : (game.won ? '😎' : '🙂');
-      const overlay = game.over ? `<div class="arcade-result-overlay"><div class="arcade-result-card"><h4>Bombmopper crashed the shift</h4><p>You hit a mine. Start a fresh board right here.</p><div class="manager-actions"><button class="buy-btn can-afford" data-bomb-restart>New Game</button></div></div></div>` : game.won ? `<div class="arcade-result-overlay"><div class="arcade-result-card"><h4>Board cleared</h4><p>Bombmopper posted a hazard-free highscore.</p><div class="manager-actions"><button class="buy-btn can-afford" data-bomb-restart>Play Again</button></div></div></div>` : '';
-      const best = this.arcade?.scores?.bombmopper || 0;
-      this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls arcade-bomb-status"><div class="muted">Score ${Math.max(0, Math.floor(game.score || 0))}</div><div class="arcade-bomb-face-wrap"><button class="arcade-face-btn" type="button" data-bomb-restart>${face}</button></div><div class="muted">Hi ${best} • Bombs ${bombsLeft} • Time ${Math.floor(game.elapsed)}s</div></div><div class="arcade-bomb-wrap"><div class="arcade-bomb-grid">${content}</div>${overlay}</div>`;
-    },
 
-    legacyMakeDeck() {
-      const suits = ['♠','♥','♦','♣'];
-      const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-      const deck = [];
-      suits.forEach(suit => ranks.forEach(rank => deck.push({ suit, rank })));
-      for (let i = deck.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-      }
-      return deck;
-    },
 
-    legacyCreateSolitaireGame() {
-      const deck = this.makeDeck();
-      const tableaus = Array.from({ length: 7 }, (_, pileIndex) => Array.from({ length: pileIndex + 1 }, (_, idx) => ({ ...deck.pop(), faceUp: idx === pileIndex })));
-      return { tableaus, foundations: { '♠': [], '♥': [], '♦': [], '♣': [] }, draw: deck, waste: [], score: 0, won: false, over: false, loseReason: '' };
-    },
 
-    legacySnapshotSolitaire(game) {
-      return JSON.parse(JSON.stringify(game));
-    },
 
-    legacyPushSolitaireUndo(game) {
-      if (!this.arcade) return;
-      this.arcade.solitaireUndo = this.arcade.solitaireUndo || [];
-      this.arcade.solitaireUndo.push(this.snapshotSolitaire(game));
-      if (this.arcade.solitaireUndo.length > 60) this.arcade.solitaireUndo.shift();
-    },
 
     restoreSolitaireUndo() {
       const stack = this.arcade?.solitaireUndo || [];
@@ -3765,16 +3559,6 @@ const WORKSPACE_SECTION_DEFS = {
       return this.canPlaceOnFoundation(card, game.foundations[suit]) ? suit : null;
     },
 
-    legacyTrySolitaireAutoFoundation(source, pile, index) {
-      const game = this.arcade.games.stackOverflow;
-      if (!game || game.over || game.won) return false;
-      const card = this.getSolitaireCardFromSource(game, source, pile, index);
-      const suit = this.getSolitaireAutoFoundationTarget(card, game);
-      if (!suit) return false;
-      this.arcade.selectedSolitaire = source === 'waste' ? { source: 'waste' } : { source: 'tableau', pile: Number(pile), index: Number(index) };
-      this.handleSolitaireAction('toFoundation', suit, 0);
-      return true;
-    },
 
     hasAnySolitaireMoves(game) {
       if (game.won || game.over) return false;
@@ -3835,19 +3619,7 @@ const WORKSPACE_SECTION_DEFS = {
       game.score = Math.max(0, game.score - 1);
     },
 
-    legacyCanPlaceOnTableau(card, target) {
-      if (!target) return card.rank === 'K';
-      const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-      const color = c => (c.suit === '♥' || c.suit === '♦') ? 'r' : 'b';
-      return color(card) !== color(target) && ranks.indexOf(card.rank) === ranks.indexOf(target.rank) - 1;
-    },
 
-    legacyCanPlaceOnFoundation(card, pile) {
-      const ranks = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-      if (!pile.length) return card.rank === 'A';
-      const top = pile[pile.length - 1];
-      return card.suit === top.suit && ranks.indexOf(card.rank) === ranks.indexOf(top.rank) + 1;
-    },
 
     startSolitaireDrag(source, pile = null, index = 0) {
       if (!this.arcade || !this.arcade.games.stackOverflow) return;
@@ -3861,378 +3633,13 @@ const WORKSPACE_SECTION_DEFS = {
       if (this.els.arcadeDomGame) this.els.arcadeDomGame.querySelectorAll('.arcade-drop-target').forEach(el => el.classList.remove('arcade-drop-target'));
     },
 
-    legacyHandleSolitaireAction(action, pile, index) {
-      if (this.arcade.gamePaused) this.arcade.gamePaused = false;
-      const game = this.arcade.games.stackOverflow;
-      if (!game || game.won || game.over) return;
-      if (action === 'new') {
-        this.arcade.games.stackOverflow = this.createSolitaireGame();
-        this.arcade.solitaireUndo = [];
-        this.arcade.solitaireHintText = '';
-        this.arcade.solitaireHintUntil = 0;
-        this.arcade.solitaireHintMove = null;
-        this.renderSolitaire();
-        return;
-      }
-      if (action === 'undo') {
-        this.restoreSolitaireUndo();
-        return;
-      }
-      if (action === 'hint') {
-        const hint = this.getSolitaireHint(game);
-        if (!hint) {
-          if (!this.hasAnySolitaireMoves(game)) { game.over = true; game.loseReason = 'No valid moves left.'; this.renderSolitaire(); }
-          return;
-        }
-        game.score = Math.max(0, game.score - 15);
-        this.arcade.solitaireHintMove = hint;
-        this.arcade.solitaireHintUntil = performance.now() + 2700;
-        this.arcade.solitaireHintText = '';
-        this.setArcadeScore('stackOverflow', game.score);
-        this.renderSolitaire();
-        return;
-      }
-      if (action === 'quit-lost') {
-        this.arcade.currentGameId = null;
-        this.arcade.gamePaused = false;
-        this.renderArcadeMenu();
-        return;
-      }
 
-      let changed = false;
-      if (action === 'draw') {
-        this.pushSolitaireUndo(game);
-        this.drawFromStock(game);
-        this.drawFromStock(game);
-        changed = true;
-      } else if (action === 'selectWaste') {
-        const now = performance.now();
-        const last = this.arcade.solitaireLastClick;
-        if (last && last.source === 'waste' && now - last.at < 340) {
-          this.arcade.solitaireLastClick = null;
-          this.trySolitaireAutoFoundation('waste', 0, 0);
-          return;
-        }
-        this.arcade.solitaireLastClick = { source: 'waste', pile: 0, index: 0, at: now };
-        this.arcade.selectedSolitaire = { source: 'waste' };
-      } else if (action === 'selectTableau') {
-        const pileCards = game.tableaus[Number(pile)] || [];
-        const card = pileCards[index];
-        if (!card?.faceUp) { return; }
-        const now = performance.now();
-        const last = this.arcade.solitaireLastClick;
-        if (last && last.source === 'tableau' && last.pile === Number(pile) && last.index === index && now - last.at < 340) {
-          this.arcade.solitaireLastClick = null;
-          this.trySolitaireAutoFoundation('tableau', Number(pile), index);
-          return;
-        }
-        this.arcade.solitaireLastClick = { source: 'tableau', pile: Number(pile), index, at: now };
-        this.arcade.selectedSolitaire = { source: 'tableau', pile: Number(pile), index };
-      } else if (action === 'toFoundation') {
-        this.pushSolitaireUndo(game);
-        const suit = pile;
-        const sel = this.arcade.selectedSolitaire;
-        if (!sel) { return; }
-        let card = null;
-        if (sel.source === 'waste') card = game.waste[game.waste.length - 1];
-        else card = game.tableaus[sel.pile]?.[sel.index];
-        if (!card || !this.canPlaceOnFoundation(card, game.foundations[suit])) { this.arcade.solitaireUndo.pop(); return; }
-        if (sel.source === 'waste') game.waste.pop();
-        else {
-          game.tableaus[sel.pile].splice(sel.index, 1);
-          const reveal = game.tableaus[sel.pile][game.tableaus[sel.pile].length - 1];
-          if (reveal) reveal.faceUp = true;
-        }
-        game.foundations[suit].push({ ...card, faceUp: true });
-        game.score += 12;
-        this.arcade.selectedSolitaire = null;
-        changed = true;
-      } else if (action === 'toTableau') {
-        this.pushSolitaireUndo(game);
-        const targetPile = game.tableaus[Number(pile)];
-        const targetCard = targetPile[targetPile.length - 1];
-        const sel = this.arcade.selectedSolitaire;
-        if (!sel) { return; }
-        let movingCards = [];
-        if (sel.source === 'waste') {
-          const card = game.waste[game.waste.length - 1];
-          if (!card || !this.canPlaceOnTableau(card, targetCard)) { this.arcade.solitaireUndo.pop(); return; }
-          movingCards = [{ ...card, faceUp: true }];
-          game.waste.pop();
-        } else {
-          const pileIndex = sel.pile;
-          movingCards = game.tableaus[pileIndex].slice(sel.index).map(card => ({ ...card, faceUp: true }));
-          if (!movingCards.length || !this.canPlaceOnTableau(movingCards[0], targetCard)) { this.arcade.solitaireUndo.pop(); return; }
-          game.tableaus[pileIndex].splice(sel.index, movingCards.length);
-          const reveal = game.tableaus[pileIndex][game.tableaus[pileIndex].length - 1];
-          if (reveal) reveal.faceUp = true;
-        }
-        targetPile.push(...movingCards);
-        game.score += 5;
-        this.arcade.selectedSolitaire = null;
-        changed = true;
-      } else {
-        this.arcade.solitaireUndo.pop();
-      }
-      this.clearSolitaireDrag();
-      if (changed) { this.arcade.solitaireHintText = ''; this.arcade.solitaireHintMove = null; this.arcade.solitaireLastClick = null; }
-      const won = Object.values(game.foundations).every(p => p.length === 13);
-      if (won) {
-        game.won = true;
-        this.setArcadeScore('stackOverflow', game.score + 500);
-      } else {
-        if (!this.hasAnySolitaireMoves(game)) {
-          game.over = true;
-          game.loseReason = 'No valid moves left.';
-        }
-        this.setArcadeScore('stackOverflow', game.score);
-      }
-      this.renderSolitaire();
-    },
 
-    legacyRenderSolitaire() {
-      this.els.arcadeCanvas.classList.add('hidden');
-      this.els.arcadeDomGame.classList.remove('hidden');
-      const game = this.arcade.games.stackOverflow;
-      const hintActive = this.arcade.solitaireHintMove && performance.now() < (this.arcade.solitaireHintUntil || 0);
-      const isHintFrom = (source, pile, index = null) => {
-        const h = this.arcade.solitaireHintMove;
-        if (!hintActive || !h || !h.from) return false;
-        return h.from.source === source && String(h.from.pile ?? '') === String(pile ?? '') && String(h.from.index ?? '') === String(index ?? '');
-      };
-      const isHintTo = (type, pile) => {
-        const h = this.arcade.solitaireHintMove;
-        if (!hintActive || !h || !h.to) return false;
-        return h.to.type === type && String(h.to.pile ?? '') === String(pile ?? '');
-      };
-      const renderCard = (card, extraClass = '', attrs = '') => card.faceUp
-        ? `<div class="arcade-card ${this.cardColor(card)} ${extraClass}" ${attrs}><span class="arcade-card-corner">${card.rank}${card.suit}</span><span class="arcade-card-center">${card.suit}</span></div>`
-        : `<div class="arcade-card back ${extraClass}" ${attrs}><span class="arcade-card-back-label">STACK</span></div>`;
-      const foundationCells = ['♠','♥','♦','♣'].map(suit => {
-        const top = game.foundations[suit][game.foundations[suit].length - 1];
-        return `<div class="arcade-foundation ${isHintTo('foundation', suit) ? 'arcade-hint-target' : ''}" data-sol-action="toFoundation" data-sol-drop="toFoundation" data-sol-pile="${suit}">${top ? renderCard(top) : ''}</div>`;
-      }).join('');
-      const tableauHtml = game.tableaus.map((pile, pileIndex) => {
-        const availableHeight = 520;
-        const cardHeight = 96;
-        const defaultStep = 19;
-        const step = pile.length > 1 ? Math.max(8, Math.min(defaultStep, Math.floor((availableHeight - cardHeight) / (pile.length - 1)))) : defaultStep;
-        return `<div class="arcade-tableau ${isHintTo('tableau', pileIndex) ? 'arcade-hint-target' : ''}" data-sol-action="toTableau" data-sol-drop="toTableau" data-sol-pile="${pileIndex}" style="--stack-step:${step}px">${pile.map((card, cardIndex) => {
-          const selected = (this.arcade.selectedSolitaire && this.arcade.selectedSolitaire.source === 'tableau' && this.arcade.selectedSolitaire.pile === pileIndex && this.arcade.selectedSolitaire.index === cardIndex) ? 'arcade-selected' : '';
-          const hintClass = isHintFrom('tableau', pileIndex, cardIndex) ? 'arcade-hint-source' : '';
-          const attrs = card.faceUp ? `draggable="true" data-sol-draggable="1" data-sol-source="tableau" data-sol-pile="${pileIndex}" data-sol-index="${cardIndex}" data-sol-action="selectTableau" data-sol-autofoundation="1"` : '';
-          return renderCard(card, `${selected} ${hintClass}`.trim(), attrs);
-        }).join('')}</div>`;
-      }).join('');
-      const wasteTop = game.waste[game.waste.length - 1];
-      const wasteCard = wasteTop ? renderCard(wasteTop, `${(this.arcade.selectedSolitaire && this.arcade.selectedSolitaire.source === 'waste') ? 'arcade-selected' : ''} ${isHintFrom('waste') ? 'arcade-hint-source' : ''}`.trim(), 'draggable="true" data-sol-draggable="1" data-sol-source="waste" data-sol-action="selectWaste" data-sol-autofoundation="1"') : '';
-      const overlay = game.over ? `<div class="arcade-result-overlay"><div class="arcade-result-card"><h4>Stack Overflow is out of moves</h4><p>${game.loseReason || 'No valid moves left.'}</p><div class="manager-actions"><button class="buy-btn can-afford" data-sol-action="new">New Game</button><button class="soft-btn" data-sol-action="quit-lost">Quit to Menu</button></div></div></div>` : game.won ? '<div class="arcade-result-overlay"><div class="arcade-result-card"><h4>Deck cleared</h4><p>Every stack is tidy. The overflow has been contained.</p><div class="manager-actions"><button class="buy-btn can-afford" data-sol-action="new">New Game</button></div></div></div>' : '';
-      this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls"><div class="muted">Score ${game.score}</div><div class="manager-actions arcade-inline-actions"><button class="soft-btn" data-sol-action="new">New Game</button><button class="soft-btn" data-sol-action="undo">Undo</button><button class="soft-btn" data-sol-action="hint">Hint (-15)</button></div></div>${this.arcade.gamePaused ? '<div class="help-callout">Paused exactly where you left it. Click or drag a card to resume.</div>' : ''}<div class="arcade-solitaire-board tall"><div class="arcade-solitaire-top"><div class="arcade-stock-waste"><div class="arcade-pile arcade-stock" data-sol-action="draw">${game.draw.length ? `<div class="arcade-card back"><span class="arcade-card-back-label">DRAW</span></div>` : '<div class="muted">reset stock</div>'}</div><div class="arcade-pile arcade-waste ${isHintTo('waste', 0) ? 'arcade-hint-target' : ''}">${wasteCard}</div></div><div class="arcade-solitaire-foundations">${foundationCells}</div></div><div class="arcade-solitaire-bottom"><div class="arcade-solitaire-spacer"></div><div class="arcade-solitaire-layout">${tableauHtml}</div></div>${overlay}</div>`;
-    },
 
-    legacyCreateCircuitBreakerGame() {
-      return {
-        lane: 1,
-        distance: 0,
-        score: 0,
-        level: 0,
-        levels: [
-          { name: 'Fiber Run', bg: ['#07111a','#0e2432'], road: '#123044', speed: 78, spawn: 0.7, goal: 650, hazards: ['packet','relay'], pickups: ['boost'] },
-          { name: 'Datacenter Drift', bg: ['#170d22','#312244'], road: '#1d2f56', speed: 92, spawn: 0.62, goal: 820, hazards: ['packet','relay','spill'], pickups: ['boost','shield'] },
-          { name: 'Core Switch Circuit', bg: ['#071b12','#13412a'], road: '#173b2a', speed: 108, spawn: 0.54, goal: 980, hazards: ['packet','relay','spill','jammer'], pickups: ['boost','shield'] }
-        ],
-        obstacles: [],
-        pickups: [],
-        fx: [],
-        spawnTimer: 0.3,
-        pickupTimer: 2.4,
-        boostUntil: 0,
-        shieldUntil: 0,
-        over: false,
-        winFlash: 0
-      };
-    },
 
-    legacyUpdateCircuitBreaker(dt) {
-      const g = this.arcade.games.circuitBreaker;
-      if (!g || g.over) return;
-      const level = g.levels[g.level];
-      if (this.arcade.keys['arrowleft'] || this.arcade.keys['a']) g.lane = Math.max(0, g.lane - 1), this.arcade.keys['arrowleft']=this.arcade.keys['a']=false;
-      if (this.arcade.keys['arrowright'] || this.arcade.keys['d']) g.lane = Math.min(2, g.lane + 1), this.arcade.keys['arrowright']=this.arcade.keys['d']=false;
-      const now = performance.now();
-      const speed = level.speed * (now < g.boostUntil ? 1.45 : 1);
-      g.spawnTimer -= dt;
-      g.pickupTimer -= dt;
-      if (g.spawnTimer <= 0) {
-        const kind = level.hazards[Math.floor(Math.random() * level.hazards.length)];
-        g.obstacles.push({ lane: Math.floor(Math.random() * 3), y: -34, kind });
-        g.spawnTimer = Math.max(0.26, level.spawn + (Math.random() * 0.22 - 0.08));
-      }
-      if (g.pickupTimer <= 0) {
-        const kind = level.pickups[Math.floor(Math.random() * level.pickups.length)];
-        g.pickups.push({ lane: Math.floor(Math.random() * 3), y: -28, kind });
-        g.pickupTimer = 3.2 + Math.random() * 2.1;
-      }
-      g.obstacles.forEach(o => o.y += (speed + 150) * dt);
-      g.pickups.forEach(o => o.y += (speed + 150) * dt);
-      g.obstacles = g.obstacles.filter(o => o.y < 390);
-      g.pickups = g.pickups.filter(o => o.y < 390);
-      g.distance += speed * dt;
-      g.score = Math.floor(g.distance) + g.level * 300;
-      g.pickups = g.pickups.filter(o => {
-        if (o.lane === g.lane && o.y > 248 && o.y < 330) {
-          if (o.kind === 'boost') g.boostUntil = now + 2800;
-          if (o.kind === 'shield') g.shieldUntil = now + 3200;
-          g.fx.push({ text: o.kind === 'boost' ? 'BOOST' : 'SHIELD', ttl: 0.8 });
-          return false;
-        }
-        return true;
-      });
-      g.obstacles.forEach(o => {
-        if (o.lane !== g.lane || o.y < 244 || o.y > 324) return;
-        if (now < g.shieldUntil) {
-          g.shieldUntil = 0;
-          o.y = 999;
-          g.fx.push({ text: 'BLOCK', ttl: 0.6 });
-        } else {
-          g.over = true;
-        }
-      });
-      if (!g.over && g.distance >= level.goal) {
-        if (g.level < g.levels.length - 1) {
-          g.level += 1;
-          g.distance = 0;
-          g.obstacles = [];
-          g.pickups = [];
-          g.winFlash = 1.1;
-          g.fx.push({ text: `TRACK ${g.level + 1}`, ttl: 1.1 });
-        } else {
-          g.over = true;
-        }
-      }
-      g.fx.forEach(f => f.ttl -= dt);
-      g.fx = g.fx.filter(f => f.ttl > 0);
-      if (g.winFlash > 0) g.winFlash -= dt;
-      if (g.over) this.setArcadeScore('circuitBreaker', g.score);
-    },
 
-    legacyRenderCircuitBreaker() {
-      this.els.arcadeCanvas.classList.remove('hidden');
-      this.els.arcadeDomGame.classList.add('hidden');
-      const ctx = this.els.arcadeCanvas.getContext('2d');
-      const g = this.arcade.games.circuitBreaker;
-      const level = g.levels[g.level];
-      this.drawArcadeFrameBase(ctx, 'Circuit Breaker', 'A/D or ←/→ change lanes • grab boosts and survive each track.');
-      const lanes = [170, 320, 470];
-      const roadX = 110, roadY = 56, roadW = 420, roadH = 278;
-      const grad = ctx.createLinearGradient(0, roadY, 0, roadY + roadH); grad.addColorStop(0, level.bg[0]); grad.addColorStop(1, level.bg[1]);
-      ctx.fillStyle = grad; ctx.fillRect(roadX, roadY, roadW, roadH);
-      ctx.fillStyle = level.road; ctx.fillRect(roadX + 16, roadY, roadW - 32, roadH);
-      ctx.strokeStyle = 'rgba(120,220,255,0.16)'; ctx.lineWidth = 3; lanes.forEach(x => { ctx.beginPath(); ctx.moveTo(x, roadY); ctx.lineTo(x, roadY + roadH); ctx.stroke(); });
-      ctx.fillStyle = '#9cf3ff'; ctx.fillText(`${level.name}`, 22, 28);
-      ctx.fillText(`Track ${g.level + 1}/${g.levels.length}`, 240, 28);
-      ctx.fillText(`Progress ${Math.floor(g.distance)}/${level.goal}`, 430, 28);
-      const px = lanes[g.lane] - 27;
-      ctx.fillStyle = '#ffb15f'; ctx.fillRect(px, 286, 54, 26);
-      ctx.fillStyle = '#101820'; ctx.fillRect(px + 8, 292, 38, 10);
-      g.obstacles.forEach(o => {
-        const ox = lanes[o.lane] - 24;
-        if (o.kind === 'packet') { ctx.fillStyle = '#7be4ff'; ctx.fillRect(ox, o.y, 48, 24); }
-        if (o.kind === 'relay') { ctx.fillStyle = '#ff6ca0'; ctx.fillRect(ox, o.y, 48, 24); }
-        if (o.kind === 'spill') { ctx.fillStyle = '#ffcf59'; ctx.beginPath(); ctx.ellipse(ox + 24, o.y + 14, 28, 14, 0, 0, Math.PI * 2); ctx.fill(); }
-        if (o.kind === 'jammer') { ctx.fillStyle = '#c5a0ff'; ctx.fillRect(ox + 8, o.y, 32, 28); ctx.fillRect(ox, o.y + 8, 48, 12); }
-      });
-      g.pickups.forEach(o => {
-        const ox = lanes[o.lane];
-        ctx.fillStyle = o.kind === 'boost' ? '#79ffb8' : '#8cd8ff';
-        ctx.beginPath(); ctx.arc(ox, o.y + 12, 12, 0, Math.PI * 2); ctx.fill();
-      });
-      if (performance.now() < g.boostUntil) { ctx.fillStyle = '#79ffb8'; ctx.fillText('BOOST', 540, 56); }
-      if (performance.now() < g.shieldUntil) { ctx.fillStyle = '#8cd8ff'; ctx.fillText('SHIELD', 540, 76); }
-      g.fx.forEach((f, i) => { ctx.fillStyle = `rgba(255,240,203,${Math.max(0,f.ttl).toFixed(2)})`; ctx.fillText(f.text, 282, 110 + i * 18); });
-      if (g.over) { ctx.fillStyle = 'rgba(3,6,10,0.78)'; ctx.fillRect(140, 116, 360, 100); ctx.fillStyle = '#fff0cb'; ctx.font = 'bold 22px monospace'; ctx.fillText(g.level === g.levels.length - 1 && g.distance >= level.goal ? 'SECTOR CLEARED.' : 'PACKET LOSS.', 210, 158); ctx.font = '14px monospace'; ctx.fillStyle = '#b5e8ff'; ctx.fillText('Close with the white X, then start a fresh run.', 178, 186); }
-      if (this.arcade.gamePaused && !g.over) this.drawArcadePauseOverlay(ctx);
-    },
-
-    legacyCreateCtrlAltDefeatGame() { return { floor: 1, player: { hp: 34, maxHp: 34, patch: 3 }, enemy: null, log: ['Nova Admin enters the ticket dungeon.'], over: false, score: 0 }; },
-    legacySpawnRpgEnemy(game) {
-      const roster = [ { name: 'Null Rat', hp: 12, atk: 4, color: '#ff8ea5' }, { name: 'Kernel Wraith', hp: 18, atk: 5, color: '#9fd8ff' }, { name: 'Patch Pixie', hp: 15, atk: 3, color: '#c6ff9e' }, { name: 'Segfault Ogre', hp: 24, atk: 6, color: '#ffcf7f' } ];
-      game.enemy = { ...roster[Math.min(roster.length - 1, game.floor - 1)] };
-    },
     updateCtrlAltDefeat(dt) { const g = this.arcade.games.ctrlAltDefeat; if (!g || g.over) return; if (!g.enemy) this.spawnRpgEnemy(g); },
-    legacyHandleRpgAction(action) {
-      if (this.arcade.gamePaused) this.arcade.gamePaused = false;
-      const g = this.arcade.games.ctrlAltDefeat;
-      if (!g || g.over) return;
-      if (!g.enemy) this.spawnRpgEnemy(g);
-      if (action === 'attack') { const dmg = 5 + Math.floor(Math.random() * 5); g.enemy.hp -= dmg; g.log.unshift(`Nova Admin scripts ${g.enemy.name} for ${dmg}.`); }
-      else if (action === 'patch' && g.player.patch > 0) { const heal = 7 + Math.floor(Math.random() * 4); g.player.hp = Math.min(g.player.maxHp, g.player.hp + heal); g.player.patch -= 1; g.log.unshift(`Nova Admin patches for ${heal}.`); }
-      else if (action === 'overclock') { const dmg = 9 + Math.floor(Math.random() * 4); g.enemy.hp -= dmg; g.player.hp -= 3; g.log.unshift(`Nova Admin overclocks and spikes ${g.enemy.name} for ${dmg}.`); }
-      if (g.enemy.hp <= 0) { g.score += 100 * g.floor; g.floor += 1; g.log.unshift(`${g.enemy.name} deleted. Floor ${g.floor} opens.`); g.enemy = null; if (g.score > 0) this.setArcadeScore('ctrlAltDefeat', g.score); return; }
-      const enemyDmg = 3 + Math.floor(Math.random() * Math.max(2, g.floor + 2)); g.player.hp -= enemyDmg; g.log.unshift(`${g.enemy.name} hits back for ${enemyDmg}.`);
-      if (g.player.hp <= 0) { g.player.hp = 0; g.over = true; this.setArcadeScore('ctrlAltDefeat', g.score); }
-      this.renderCtrlAltDefeat();
-    },
-    legacyRenderCtrlAltDefeat() {
-      this.els.arcadeCanvas.classList.add('hidden');
-      this.els.arcadeDomGame.classList.remove('hidden');
-      const g = this.arcade.games.ctrlAltDefeat; if (!g.enemy) this.spawnRpgEnemy(g);
-      this.els.arcadeDomGame.innerHTML = `<div class="arcade-screen-controls"><div class="muted">A = attack • P = patch • O = overclock</div><div class="muted">Score ${g.score}</div></div>${this.arcade.gamePaused ? '<div class="help-callout">Paused exactly where you left it. Press a button to resume.</div>' : ''}<div class="help-grid"><div class="help-chip"><strong>Nova Admin</strong><br>HP ${g.player.hp}/${g.player.maxHp}<br>Patches ${g.player.patch}</div><div class="help-chip"><strong>${g.enemy.name}</strong><br>HP ${Math.max(0, g.enemy.hp)}<br>Threat ${g.floor}</div></div><div class="manager-actions"><button class="soft-btn" data-rpg-action="attack">Attack</button><button class="soft-btn" data-rpg-action="patch">Patch</button><button class="soft-btn" data-rpg-action="overclock">Overclock</button></div><div class="stack" style="margin-top:12px;">${g.log.slice(0,6).map(line => `<div class="help-chip">${line}</div>`).join('')}</div>${g.over ? '<div class="help-callout" style="margin-top:12px;">Ctrl+Alt+Defeat run ended. Your highscore is safe.</div>' : ''}`;
-    },
 
-    legacyCreateMortalKonfigGame() {
-      return { playerX: 140, enemyX: 500, playerY: 0, enemyY: 0, playerVy: 0, enemyVy: 0, playerHp: 100, enemyHp: 100, roundWins: 0, over: false, enemyCooldown: 0, score: 0, playerState: 'idle', enemyState: 'idle', playerStateUntil: 0, enemyStateUntil: 0, playerAttackHit: false, enemyAttackHit: false, difficulty: 1 };
-    },
-    legacyUpdateMortalKonfig(dt) {
-      const g = this.arcade.games.mortalKonfig; if (!g || g.over) return;
-      const now = performance.now();
-      const gravity = 900;
-      const moveSpeed = 150 + g.roundWins * 6;
-      const jumpStrength = 360;
-      const applyPhysics = who => {
-        g[`${who}Vy`] += gravity * dt;
-        g[`${who}Y`] = Math.max(0, g[`${who}Y`] - g[`${who}Vy`] * dt);
-        if (g[`${who}Y`] === 0) g[`${who}Vy`] = 0;
-      };
-      if (g.playerStateUntil && now > g.playerStateUntil) g.playerState = g.playerY > 0 ? 'jump' : 'idle';
-      if (g.enemyStateUntil && now > g.enemyStateUntil) g.enemyState = g.enemyY > 0 ? 'jump' : 'idle';
-      if (g.playerY === 0 && (this.arcade.keys['w'] || this.arcade.keys['arrowup'] || this.arcade.keys[' '])) {
-        g.playerVy = jumpStrength; g.playerY = 1; g.playerState = 'jump'; this.arcade.keys['w']=this.arcade.keys['arrowup']=this.arcade.keys[' ']=false;
-      }
-      let moving = false;
-      if (this.arcade.keys['arrowleft'] || this.arcade.keys['a']) { g.playerX = Math.max(70, g.playerX - moveSpeed * dt); moving = true; }
-      if (this.arcade.keys['arrowright'] || this.arcade.keys['d']) { g.playerX = Math.min(570, g.playerX + moveSpeed * dt); moving = true; }
-      if (moving && g.playerY === 0 && !g.playerState.startsWith('punch') && !g.playerState.startsWith('kick')) g.playerState = 'walk';
-      if (!moving && g.playerY === 0 && !g.playerState.startsWith('punch') && !g.playerState.startsWith('kick')) g.playerState = 'idle';
-      const tryPlayerAttack = (type) => {
-        if (g.playerState.startsWith('punch') || g.playerState.startsWith('kick')) return;
-        const range = type === 'jab' ? 86 : 102;
-        const dmg = type === 'jab' ? 7 + Math.floor(Math.random()*4) : 11 + Math.floor(Math.random()*5);
-        g.playerState = type === 'jab' ? 'punch' : 'kick'; g.playerStateUntil = now + (type === 'jab' ? 220 : 300); g.playerAttackHit = false;
-        if (Math.abs(g.playerX - g.enemyX) < range && Math.abs(g.playerY - g.enemyY) < 42) { g.enemyHp -= dmg; g.playerAttackHit = true; }
-      };
-      if (this.arcade.keys['j']) { this.arcade.keys['j']=false; tryPlayerAttack('jab'); }
-      if (this.arcade.keys['k']) { this.arcade.keys['k']=false; tryPlayerAttack('kick'); }
-      const aiRange = 80 + g.roundWins * 4;
-      g.enemyCooldown -= dt;
-      if (g.enemyX > g.playerX + aiRange) { g.enemyX -= moveSpeed * (0.62 + g.roundWins*0.04) * dt; if (g.enemyY===0 && !g.enemyState.startsWith('punch') && !g.enemyState.startsWith('kick')) g.enemyState='walk'; }
-      else if (g.enemyX < g.playerX - aiRange) { g.enemyX += moveSpeed * (0.62 + g.roundWins*0.04) * dt; if (g.enemyY===0 && !g.enemyState.startsWith('punch') && !g.enemyState.startsWith('kick')) g.enemyState='walk'; }
-      else if (g.enemyY===0 && !g.enemyState.startsWith('punch') && !g.enemyState.startsWith('kick')) g.enemyState='idle';
-      if (g.enemyY === 0 && g.enemyCooldown <= 0 && Math.random() < Math.min(0.22, 0.08 + g.roundWins * 0.03)) {
-        g.enemyVy = jumpStrength * (0.92 + Math.random()*0.12); g.enemyY = 1; g.enemyState = 'jump';
-      }
-      if (g.enemyCooldown <= 0 && Math.abs(g.playerX - g.enemyX) < 102 && Math.abs(g.playerY - g.enemyY) < 46) {
-        const heavy = Math.random() < Math.min(0.6, 0.28 + g.roundWins * 0.06);
-        g.enemyState = heavy ? 'kick' : 'punch';
-        g.enemyStateUntil = now + (heavy ? 310 : 220);
-        const dmg = heavy ? 10 + Math.floor(Math.random()*5) + g.roundWins : 6 + Math.floor(Math.random()*4) + Math.floor(g.roundWins/2);
-        g.playerHp -= dmg;
-        g.enemyCooldown = Math.max(0.28, 0.8 - g.roundWins * 0.06);
-      }
-      applyPhysics('player'); applyPhysics('enemy');
-      if (g.enemyHp <= 0) { g.roundWins += 1; g.score += 250 + g.roundWins * 100; g.enemyHp = 100 + Math.min(40, g.roundWins * 8); g.playerHp = Math.min(100, g.playerHp + 18); g.enemyX = 500; g.playerX = 140; g.enemyY = g.playerY = 0; g.enemyVy = g.playerVy = 0; g.enemyCooldown = 0.55; g.difficulty = 1 + g.roundWins; this.setArcadeScore('mortalKonfig', g.score); }
-      if (g.playerHp <= 0) { g.playerHp = 0; g.over = true; this.setArcadeScore('mortalKonfig', g.score); }
-    },
     renderFighter(ctx, x, groundY, color, state, yOffset) {
       const bob = state === 'walk' ? Math.sin(performance.now()*0.02) * 3 : 0;
       const y = groundY - yOffset;
@@ -4252,25 +3659,7 @@ const WORKSPACE_SECTION_DEFS = {
       else { ctx.fillRect(14, -42, 12, 6); ctx.fillRect(-26, -42, 12, 6); }
       ctx.restore();
     },
-    legacyRenderMortalKonfig() {
-      this.els.arcadeCanvas.classList.remove('hidden');
-      this.els.arcadeDomGame.classList.add('hidden');
-      const ctx = this.els.arcadeCanvas.getContext('2d');
-      const g = this.arcade.games.mortalKonfig;
-      this.drawArcadeFrameBase(ctx, 'Mortal Konfig', 'A/D move • W jump • J punch • K kick');
-      const sky = ctx.createLinearGradient(0, 56, 0, 334); sky.addColorStop(0, '#120e22'); sky.addColorStop(1, '#2b2348');
-      ctx.fillStyle = sky; ctx.fillRect(0, 56, 640, 278);
-      ctx.fillStyle = '#132435'; ctx.fillRect(0, 300, 640, 60); ctx.fillStyle = '#2a4258'; ctx.fillRect(0, 260, 640, 8);
-      ctx.fillStyle = '#ff7d98'; ctx.fillRect(20, 18, Math.max(0, g.playerHp) * 2.2, 14); ctx.fillStyle = '#7adfff'; ctx.fillRect(640 - 20 - Math.max(0, g.enemyHp) * 2.2, 18, Math.max(0, g.enemyHp) * 2.2, 14);
-      ctx.fillStyle = '#fff0cb'; ctx.font = '12px monospace'; ctx.fillText(`Wins ${g.roundWins}  Score ${g.score}  AI ${g.difficulty}`, 220, 30);
-      this.renderFighter(ctx, g.playerX, 274, '#ffd17f', g.playerState, g.playerY);
-      this.renderFighter(ctx, g.enemyX, 274, '#ff8dc0', g.enemyState, g.enemyY);
-      if (g.over) { ctx.fillStyle = 'rgba(3,6,10,0.78)'; ctx.fillRect(164, 118, 320, 90); ctx.fillStyle = '#fff0cb'; ctx.font = 'bold 24px monospace'; ctx.fillText('FATAL MISCONFIG.', 204, 156); ctx.font = '13px monospace'; ctx.fillStyle = '#b5e8ff'; ctx.fillText('Close with the white X to return to the cabinet menu.', 178, 182); }
-      if (this.arcade.gamePaused && !g.over) this.drawArcadePauseOverlay(ctx);
-    },
 
-    // v3.105 arcade rebuild: later object keys intentionally replace the older
-    // prototypes above while leaving the surrounding office systems untouched.
     initArcade() {
       const storedScores = (() => {
         try { return JSON.parse(window.localStorage.getItem('uptime_empire_arcade_scores_v1') || '{}') || {}; } catch (_e) { return {}; }
@@ -4329,6 +3718,7 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     renderArcadeMenu() {
+      if (this.arcade) { this.arcade.keys = {}; this.arcade.touchFighter = null; }
       if (!this.arcade || !this.els.arcadeMenuScreen || !this.els.arcadeGameScreen) return;
       this.arcade.currentGameId = null;
       this.arcade.gamePaused = false;
@@ -4549,6 +3939,7 @@ const WORKSPACE_SECTION_DEFS = {
       this.createArcadeGame(id, carryScore, round);
       this.arcade.gamePaused = false;
       this.arcade.keys = {};
+      this.arcade.touchFighter = null;
       this.arcade.lastTs = this.arcadePerfNow();
       this.arcade.lastAdvanceAt = 0;
       const title = this.arcadeGameDef(id)?.title || id;
@@ -4721,10 +4112,9 @@ const WORKSPACE_SECTION_DEFS = {
 
     refreshBombmopperScore(game) {
       const revealed = game.cells.filter(cell => cell.revealed && !cell.mine).length;
-      const correctFlags = game.cells.filter(cell => cell.flagged && cell.mine).length;
       const timePenalty = Math.floor(game.elapsed * 0.7);
       const winBonus = game.won ? 900 + Math.max(0, 240 - Math.floor(game.elapsed)) * 3 : 0;
-      game.score = game.carryScore + Math.max(0, revealed * 18 + correctFlags * 12 + winBonus - timePenalty);
+      game.score = game.carryScore + Math.max(0, revealed * 18 + winBonus - timePenalty);
       return game.score;
     },
 
@@ -4850,6 +4240,7 @@ const WORKSPACE_SECTION_DEFS = {
         moves: 0,
         score: carryScore,
         round,
+        rewardedFoundationCards: [],
         won: false,
         message: carryScore ? `Deal ${round}. Keep building the run.` : 'Build foundations from A to K. Empty lanes take kings.'
       };
@@ -4899,6 +4290,11 @@ const WORKSPACE_SECTION_DEFS = {
         const card = game.waste[game.waste.length - 1];
         return card ? { source: 'waste', cards: [card] } : null;
       }
+      if (selected.source === 'foundation') {
+        const pile = game.foundations[selected.pile];
+        const card = pile?.[pile.length - 1];
+        return card ? { source: 'foundation', pile: selected.pile, cards: [card] } : null;
+      }
       if (selected.source === 'tableau') {
         const pile = game.tableau[selected.pile] || [];
         const cards = pile.slice(selected.index);
@@ -4910,6 +4306,7 @@ const WORKSPACE_SECTION_DEFS = {
 
     removeSolitaireSelection(game, selection) {
       if (selection.source === 'waste') game.waste.pop();
+      if (selection.source === 'foundation') game.foundations[selection.pile].pop();
       if (selection.source === 'tableau') game.tableau[selection.pile].splice(selection.index);
     },
 
@@ -4956,7 +4353,11 @@ const WORKSPACE_SECTION_DEFS = {
       this.removeSolitaireSelection(game, selection);
       card.faceUp = true;
       game.foundations[card.suit].push(card);
-      this.afterSolitaireMove(game, 25, `${card.rank}${card.suit} sent to foundation.`);
+      const rewarded = game.rewardedFoundationCards || (game.rewardedFoundationCards = []);
+      const cardId = `${card.suit}${card.value}`;
+      const points = rewarded.includes(cardId) ? 0 : 25;
+      if (points) rewarded.push(cardId);
+      this.afterSolitaireMove(game, points, `${card.rank}${card.suit} sent to foundation.`);
       return true;
     },
 
@@ -4974,7 +4375,7 @@ const WORKSPACE_SECTION_DEFS = {
       this.pushSolitaireUndo(game);
       this.removeSolitaireSelection(game, selection);
       targetPile.push(...selection.cards);
-      this.afterSolitaireMove(game, 12, `Moved ${selection.cards.length} card${selection.cards.length === 1 ? '' : 's'}.`);
+      this.afterSolitaireMove(game, 0, `Moved ${selection.cards.length} card${selection.cards.length === 1 ? '' : 's'}.`);
       return true;
     },
 
@@ -4987,12 +4388,19 @@ const WORKSPACE_SECTION_DEFS = {
     },
 
     findSolitaireAutoMove(game) {
+      // Opposite-color lower ranks must be banked before removing their support.
+      const safe = card => {
+        if (!card || !this.canPlaceOnFoundation(card, game.foundations[card.suit])) return false;
+        if (card.value <= 2) return true;
+        const suits = card.color === 'red' ? ['C', 'S'] : ['H', 'D'];
+        return suits.every(suit => (game.foundations[suit].at(-1)?.value || 0) >= card.value - 1);
+      };
       const waste = game.waste[game.waste.length - 1];
-      if (waste && this.canPlaceOnFoundation(waste, game.foundations[waste.suit])) return { source: 'waste' };
+      if (safe(waste)) return { source: 'waste' };
       for (let pile = 0; pile < game.tableau.length; pile += 1) {
         const cards = game.tableau[pile];
         const top = cards[cards.length - 1];
-        if (top && top.faceUp && this.canPlaceOnFoundation(top, game.foundations[top.suit])) return { source: 'tableau', pile, index: cards.length - 1 };
+        if (top && top.faceUp && safe(top)) return { source: 'tableau', pile, index: cards.length - 1 };
       }
       return null;
     },
@@ -5058,7 +4466,7 @@ const WORKSPACE_SECTION_DEFS = {
           const card = game.stock.pop();
           card.faceUp = true;
           game.waste.push(card);
-          this.afterSolitaireMove(game, 2, `Drew ${card.rank}${card.suit}.`);
+          this.afterSolitaireMove(game, 0, `Drew ${card.rank}${card.suit}.`);
         } else if (game.waste.length) {
           game.stock = game.waste.reverse().map(card => ({ ...card, faceUp: false }));
           game.waste = [];
@@ -5075,6 +4483,12 @@ const WORKSPACE_SECTION_DEFS = {
         this.arcade.selectedSolitaire = { source: 'waste' };
         const card = game.waste[game.waste.length - 1];
         game.message = `Selected ${card.rank}${card.suit}.`;
+        this.renderSolitaire();
+        return;
+      }
+      if (action === 'selectFoundation') {
+        if (!game.foundations[pile]?.length) return;
+        this.arcade.selectedSolitaire = { source: 'foundation', pile };
         this.renderSolitaire();
         return;
       }
@@ -5118,7 +4532,8 @@ const WORKSPACE_SECTION_DEFS = {
       const foundations = ['H', 'D', 'C', 'S'].map(suit => {
         const top = game.foundations[suit][game.foundations[suit].length - 1];
         const hintClass = hint?.to === 'foundation' && (hint.source !== 'waste' || suit === game.waste[game.waste.length - 1]?.suit) ? 'arcade-hint-target' : '';
-        return `<div class="arcade-foundation ${hintClass}" data-sol-action="toFoundation" data-sol-pile="${suit}">${top ? renderCard(top) : `<span>${suit}</span>`}</div>`;
+        const selectedClass = selected?.source === 'foundation' && selected.pile === suit ? 'arcade-selected' : '';
+        return `<div class="arcade-foundation ${hintClass} ${selectedClass}" data-sol-action="${selected ? 'toFoundation' : 'selectFoundation'}" data-sol-pile="${suit}">${top ? renderCard(top) : `<span>${suit}</span>`}</div>`;
       }).join('');
       const wasteTop = game.waste[game.waste.length - 1];
       const wasteSelected = selected?.source === 'waste' ? 'arcade-selected' : '';
@@ -5186,6 +4601,7 @@ const WORKSPACE_SECTION_DEFS = {
         ],
         distance: 0,
         totalDistance: 0,
+        pickupBonus: 0,
         score: carryScore,
         carryScore,
         sessionTime: 0,
@@ -5215,6 +4631,7 @@ const WORKSPACE_SECTION_DEFS = {
       game.screenShake = Math.max(0, Number(game.screenShake) || 0);
       game.damageFlash = Math.max(0, Number(game.damageFlash) || 0);
       game.sectorFlash = Math.max(0, Number(game.sectorFlash) || 0);
+      game.pickupBonus = Math.max(0, Number(game.pickupBonus) || 0);
       if (this.arcade.keys.arrowleft || this.arcade.keys.a) {
         game.lane = Math.max(0, game.lane - 1);
         this.arcade.keys.arrowleft = this.arcade.keys.a = false;
@@ -5241,7 +4658,7 @@ const WORKSPACE_SECTION_DEFS = {
       const speed = sector.speed * game.difficulty * (game.boost > 0 ? 1.35 : 1);
       game.distance += speed * dt;
       game.totalDistance += speed * dt;
-      game.score = game.carryScore + Math.floor(game.totalDistance * 1.4) + game.sector * 250 + game.lives * 35;
+      game.score = game.carryScore + Math.floor(game.totalDistance * 1.4) + game.sector * 250 + game.lives * 35 + game.pickupBonus;
       game.spawnTimer -= dt;
       game.pickupTimer -= dt;
       if (game.spawnTimer <= 0) {
@@ -5256,22 +4673,22 @@ const WORKSPACE_SECTION_DEFS = {
         game.pickups.push({ lane: Math.floor(Math.random() * 3), y: -28, kind });
         game.pickupTimer = 2.6 + Math.random() * 1.8;
       }
-      game.obstacles.forEach(item => { item.y += (speed + 170) * dt; });
-      game.pickups.forEach(item => { item.y += (speed + 170) * dt; });
+      game.obstacles.forEach(item => { item.previousY = item.y; item.y += (speed + 170) * dt; });
+      game.pickups.forEach(item => { item.previousY = item.y; item.y += (speed + 170) * dt; });
       game.pickups = game.pickups.filter(item => {
-        if (item.lane === game.lane && item.y > 252 && item.y < 322) {
+        if (item.lane === game.lane && item.y >= 252 && item.previousY <= 322) {
           if (item.kind === 'boost') game.boost = 3.0;
           if (item.kind === 'shield') game.shield = 5.0;
           if (item.kind === 'patch') game.lives = Math.min(4, game.lives + 1);
           if (item.kind === 'phase') game.invuln = 2.5;
-          if (item.kind === 'scrubber') { game.obstacles = game.obstacles.filter(obstacle => obstacle.lane !== item.lane); game.score += 150; }
+          if (item.kind === 'scrubber') { game.obstacles = game.obstacles.filter(obstacle => obstacle.lane !== item.lane); game.pickupBonus += 150; game.score += 150; }
           game.fx.push({ text: item.kind.toUpperCase(), ttl: 0.8 });
           return false;
         }
         return item.y < 390;
       });
       game.obstacles.forEach(item => {
-        if (item.hit || item.lane !== game.lane || item.y < 252 || item.y > 322 || game.invuln > 0) return;
+        if (item.hit || item.lane !== game.lane || item.y < 252 || item.previousY > 322 || game.invuln > 0) return;
         item.hit = true;
         if (game.shield > 0) {
           game.shield = 0;
@@ -5294,6 +4711,7 @@ const WORKSPACE_SECTION_DEFS = {
         game.over = true;
         game.score += 1200 + game.loop * 240 + game.lives * 180;
         game.message = `Loop ${game.loop} held for 30 seconds.`;
+        this.setArcadeScore('circuitBreaker', game.score);
       }
       game.fx.forEach(fx => { fx.ttl -= dt; });
       game.fx = game.fx.filter(fx => fx.ttl > 0);
@@ -5461,6 +4879,7 @@ const WORKSPACE_SECTION_DEFS = {
         game.over = true;
         game.nextRound = game.wave + 1;
         game.log.unshift(`Incident ${game.wave} resolved. Queue escalates next run.`);
+        this.setArcadeScore('ctrlAltDefeat', game.score);
         this.renderCtrlAltDefeat();
         return;
       }
@@ -5591,6 +5010,7 @@ const WORKSPACE_SECTION_DEFS = {
           game.over = true;
           game.nextRound = game.tier + 1;
           game.message = `Tier ${game.tier} conquered. Next tier queued.`;
+          this.setArcadeScore('mortalKonfig', game.score);
           return;
         } else {
           game.over = true;
@@ -5614,26 +5034,30 @@ const WORKSPACE_SECTION_DEFS = {
       const player = game.player;
       const enemy = game.enemy;
       const keys = this.arcade.keys;
+      const touch = this.arcade.touchFighter;
+      const held = key => keys[key] || (touch?.ttl > 0 && touch.key === key);
       const gravity = 720;
       const moveSpeed = 170;
       const jump = 330;
       const aiSkill = game.aiSkill || (1 + (game.tier - 1) * 0.16 + (game.round - 1) * 0.14);
       player.dir = enemy.x >= player.x ? 1 : -1;
       enemy.dir = player.x >= enemy.x ? 1 : -1;
-      player.block = keys.l ? 0.12 : Math.max(0, player.block - dt);
+      player.block = held('l') && player.stun <= 0 ? 0.12 : Math.max(0, player.block - dt);
       if (player.stun > 0) player.stun -= dt;
       if (enemy.stun > 0) enemy.stun -= dt;
       if (player.stun <= 0 && player.block <= 0) {
-        if (keys.a || keys.arrowleft) player.x -= moveSpeed * dt;
-        if (keys.d || keys.arrowright) player.x += moveSpeed * dt;
-        if ((keys.w || keys.arrowup || keys[' ']) && player.y === 0) {
+        if (held('a') || keys.arrowleft) player.x -= moveSpeed * dt;
+        if (held('d') || keys.arrowright) player.x += moveSpeed * dt;
+        if ((held('w') || keys.arrowup || keys[' ']) && player.y === 0) {
           player.vy = jump;
           player.y = 1;
           keys.w = keys.arrowup = keys[' '] = false;
+          if (touch?.key === 'w') touch.ttl = 0;
         }
-        if (keys.j) { keys.j = false; this.startFighterAttack(game, 'player', 'punch'); }
-        if (keys.k) { keys.k = false; this.startFighterAttack(game, 'player', 'kick'); }
+        if (held('j')) { keys.j = false; if (touch?.key === 'j') touch.ttl = 0; this.startFighterAttack(game, 'player', 'punch'); }
+        if (held('k')) { keys.k = false; if (touch?.key === 'k') touch.ttl = 0; this.startFighterAttack(game, 'player', 'kick'); }
       }
+      if (touch) touch.ttl = Math.max(0, touch.ttl - dt);
       game.aiTimer -= dt;
       if (enemy.stun <= 0) {
         const dist = Math.abs(player.x - enemy.x);
@@ -5770,13 +5194,17 @@ const WORKSPACE_SECTION_DEFS = {
             desk: Object.assign({}, placementState.desk || {})
           },
           floorBotProfile: this.app.state.floorBotProfile,
+          officeLightSettings: this.app.state.officeLightSettings,
+          radioProfile: this.app.state.radioProfile,
           soundEnabled: this.app.state.soundEnabled
         });
       }
       if (this.els.officeSuiteValue) this.els.officeSuiteValue.textContent = this.app.getOfficeSuiteDef().name;
       if (this.els.wallFinishValue) this.els.wallFinishValue.textContent = ((DATA.cosmetics.wallFinish || []).find(item => item.id === wallFinish) || {}).name || 'Soft Green Walls';
       if (this.els.floorFinishValue) this.els.floorFinishValue.textContent = ((DATA.cosmetics.floorFinish || []).find(item => item.id === floorFinish) || {}).name || 'Dark Gray Floor';
-      if (this.els.officePropsValue) this.els.officePropsValue.textContent = `${this.app.countEquippedDecorations()}`;
+      const placementStatuses = this.office3D?.getDecorationPlacementStatuses?.() || {};
+      const storedCount = Object.values(placementStatuses).filter(status => status.status === 'stored').length;
+      if (this.els.officePropsValue) this.els.officePropsValue.textContent = `${this.app.countEquippedDecorations()}${storedCount ? ` (${storedCount} in storage)` : ''}`;
       if (this.els.officeUpgradeBtn) this.els.officeUpgradeBtn.textContent = this.app.state.officeTier >= DATA.officeSuiteDefs.length - 1 ? 'Max Suite' : 'Upgrade Suite';
     },
 
@@ -6196,6 +5624,7 @@ const WORKSPACE_SECTION_DEFS = {
 
       const slotlessCategory = this.app.isSlotlessCosmeticCategory ? this.app.isSlotlessCosmeticCategory(category) : ['outfit', 'wallFinish', 'floorFinish', 'deskFinish', 'chairFinish', 'deskFrame'].includes(category);
       const items = (DATA.cosmetics[category] || []).filter(item => slotlessCategory || item.id !== 'default');
+      const placementStatuses = this.office3D?.getDecorationPlacementStatuses?.() || {};
       this.els.shopList.innerHTML = items.map(item => {
         const isLighting = category === 'lighting';
         const ownedQuantity = this.app.getCosmeticOwnedQuantity ? this.app.getCosmeticOwnedQuantity(category, item.id) : (this.app.state.purchasedCosmetics[category][item.id] ? 1 : 0);
@@ -6233,6 +5662,15 @@ const WORKSPACE_SECTION_DEFS = {
         const placementNote = isLighting
           ? `<div class="placement-card-note">Each fixture has its own saved placement. Own up to four.</div>`
           : placeable ? `<div class="placement-card-note">${placement ? `Manual ${placementZone} spot saved. You can move it anytime.` : `Manual ${placementZone} placement available.`}</div>` : '';
+        const storedInstances = (isLighting ? lightingInstances : [item.id]).filter(id => placementStatuses[id]?.status === 'stored');
+        const storageNote = storedInstances.length ? `<p class="placement-storage-note" role="status">In storage: ${storedInstances.length}. ${escapeManagementHtml(placementStatuses[storedInstances[0]].reason || 'This item no longer fits its saved spot.')} Saved position retained.</p>` : '';
+        const lightControls = lightingInstances.map((instanceId, index) => {
+          const settings = this.app.getOfficeLightSettings(instanceId);
+          const brightness = Math.max(0, Math.min(2, Number(settings.brightness) || 0));
+          const color = /^#[0-9a-f]{6}$/i.test(settings.color) ? settings.color : '#ffffff';
+          const safeId = escapeManagementHtml(instanceId);
+          return `<fieldset class="light-instance-controls"><legend>Fixture ${index + 1}</legend><label><input type="checkbox" data-light-instance="${safeId}" data-light-setting="enabled" ${settings.enabled ? 'checked' : ''}> On</label><label>Brightness <input type="range" min="0" max="2" step="0.05" value="${brightness}" data-light-instance="${safeId}" data-light-setting="brightness"><output>${Math.round(brightness * 100)}%</output></label><label>Color <input type="color" value="${color}" data-light-instance="${safeId}" data-light-setting="color"></label></fieldset>`;
+        }).join('');
         return `
           <article class="manager-card card cosmetic-card ${equipped ? 'done' : ''} ${placeable ? 'wall-placeable-card' : ''}">
             <div class="cosmetic-card-layout">
@@ -6246,6 +5684,8 @@ const WORKSPACE_SECTION_DEFS = {
                 </div>
                 <p class="muted">${item.desc}</p>
                 ${placementNote}
+                ${storageNote}
+                ${lightControls}
                 <div class="manager-actions">
                   <button class="buy-btn ${canAfford ? 'can-afford' : 'nope'}" data-action="buy-cosmetic" data-category="${category}" data-id="${item.id}"${isLighting && ownedQuantity >= maxQuantity ? ' disabled' : ''}>${buttonLabel}</button>
                   ${placeButton}
@@ -6352,18 +5792,18 @@ const WORKSPACE_SECTION_DEFS = {
       const logs = (this.app.state.consoleLog || []).slice(-2);
       this.els.terminalDockLines.innerHTML = logs.length ? logs.map(entry => {
         const stamp = new Date(entry.time || Date.now()).toLocaleTimeString([], { hour12: false });
-        return `<div class="terminal-dock-line ${entry.level || 'info'}"><span>[${stamp}]</span><p>${entry.message}</p></div>`;
+        return `<div class="terminal-dock-line ${consoleLevel(entry.level)}"><span>[${stamp}]</span><p>${escapeManagementHtml(entry.message)}</p></div>`;
       }).join('') : '<div class="terminal-dock-line"><span>[READY]</span><p>Waiting for empire activity...</p></div>';
     },
 
     renderConsole(force = false) {
-      this.renderTerminalDock();
       const feed = this.els.consoleFeed;
       if (!feed) return;
       const logs = this.app.state.consoleLog || [];
       const last = logs[logs.length - 1];
       const renderKey = logs.length ? `${logs.length}:${last.time || 0}:${last.message || ''}:${last.level || 'info'}` : 'empty';
       if (!force && renderKey === this.lastConsoleKey) return;
+      this.renderTerminalDock();
 
       const previousScrollTop = feed.scrollTop;
       const distanceFromBottom = feed.scrollHeight - feed.clientHeight - feed.scrollTop;
@@ -6379,7 +5819,7 @@ const WORKSPACE_SECTION_DEFS = {
       feed.innerHTML = logs.map((entry, idx) => {
         const stamp = new Date(entry.time || Date.now()).toLocaleTimeString([], { hour12: false });
         const cursor = idx === logs.length - 1 ? '<span class="console-cursor" aria-hidden="true"></span>' : '';
-        return `<div class="console-line ${entry.level || 'info'}"><span class="console-time">[${stamp}]</span><span class="console-text">${entry.message}${cursor}</span></div>`;
+        return `<div class="console-line ${consoleLevel(entry.level)}"><span class="console-time">[${stamp}]</span><span class="console-text">${escapeManagementHtml(entry.message)}${cursor}</span></div>`;
       }).join('');
 
       this.lastConsoleKey = renderKey;
@@ -6397,6 +5837,13 @@ const WORKSPACE_SECTION_DEFS = {
       this.lastLiveRefresh = now;
       this.renderTop();
       this.updateBuddy();
+      if (!this.computerOpen) {
+        if (!skipSoftRefresh && this.worldUtilityOpen && this.currentWorldUtility === 'shop' && (force || now - this.lastSoftRefresh > 750)) {
+          this.lastSoftRefresh = now;
+          if (!this.els.shopList.contains(document.activeElement)) this.renderShop();
+        }
+        return;
+      }
       DATA.generatorDefs.forEach(def => {
         const gen = this.app.getGenState(def.id);
         const bar = document.querySelector(`[data-progress-id="${def.id}"]`);
@@ -6408,7 +5855,7 @@ const WORKSPACE_SECTION_DEFS = {
         this.lastSoftRefresh = now;
         this.renderAchievements();
         this.renderSuitePanels();
-        if (this.worldUtilityOpen && this.currentWorldUtility === 'shop') this.renderShop();
+        if (this.worldUtilityOpen && this.currentWorldUtility === 'shop' && !this.els.shopList.contains(document.activeElement)) this.renderShop();
         if (this.app.state.currentSuiteTab === 'console') this.renderConsole();
         if (this.app.state.currentPanel === 'people') {
           this.renderMissions();

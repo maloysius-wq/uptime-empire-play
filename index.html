@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Uptime Empire Expanded</title>
-  <link rel="stylesheet" href="style.css?v=3.127.0" />
+  <link rel="stylesheet" href="style.css?v=d9950d08a12a" />
 </head>
 <body class="office-world-mode">
   <div class="world-hud" id="worldHud" aria-live="polite">
@@ -68,6 +68,10 @@
   </div>
   <div class="placement-reticle hidden" id="placementReticle" aria-hidden="true"></div>
   <canvas class="idle-skin-canvas" id="idleSkinCanvas" aria-hidden="true"></canvas>
+  <aside id="saveStatusBanner" class="save-status-banner" role="status" aria-live="polite" hidden>
+    <p data-save-status-message></p>
+    <div><button class="soft-btn" type="button" data-action="take-save-control">Take save control</button><button class="soft-btn" type="button" data-action="save-recovery" data-recovery="import">Import backup</button><button class="soft-btn" type="button" data-action="save-recovery" data-recovery="reset">Reset options</button></div>
+  </aside>
   <div class="app-shell" id="appShell">
     <aside class="stats-sidebar">
       <header class="topbar card stats-card ue-topbar">
@@ -80,7 +84,7 @@
         </div>
         <div class="stats-grid telemetry-grid primary">
           <div class="stat"><span>Credits</span><strong id="creditsValue">0</strong></div>
-          <div class="stat"><span>Passive</span><strong id="passiveIpsValue">0</strong></div>
+          <div class="stat"><span>Auto / sec</span><strong id="passiveIpsValue">0</strong></div>
           <div class="stat"><span>Capacity</span><strong id="capacityValue">0 / 0</strong></div>
           <div class="stat"><span>Teams available</span><strong id="missionTeamsValue">0</strong></div>
           <div class="stat"><span>System Health</span><strong id="telemetryHealthValue">Nominal</strong></div>
@@ -181,8 +185,13 @@
             <div><span>Incidents</span><strong id="activeIncidentsValue">0</strong></div>
           </div>
           <div class="hidden"><span id="missionResearchValue">0</span><span id="incidentShieldValue">0</span></div>
+          <div class="operations-focus-controls" role="group" aria-label="Operations view">
+            <button type="button" data-operations-focus="all" aria-pressed="true">All Operations</button>
+            <button type="button" data-operations-focus="dispatch" aria-pressed="false">Dispatch</button>
+            <button type="button" data-operations-focus="incidents" aria-pressed="false">Incidents</button>
+          </div>
           <div class="split-stack mission-layout">
-            <div class="card section-card">
+            <div class="card section-card incident-monitor-card">
               <div class="mini-head">
                 <h3>Incident Monitor</h3>
                 <p class="muted">Nothing apocalyptic. Just enough trouble to keep the NOC awake.</p>
@@ -256,7 +265,7 @@
             <div class="card section-card">
               <div class="mini-head">
                 <h3>Managers</h3>
-                <p class="muted">One per generator, permanent automation.</p>
+                <p class="muted">One per generator, automatic cycles for this run.</p>
               </div>
               <div id="managerList" class="mini-stack"></div>
             </div>
@@ -323,7 +332,7 @@
             <div class="prestige-summary-copy">
               <div class="muted caps">Projected Gain</div>
               <div class="mega" id="prestigeGainValue">0 IP</div>
-              <p class="muted prestige-note">Overhaul resets current credits, hardware, managers, run upgrades, missions, incidents, and region expansions. You keep Innovation Points, research, fragments, cosmetics, achievements, and permanent tree bonuses.</p>
+              <p class="muted prestige-note">Requires at least 1B CC earned this run. Overhaul resets your operating fleet and regional projects. Research, permanent progress, debt payments, and your office are kept. Confirm the full reset and keep list before proceeding.</p>
             </div>
             <button class="big-btn warning" id="prestigeBtn">Perform Overhaul</button>
           </div>
@@ -517,6 +526,7 @@
               <button class="top-action settings-action" id="importBtn">Import Save</button>
               <button class="top-action settings-action danger" id="resetBtn">Hard Reset</button>
             </div>
+            <fieldset class="settings-radio" id="radioControls" hidden></fieldset>
           </div>
         </section>
       </div>
@@ -568,12 +578,12 @@
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="fx-layer" id="fxLayer"></div>
 
-  <script src="data.js?v=642b3b9a3eaa"></script>
-  <script src="save.js?v=bc84326bcb84"></script>
-  <script src="game.js?v=2899e0de99f9"></script>
+  <script src="data.js?v=bda44933c26b"></script>
+  <script src="save.js?v=8e3f10153639"></script>
+  <script src="game.js?v=4e51147c8889"></script>
   <script src="assets/arcade_model_data.js?v=668dab13ec6d"></script>
   <script src="assets/server_ambience_audio_data.js?v=c193b8f881c5"></script>
   <script src="assets/background_music_data.js?v=c90e9561501f"></script>
@@ -589,8 +599,8 @@
   <script src="assets/aesthetic_floor_tile_data.js?v=ad77130516cb"></script>
   <script src="assets/scifi_floor_tile_data.js?v=81e439523cca"></script>
   <script src="assets/circuit_wall_texture_data.js?v=68b42bfca2f4"></script>
-  <script src="office3d.js?v=c93ae14b3e01"></script>
-  <script src="ui.js?v=8f9a059eda84"></script>
+  <script src="office3d.js?v=268062ecd665"></script>
+  <script src="ui.js?v=47b508b8881f"></script>
 
   <div class="modal-backdrop hidden" id="robotModal">
     <div class="modal card modal-narrow">

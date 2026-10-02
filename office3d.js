@@ -15,6 +15,7 @@
   const WALL_PLACEMENT_FACES = ['back', 'left', 'front', 'right'];
   const CAMERA_PITCH_LIMIT = 1.48;
   const LIGHTING_LEGACY_IDS = { 'pendant-light': 'lamp' };
+  const LIGHT_FIXTURE_IDS = new Set(['lamp', 'corner-tube', 'duo-uplighter', 'halo-orb', 'flex-uplighter', 'ambient-pylon', 'task-lamp', 'focus-light-bar', 'lava-lamp']);
   const getDecorBaseId = id => {
     const match = /^lighting:([a-z0-9-]+):\d+$/.exec(String(id || ''));
     return match ? match[1] : (LIGHTING_LEGACY_IDS[id] || String(id || ''));
@@ -43,7 +44,6 @@
     }
   };
 
-  const THREE_CDN = 'https://unpkg.com/three@0.158.0/build/three.min.js';
   const ASSET = name => new URL(`assets/${name}`, document.baseURI).href;
 
   function loadScript(src) {
@@ -111,6 +111,8 @@
         floorFinish: 'default',
         deskFinish: 'default',
         chairFinish: 'default',
+        officeLightSettings: {},
+        radioProfile: { enabled: true, station: 'shuffle', volume: 0.058 },
         placements: { wall: {}, floor: {}, desk: {} },
         floorBotProfile: { name: 'Floor Bot', voicePitch: 1, voiceSpeed: 1, speechFrequency: 1, voiceId: '', voiceEnabled: true, personality: 'funny' },
         soundEnabled: true
@@ -332,7 +334,7 @@
     static async ensureEngine() {
       if (window.THREE) return window.THREE;
       if (!Office3DScene._enginePromise) {
-        Office3DScene._enginePromise = loadScript(THREE_CDN).then(() => {
+        Office3DScene._enginePromise = loadScript(ASSET('vendor/three.min.js')).then(() => {
           if (!window.THREE) throw new Error('Three.js did not initialize.');
           return window.THREE;
         });
@@ -1224,14 +1226,16 @@
       const zone = this.normalizePlacementZone(target.zone || 'floor');
       const spec = zone === 'wall' ? this.getWallPlacedDecorSpec(target.id) : this.getPlacedPropSpec(target.id);
       const world = zone === 'wall' ? this.wallPlacementToWorld(target.placement || {}) : this.decorPlacementToWorld(zone, target.placement || {});
-      const width = spec.w || 0.5;
-      const height = zone === 'wall' ? (spec.h || 0.6) : Math.max(0.14, spec.h || 0.28);
-      const depth = zone === 'wall' ? 0.08 : (spec.d || 0.36);
+      const bounds = zone === 'wall' ? null : this.getPropModelBounds(target.id);
+      const footprint = zone === 'wall' ? null : this.getPlacementFootprint(zone, target.id, target.placement || {});
+      const width = bounds ? bounds.width : spec.w || 0.5;
+      const height = bounds ? Math.max(0.14, bounds.maxY - bounds.minY) : spec.h || 0.6;
+      const depth = bounds ? bounds.depth : 0.08;
       const marker = new THREE.LineSegments(
         new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.06, height + 0.06, depth + 0.06)),
         new THREE.LineBasicMaterial({ color: 0x7deaff, transparent: true, opacity: 0.88, depthTest: false })
       );
-      marker.position.set(world.x, zone === 'wall' ? world.y : world.y + height / 2, world.z);
+      marker.position.set(footprint ? footprint.x : world.x, bounds ? world.y + bounds.minY + height / 2 : world.y, footprint ? footprint.z : world.z);
       marker.rotation.y = world.rotationY || 0;
       marker.renderOrder = 20;
       this.root.add(marker);
@@ -1473,7 +1477,7 @@
           z: deskZ + frame.centerZOffset,
           width: frame.width,
           depth: frame.depth,
-          surfaceY: 0.855
+          surfaceY: 0.84
         };
         return {
           id: 'desk', label: 'Main Desk', x: layout.x, z: layout.z, y: layout.surfaceY,
@@ -1488,7 +1492,7 @@
           label: 'Storage Cabinet',
           x: room.width / 2 - 1.72,
           z: deskZ + 0.22,
-          y: 1.575,
+          y: 1.56,
           width: 0.72,
           depth: 0.66,
           rotationY: 0
@@ -1496,9 +1500,20 @@
       }
       const definition = this.getDeskSupportDefinitions()[id];
       if (!definition || !(this.state.decorations || []).includes(id)) return null;
+      if (this.decorationPlacementStatuses?.[id]?.status === 'stored') return null;
       const placement = ((this.state.placements || {}).floor || {})[id] || this.getDefaultDecorPlacement(id, 'floor');
       const world = this.decorPlacementToWorld('floor', placement);
-      return Object.assign({ id, x: world.x, z: world.z, y: definition.height, rotationY: world.rotationY || 0 }, definition);
+      const surface = this.getPropModelBounds(id).supportSurface;
+      const yaw = world.rotationY || 0;
+      return Object.assign({}, definition, {
+        id,
+        x: world.x + surface.x * Math.cos(yaw) + surface.z * Math.sin(yaw),
+        z: world.z - surface.x * Math.sin(yaw) + surface.z * Math.cos(yaw),
+        y: world.y + surface.y,
+        width: Math.min(definition.width, surface.width),
+        depth: Math.min(definition.depth, surface.depth),
+        rotationY: yaw
+      });
     }
 
     getAvailableDeskSupportIds() {
@@ -1991,7 +2006,7 @@
       if (this.onRobotInteract && robotDist < 1.45) choices.push({ type: 'robot', dist: robotDist });
       if (this.onComputerInteract && deskDist < 1.85) choices.push({ type: 'computer', dist: deskDist });
       if (station && this.onStationInteract) choices.push({ type: 'station', dist: station.dist, station });
-      choices.sort((a, b) => a.dist - b.dist);
+      choices.sort((a, b) => Number(!!b.station?.requiresAim) - Number(!!a.station?.requiresAim) || a.dist - b.dist);
       const choice = choices[0];
       if (choice?.type === 'arcade') {
         this.onArcadeInteract();
@@ -2016,7 +2031,7 @@
       return false;
     }
 
-    setScene({ tier = 0, decorations = [], suiteName = '', wallFinish = 'default', floorFinish = 'default', deskFinish = 'default', chairFinish = 'default', deskFrame = 'default', graphicsQuality = 'performance', placements = null, floorBotProfile = null, soundEnabled = true }) {
+    setScene({ tier = 0, decorations = [], suiteName = '', wallFinish = 'default', floorFinish = 'default', deskFinish = 'default', chairFinish = 'default', deskFrame = 'default', graphicsQuality = 'performance', placements = null, floorBotProfile = null, soundEnabled = true, officeLightSettings = null, radioProfile = null }) {
       this.state.tier = tier;
       this.state.decorations = Array.isArray(decorations) ? decorations.filter(Boolean) : [];
       this.state.suiteName = suiteName || this.state.suiteName;
@@ -2047,6 +2062,8 @@
       };
       if (floorBotProfile) this.state.floorBotProfile = Object.assign({}, this.state.floorBotProfile || {}, floorBotProfile);
       this.state.soundEnabled = soundEnabled !== false;
+      if (radioProfile !== null) this.setRadioProfile(radioProfile);
+      if (officeLightSettings !== null) this.setOfficeLightSettings(officeLightSettings);
       this.setGraphicsQuality(graphicsQuality);
       this.syncServerAmbienceAudio();
       this.syncBackgroundMusicAudio();
@@ -2061,6 +2078,7 @@
         chairFinish: this.state.chairFinish,
         deskFrame: this.state.deskFrame,
         placements: this.state.placements,
+        officeLightSettings: this.state.officeLightSettings,
         floorBotProfile: this.state.floorBotProfile,
         soundEnabled: this.state.soundEnabled
       });
@@ -2501,12 +2519,10 @@
         group.add(bulb);
       }
       if (!ghost) {
-        const bulbLeft = new THREE.PointLight(0xeef7ff, 2.55, 7.6, 1.7);
-        bulbLeft.position.copy(lightAnchor).add(new THREE.Vector3(-bulbOffsetX, 0, 0));
-        lightParent.add(bulbLeft);
-        const bulbRight = new THREE.PointLight(0xeef7ff, 2.55, 7.6, 1.7);
-        bulbRight.position.copy(lightAnchor).add(new THREE.Vector3(bulbOffsetX, 0, 0));
-        lightParent.add(bulbRight);
+        const bulbLeft = this.addBudgetedFixtureLight(lightParent, 0xeef7ff, 2.55, 7.6, 1.7);
+        bulbLeft?.position.copy(lightAnchor).add(new THREE.Vector3(-bulbOffsetX, 0, 0));
+        const bulbRight = this.addBudgetedFixtureLight(lightParent, 0xeef7ff, 2.55, 7.6, 1.7);
+        bulbRight?.position.copy(lightAnchor).add(new THREE.Vector3(bulbOffsetX, 0, 0));
         const warmGlow = new THREE.Mesh(new THREE.SphereGeometry(glowRadius * 1.12, 24, 16), makeMat({ color: 0xe6f3ff, emissive: 0xd9ecff, emissiveIntensity: 1.05, transparent: true, opacity: 0.20, depthWrite: false }));
         warmGlow.position.copy(lightAnchor);
         lightParent.add(warmGlow);
@@ -2581,6 +2597,7 @@
         side: THREE.DoubleSide
       });
       const top = new THREE.Mesh(topGeometry, topMaterial);
+      top.userData.supportSurface = true;
       const frame = new THREE.Mesh(frameGeometry, frameMaterial);
       [top, frame].forEach(mesh => {
         mesh.castShadow = true;
@@ -3607,6 +3624,29 @@
       foot.activeSources.clear();
     }
 
+    getRadioProfile() {
+      return Object.assign({ enabled: true, station: 'shuffle', volume: this.backgroundMusic?.volume ?? 0.058 }, this.state.radioProfile || {});
+    }
+
+    setRadioProfile(profile = {}) {
+      const prior = this.getRadioProfile();
+      const incoming = profile && typeof profile === 'object' ? profile : {};
+      const merged = Object.assign({}, prior, incoming);
+      const tracks = Array.isArray(window.UPTIME_BACKGROUND_MUSIC_TRACKS) ? window.UPTIME_BACKGROUND_MUSIC_TRACKS : [];
+      this.state.radioProfile = {
+        enabled: merged.enabled !== false,
+        station: merged.station === 'shuffle' || tracks.some(track => track.id === merged.station) ? merged.station : 'shuffle',
+        volume: Number.isFinite(Number(merged.volume)) ? clamp(Number(merged.volume), 0, 0.2) : prior.volume
+      };
+      const stationChanged = prior.station !== this.state.radioProfile.station;
+      if (stationChanged) {
+        this.stopBackgroundMusicAudio();
+        if (this.backgroundMusic?.loaded) this.playRandomBackgroundMusicTrack();
+      }
+      this.syncBackgroundMusicAudio();
+      return this.getRadioProfile();
+    }
+
     initBackgroundMusicAudio() {
       const music = this.backgroundMusic;
       if (!this.THREE || !this.camera || music.gain || music.failed) return;
@@ -3680,12 +3720,15 @@
 
     syncBackgroundMusicAudio() {
       const music = this.backgroundMusic;
+      if (!music) return;
+      const profile = this.getRadioProfile();
+      const enabled = this.state.soundEnabled !== false && profile.enabled;
+      if (!enabled) this.stopBackgroundMusicAudio();
       this.initBackgroundMusicAudio();
       const gain = music.gain;
       const ctx = music.listener?.context || gain?.context;
       if (!gain || !ctx) return;
-      const enabled = this.state.soundEnabled !== false;
-      const targetVolume = enabled && music.primed && !music.failed ? music.volume : 0;
+      const targetVolume = enabled && music.primed && !music.failed ? profile.volume : 0;
       try {
         gain.gain.setTargetAtTime(targetVolume, ctx.currentTime, 0.18);
       } catch (error) {
@@ -3705,6 +3748,7 @@
 
     scheduleNextBackgroundMusicTrack(delayMs = 900) {
       const music = this.backgroundMusic;
+      if (!music || this.destroyed || this.state.soundEnabled === false || !this.getRadioProfile().enabled || !music.primed || music.failed) return;
       if (music.nextTimer) clearTimeout(music.nextTimer);
       music.nextTimer = window.setTimeout(() => {
         music.nextTimer = null;
@@ -3716,6 +3760,8 @@
       const music = this.backgroundMusic;
       const tracks = music.buffers || [];
       if (!tracks.length) return null;
+      const station = this.getRadioProfile().station;
+      if (station !== 'shuffle') return tracks.find(track => track.id === station) || null;
       if (tracks.length === 1) return tracks[0];
       let track = tracks[Math.floor(Math.random() * tracks.length)];
       let guard = 0;
@@ -3728,7 +3774,7 @@
 
     playRandomBackgroundMusicTrack() {
       const music = this.backgroundMusic;
-      if (this.destroyed || music.failed || !music.primed || this.state.soundEnabled === false) return;
+      if (!music || this.destroyed || music.failed || !music.primed || this.state.soundEnabled === false || !this.getRadioProfile().enabled) return;
       if (music.currentSource) return;
       if (!music.loaded) {
         this.loadBackgroundMusicAudio();
@@ -3758,7 +3804,7 @@
             try { source.disconnect(); } catch (error) {}
             music.currentSource = null;
             music.currentTrack = null;
-            if (!this.destroyed && this.state.soundEnabled !== false && music.primed) {
+            if (!this.destroyed && this.state.soundEnabled !== false && this.getRadioProfile().enabled && music.primed) {
               this.scheduleNextBackgroundMusicTrack(900 + Math.floor(Math.random() * 3200));
             }
           }
@@ -3827,6 +3873,9 @@
       this.animatedSceneObjects = [];
       this.animationObjectCacheDirty = true;
       this.selectableDecor = [];
+      this.propModelBoundsCache = new Map();
+      this.decorationPlacementStatuses = null;
+      this.fixtureLightRequests = [];
       if (this.placementMode?.ghost) this.root.remove(this.placementMode.ghost);
       this.serverRackAudioAnchor = { x: -this.room.width / 2 + 0.72, y: 1.12, z: -this.room.depth / 2 + 1.08 };
       this.updateServerAmbiencePosition();
@@ -3997,9 +4046,12 @@
       const halfDepth = Math.max(0.02, Number(d || 0) / 2);
       const c = Math.abs(Math.cos(Number(rotationY) || 0));
       const s = Math.abs(Math.sin(Number(rotationY) || 0));
-      const extentX = halfWidth * c + halfDepth * s + pad;
-      const extentZ = halfWidth * s + halfDepth * c + pad;
-      this.obstacles.push({ minX: x - extentX, maxX: x + extentX, minZ: z - extentZ, maxZ: z + extentZ });
+      const extentX = (halfWidth + pad) * c + (halfDepth + pad) * s;
+      const extentZ = (halfWidth + pad) * s + (halfDepth + pad) * c;
+      this.obstacles.push({
+        minX: x - extentX, maxX: x + extentX, minZ: z - extentZ, maxZ: z + extentZ,
+        footprint: this.getFloorFootprint(x, z, w + pad * 2, d + pad * 2, rotationY)
+      });
       if (options.placement !== false) this.addPlacementObstacle(x, z, w, d, pad, rotationY, options);
     }
 
@@ -4065,7 +4117,7 @@
         group.add(mesh);
         return mesh;
       };
-      addBox(frame.width, deskH, frame.depth, topMat, 0, deskY, centerZ);
+      addBox(frame.width, deskH, frame.depth, topMat, 0, deskY, centerZ).userData.supportSurface = true;
       const legX = Math.max(0.56, frame.width / 2 - 0.18);
       [-legX, legX].forEach(x => {
         addBox(0.12, deskY - 0.06, frame.depth - 0.12, frameMat, x, (deskY - 0.06) / 2, centerZ);
@@ -4084,6 +4136,7 @@
         addBox(0.52, 0.34, 0.46, frameMat, wingX, 0.24, wingZ + 0.24);
       }
       this.root.add(group);
+      return group;
     }
 
     getRobotDistance() {
@@ -4246,14 +4299,28 @@
       const deskCenterZ = deskZ + deskFrame.centerZOffset;
       const deskSpec = this.getDeskFinishSpec();
       const chairSpec = this.getChairFinishSpec();
-      this.deskLayout = { x: 0, z: deskCenterZ, width: deskW, depth: deskD, surfaceY: 0.855 };
+      this.deskLayout = { x: 0, z: deskCenterZ, width: deskW, depth: deskD, surfaceY: deskY + deskH / 2 };
       const raisingDesk = deskFrame.useUploadedModel ? this.createRaisingDeskModel(deskW, deskD, deskY + deskH / 2) : null;
+      let deskModel;
       if (raisingDesk) {
         raisingDesk.position.set(0, 0, deskCenterZ);
         this.root.add(raisingDesk);
+        deskModel = raisingDesk;
       } else {
-        this.buildExpandedDeskFrame(deskFrame, deskCenterZ, deskY, deskH, deskSpec);
+        deskModel = this.buildExpandedDeskFrame(deskFrame, deskCenterZ, deskY, deskH, deskSpec);
       }
+      deskModel.updateMatrixWorld(true);
+      deskModel.traverse(mesh => {
+        if (!mesh.userData.supportSurface) return;
+        const topBounds = new THREE.Box3().setFromObject(mesh, true);
+        this.deskLayout = {
+          x: (topBounds.min.x + topBounds.max.x) / 2,
+          z: (topBounds.min.z + topBounds.max.z) / 2,
+          width: topBounds.max.x - topBounds.min.x,
+          depth: topBounds.max.z - topBounds.min.z,
+          surfaceY: topBounds.max.y
+        };
+      });
       this.addObstacle(0, deskCenterZ, deskW, deskD, 0.3, 0, { id: 'fixture:desk', label: 'desk' });
       this.computerInteractive = { position: { x: 0, z: deskCenterZ + deskD / 2 + 0.61 }, radius: 1.85, yaw: 0 };
 
@@ -5011,6 +5078,86 @@
       return specs[baseId] || { w: 0.42, d: 0.32, h: 0.28, color: 0x58d8ff };
     }
 
+    getOfficeLightSettings() {
+      return JSON.parse(JSON.stringify(this.state.officeLightSettings || {}));
+    }
+
+    getFixtureLightSetting(id) {
+      return Object.assign({ enabled: true, brightness: 1, color: null }, this.state.officeLightSettings?.[id]);
+    }
+
+    setOfficeLightSettings(settings = {}) {
+      const normalized = Object.create(null);
+      Object.entries(settings && typeof settings === 'object' ? settings : {}).forEach(([id, value]) => {
+        if (!LIGHT_FIXTURE_IDS.has(getDecorBaseId(id)) || !value || typeof value !== 'object') return;
+        normalized[id] = {
+          enabled: value.enabled !== false,
+          brightness: Number.isFinite(Number(value.brightness)) ? clamp(Number(value.brightness), 0, 2) : 1,
+          color: /^#[0-9a-f]{6}$/i.test(value.color || '') ? value.color.toLowerCase() : null
+        };
+      });
+      this.state.officeLightSettings = normalized;
+      this.rebalanceFixtureLights();
+      this.root?.traverse(group => {
+        if (group.userData.officeLightFixture) this.applyFixtureLightSettings(group, group.userData.decorId);
+      });
+      return this.getOfficeLightSettings();
+    }
+
+    updateOfficeLightSetting(id, patch = {}) {
+      return this.setOfficeLightSettings(Object.assign(this.getOfficeLightSettings(), {
+        [id]: Object.assign({}, this.getFixtureLightSetting(id), patch)
+      }));
+    }
+
+    addBudgetedFixtureLight(parent, color, intensity, distance, decay = 1.8) {
+      const light = new this.THREE.PointLight(color, intensity, distance, decay);
+      let owner = parent;
+      while (owner && !owner.userData.decorId) owner = owner.parent;
+      light.userData.fixtureLightDefault = { intensity, color: light.color.getHex() };
+      if (!this.fixtureLightRequests) this.fixtureLightRequests = [];
+      this.fixtureLightRequests.push({ parent, light, id: owner?.userData.decorId || null });
+      this.rebalanceFixtureLights();
+      return light;
+    }
+
+    rebalanceFixtureLights() {
+      const effective = this.graphicsProfile?.effective || 'performance';
+      const budget = effective === 'quality' ? 12 : effective === 'balanced' ? 8 : 5;
+      let count = 0;
+      (this.fixtureLightRequests || []).forEach(({ parent, light, id }) => {
+        const setting = this.getFixtureLightSetting(id);
+        const enabled = setting.enabled && setting.brightness > 0;
+        const allocated = enabled && count < budget;
+        if (allocated) { parent.add(light); count++; }
+        else parent.remove(light);
+        light.intensity = allocated ? light.userData.fixtureLightDefault.intensity * setting.brightness : 0;
+        light.userData.fixtureBrightnessScale = allocated ? setting.brightness : 0;
+        light.color.set(setting.color || light.userData.fixtureLightDefault.color);
+      });
+      this.decorativeLightCount = count;
+    }
+
+    applyFixtureLightSettings(group, id) {
+      if (!LIGHT_FIXTURE_IDS.has(getDecorBaseId(id))) return;
+      group.userData.officeLightFixture = true;
+      const setting = this.getFixtureLightSetting(id);
+      const scale = setting.enabled ? setting.brightness : 0;
+      group.traverse(mesh => {
+        const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+        materials.forEach(material => {
+          if (!material.emissive || material.emissive.getHex() === 0 && !material.userData.fixtureEmissionDefault) return;
+          if (!material.userData.fixtureEmissionDefault) material.userData.fixtureEmissionDefault = {
+            color: material.emissive.getHex(), intensity: material.emissiveIntensity
+          };
+          const original = material.userData.fixtureEmissionDefault;
+          material.emissive.set(setting.color || original.color);
+          material.emissiveIntensity = original.intensity * scale;
+        });
+        mesh.userData.fixtureBrightnessScale = scale;
+      });
+    }
+
     getWallPlacementCollisionSpec(id) {
       const fixture = WORLD_OPERATION_DISPLAY_DEFS[id];
       if (fixture) return { w: fixture.width || 1.1, h: fixture.height || 0.72 };
@@ -5075,6 +5222,7 @@
 
       (this.state.decorations || []).forEach(id => {
         if (this.getDecorPlacementZone(id) !== safeZone) return;
+        if (this.decorationPlacementStatuses && this.decorationPlacementStatuses[id]?.status !== 'placed') return;
         const placement = (placements[safeZone] || {})[id] || this.getDefaultDecorPlacement(id, safeZone);
         addCandidate(id, placement, { blocksFloor: safeZone === 'floor' && this.isPlacementBlockingFloorProp(id) });
       });
@@ -5106,9 +5254,54 @@
 
     getPlacementFootprint(zone, itemId, placement) {
       const safeZone = this.normalizePlacementZone(zone);
-      const spec = this.getPlacedPropSpec(itemId);
+      const bounds = this.getPropModelBounds(itemId);
       const world = this.decorPlacementToWorld(safeZone, placement);
-      return this.getFloorFootprint(world.x, world.z, spec.w, spec.d, world.rotationY);
+      const yaw = world.rotationY || 0;
+      return this.getFloorFootprint(
+        world.x + bounds.x * Math.cos(yaw) + bounds.z * Math.sin(yaw),
+        world.z - bounds.x * Math.sin(yaw) + bounds.z * Math.cos(yaw),
+        bounds.width, bounds.depth, yaw
+      );
+    }
+
+    getPropModelBounds(id) {
+      const baseId = getDecorBaseId(id);
+      const spec = this.getPlacedPropSpec(id);
+      // Headless schema consumers can still use nominal specs before Three loads.
+      if (!this.THREE?.Box3) {
+        const supportHeights = { 'ops-workbench': 0.810, 'sidecar-table': 0.680, 'display-shelf': 1.425, 'lab-shelving': 1.2775 };
+        return {
+          x: 0, z: 0, width: spec.w, depth: spec.d, minY: 0, maxY: spec.h,
+          supportSurface: { x: 0, z: 0, y: supportHeights[baseId] ?? spec.h, width: spec.w, depth: spec.d }
+        };
+      }
+      if (!this.propModelBoundsCache) this.propModelBoundsCache = new Map();
+      if (this.propModelBoundsCache.has(baseId)) return this.propModelBoundsCache.get(baseId);
+      const group = new this.THREE.Group();
+      this.buildCanonicalPropModel(group, id, spec, { ghost: true, boundsOnly: true });
+      group.updateMatrixWorld(true);
+      const box = new this.THREE.Box3().setFromObject(group, true);
+      let surfaceBox = null;
+      group.traverse(mesh => {
+        if (mesh.userData.supportSurface) surfaceBox = new this.THREE.Box3().setFromObject(mesh, true);
+      });
+      const result = {
+        x: (box.min.x + box.max.x) / 2,
+        z: (box.min.z + box.max.z) / 2,
+        width: box.max.x - box.min.x,
+        depth: box.max.z - box.min.z,
+        minY: box.min.y,
+        maxY: box.max.y,
+        supportSurface: surfaceBox ? {
+          x: (surfaceBox.min.x + surfaceBox.max.x) / 2,
+          z: (surfaceBox.min.z + surfaceBox.max.z) / 2,
+          y: surfaceBox.max.y,
+          width: surfaceBox.max.x - surfaceBox.min.x,
+          depth: surfaceBox.max.z - surfaceBox.min.z
+        } : null
+      };
+      this.propModelBoundsCache.set(baseId, result);
+      return result;
     }
 
     placementFootprintFitsSurface(footprint, support, clearance = 0) {
@@ -5188,6 +5381,11 @@
       }
       if (!this.isPlacementBlockingFloorProp(itemId)) return { valid: true, reason: '' };
       const footprint = this.getPlacementFootprint(safeZone, itemId, placement);
+      const extentX = Math.abs(footprint.axisWidth.x) * footprint.halfWidth + Math.abs(footprint.axisDepth.x) * footprint.halfDepth;
+      const extentZ = Math.abs(footprint.axisWidth.z) * footprint.halfWidth + Math.abs(footprint.axisDepth.z) * footprint.halfDepth;
+      if (Math.abs(footprint.x) + extentX > this.room.width / 2 || Math.abs(footprint.z) + extentZ > this.room.depth / 2) {
+        return { valid: false, reason: 'This item extends beyond the room.' };
+      }
       const overlap = candidates.find(candidate => {
         if (!candidate.blocksFloor && !this.isPlacementBlockingFloorProp(candidate.id)) return false;
         const candidateFootprint = candidate.footprint || this.getPlacementFootprint(safeZone, candidate.id, candidate.placement);
@@ -5242,6 +5440,7 @@
     }
 
     buildCanonicalPropModel(group, id, spec, opts = {}) {
+      group.userData.decorId = id;
       id = getDecorBaseId(id);
       const THREE = this.THREE;
       const makeMat = settings => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.76, metalness: 0.04 }, settings));
@@ -5277,18 +5476,16 @@
       };
       const addFixtureLight = (color, intensity, distance, x = 0, y = 0.5, z = 0) => {
         if (opts.ghost) return null;
-        const effective = this.graphicsProfile?.effective || 'performance';
-        const budget = effective === 'quality' ? 12 : effective === 'balanced' ? 8 : 5;
-        if ((this.decorativeLightCount || 0) >= budget) return null;
-        this.decorativeLightCount = (this.decorativeLightCount || 0) + 1;
-        const light = new THREE.PointLight(color, intensity, distance, 1.8);
+        const light = this.addBudgetedFixtureLight(group, color, intensity, distance, 1.8);
         light.position.set(x, y, z);
-        group.add(light);
         return light;
       };
 
       if (id === 'lava-lamp') {
-        this.buildAnimatedLavaLamp(group, {
+        const model = new THREE.Group();
+        model.userData.decorId = group.userData.decorId;
+        group.add(model);
+        this.buildAnimatedLavaLamp(model, {
           baseColor: 0xb56d38,
           metalColor: 0x283341,
           glassColor: 0xff7bd8,
@@ -5529,7 +5726,7 @@
       } else if (id === 'ops-workbench') {
         const topY = spec.h - 0.045;
         addBox(spec.w, 0.09, spec.d, 0x4f5d58, 0, topY);
-        addBox(spec.w - 0.10, 0.026, spec.d - 0.10, 0x7d6850, 0, topY + 0.052);
+        addBox(spec.w - 0.10, 0.026, spec.d - 0.10, 0x7d6850, 0, topY + 0.052).userData.supportSurface = true;
         [-1, 1].forEach(side => {
           addBox(0.08, topY - 0.12, 0.08, 0x23313c, side * (spec.w / 2 - 0.09), (topY - 0.12) / 2);
           addBox(0.10, 0.05, spec.d - 0.04, 0x18232c, side * (spec.w / 2 - 0.09), 0.03);
@@ -5542,7 +5739,7 @@
         addGlow(spec.w * 0.42, 0.020, 0.026, 0, topY + 0.48, spec.d / 2 - 0.082, 0x68e5ff);
       } else if (id === 'sidecar-table') {
         const topY = spec.h - 0.035;
-        addBox(spec.w, 0.07, spec.d, 0x465562, 0, topY);
+        addBox(spec.w, 0.07, spec.d, 0x465562, 0, topY).userData.supportSurface = true;
         addBox(spec.w - 0.16, 0.43, spec.d - 0.10, 0x263541, 0, topY - 0.25);
         [-0.11, 0.11].forEach(y => addBox(spec.w - 0.28, 0.024, 0.020, 0x91a8b7, 0, 0.43 + y, -spec.d / 2 - 0.012));
         [-1, 1].forEach(x => [-1, 1].forEach(z => {
@@ -5555,7 +5752,7 @@
       } else if (id === 'display-shelf') {
         [-1, 1].forEach(x => [-1, 1].forEach(z => addBox(0.055, spec.h, 0.055, 0x263946, x * (spec.w / 2 - 0.045), spec.h / 2, z * (spec.d / 2 - 0.04))));
         [0.10, 0.54, 0.98, 1.40].forEach((y, index) => {
-          addBox(spec.w, 0.05, spec.d, index === 3 ? 0x536c75 : 0x344b56, 0, y);
+          addBox(spec.w, 0.05, spec.d, index === 3 ? 0x536c75 : 0x344b56, 0, y).userData.supportSurface = index === 3;
           if (index < 3) addGlow(spec.w * 0.62, 0.014, 0.020, 0, y + 0.033, -spec.d * 0.34, index === 1 ? 0xff78d4 : 0x67e7ff);
         });
         [0.29, 0.72, 1.16].forEach((y, row) => {
@@ -5566,7 +5763,7 @@
       } else if (id === 'lab-shelving') {
         [-1, 1].forEach(x => [-1, 1].forEach(z => addBox(0.065, spec.h, 0.065, 0x27353e, x * (spec.w / 2 - 0.055), spec.h / 2, z * (spec.d / 2 - 0.05))));
         [0.10, 0.45, 0.80, 1.25].forEach((y, row) => {
-          addBox(spec.w, 0.055, spec.d, row === 3 ? 0x52636a : 0x34464f, 0, y);
+          addBox(spec.w, 0.055, spec.d, row === 3 ? 0x52636a : 0x34464f, 0, y).userData.supportSurface = row === 3;
           if (row < 3) {
             [-0.42, -0.14, 0.14, 0.42].forEach((x, column) => addBox(0.20, 0.15, 0.20, [0xffc46d, 0x67dfff, 0x83e59a, 0xc49cff][(row + column) % 4], x, y + 0.10, 0.02));
           }
@@ -5589,6 +5786,7 @@
       group.userData.decorId = id;
       group.userData.placementZone = safeZone;
       this.buildCanonicalPropModel(group, id, spec, opts);
+      if (!opts.ghost) this.applyFixtureLightSettings(group, id);
       if (opts.ghost) {
         this.applyDecorGhost(group);
       } else if (opts.selectable !== false) {
@@ -5605,10 +5803,18 @@
       }
       if (!opts.ghost && safeZone === 'floor') {
         const placementOptions = { id: `decor:${id}`, label: id, decorId: id };
-        if (this.isSolidFloorProp(id)) this.addObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0, placementOptions);
-        else if (this.isPlacementBlockingFloorProp(id)) this.addPlacementObstacle(pos.x, pos.z, spec.w, spec.d, 0.10, pos.rotationY || 0, placementOptions);
+        const footprint = this.getPlacementFootprint(safeZone, id, placement);
+        if (this.isSolidFloorProp(id)) this.addObstacle(footprint.x, footprint.z, footprint.halfWidth * 2, footprint.halfDepth * 2, 0.10, pos.rotationY || 0, placementOptions);
+        else if (this.isPlacementBlockingFloorProp(id)) this.addPlacementObstacle(footprint.x, footprint.z, footprint.halfWidth * 2, footprint.halfDepth * 2, 0.10, pos.rotationY || 0, placementOptions);
       }
       this.root.add(group);
+      if (!opts.ghost && baseId === 'uplink-radio' && this.getPlacementValidity(safeZone, id, placement).valid) {
+        this.registerWorldStation({
+          id: 'uplinkRadio', label: 'Uplink Radio', decorId: id,
+          x: pos.x, y: pos.y + spec.h / 2, z: pos.z,
+          yaw: pos.rotationY || 0, radius: 0.85, requiresAim: true
+        });
+      }
       return group;
     }
 
@@ -5630,11 +5836,12 @@
         );
         mesh.rotation.y = pos.rotationY || 0;
       } else {
-        const spec = this.getPlacedPropSpec(id);
+        const bounds = this.getPropModelBounds(id);
         const pos = this.decorPlacementToWorld(safeZone, placement);
-        const h = size.h || Math.max(0.16, spec.h || 0.2);
-        mesh = new THREE.Mesh(new THREE.BoxGeometry(size.w || spec.w || 0.5, h, size.d || spec.d || 0.5), mat);
-        mesh.position.set(pos.x, pos.y + h / 2, pos.z);
+        const footprint = this.getPlacementFootprint(safeZone, id, placement);
+        const h = size.h || Math.max(0.16, bounds.maxY - bounds.minY);
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(size.w || bounds.width, h, size.d || bounds.depth), mat);
+        mesh.position.set(footprint.x, pos.y + bounds.minY + h / 2, footprint.z);
         mesh.rotation.y = pos.rotationY || 0;
       }
       mesh.renderOrder = -100;
@@ -5760,18 +5967,35 @@
       return true;
     }
 
+    getDecorationPlacementStatuses() {
+      return JSON.parse(JSON.stringify(this.decorationPlacementStatuses || {}));
+    }
+
     buildDecorations() {
-      const items = new Set(this.state.decorations || []);
+      const items = Array.from(new Set(this.state.decorations || []));
+      const supports = this.getDeskSupportDefinitions();
+      this.decorationPlacementStatuses = Object.create(null);
+      items.forEach(id => { this.decorationPlacementStatuses[id] = { status: 'pending' }; });
+      // Build supports before their contents; saved positions win over defaults.
+      const priority = id => (supports[id] ? 0 : this.getDecorPlacementZone(id) === 'desk' ? 4 : 2)
+        + (((this.state.placements || {})[this.getDecorPlacementZone(id)] || {})[id] ? 0 : 1);
+      items.sort((a, b) => priority(a) - priority(b));
       items.forEach(id => {
         const baseId = getDecorBaseId(id);
         const zone = DECOR_PLACEMENT_ZONES[baseId];
         if (!zone) return;
+        const stored = ((this.state.placements || {})[zone] || {})[id];
+        const placement = stored || this.getDefaultDecorPlacement(id, zone);
+        const validity = this.getPlacementValidity(zone, id, placement);
+        this.decorationPlacementStatuses[id] = {
+          id, zone, placement: Object.assign({}, placement), source: stored ? 'saved' : 'default',
+          status: validity.valid ? 'placed' : 'stored', reason: validity.reason
+        };
+        if (!validity.valid) return;
         if (baseId === 'floor-bot') {
           this.buildBotDock();
           return;
         }
-        const stored = ((this.state.placements || {})[zone] || {})[id];
-        const placement = stored || this.getDefaultDecorPlacement(id, zone);
         if (zone === 'wall') this.addPlacedWallDecoration(id, placement);
         else this.addPlacedPropDecoration(id, zone, placement);
       });
@@ -6422,9 +6646,8 @@
         group.rotation.y = Math.PI;
 
         if (!ghost) {
-          light = new THREE.PointLight(glowColor, 0.58, 1.45 * scale, 2);
+          light = this.addBudgetedFixtureLight(group, glowColor, 0.58, 1.45 * scale, 2);
           light.position.set(0, glassMinY + 0.16, 0);
-          group.add(light);
         }
 
         if (registerAnimation) {
@@ -6496,9 +6719,8 @@
 
       let light = null;
       if (!ghost) {
-        light = new THREE.PointLight(glowColor, 0.42, scaled(1.3), 2);
+        light = this.addBudgetedFixtureLight(group, glowColor, 0.42, scaled(1.3), 2);
         light.position.set(0, scaled(0.24), 0);
-        group.add(light);
       }
 
       if (registerAnimation) {
@@ -6641,7 +6863,15 @@
     }
 
     collides(x, z) {
-      return this.obstacles.some(obs => x > obs.minX && x < obs.maxX && z > obs.minZ && z < obs.maxZ);
+      return this.obstacles.some(obs => {
+        if (x <= obs.minX || x >= obs.maxX || z <= obs.minZ || z >= obs.maxZ) return false;
+        if (!obs.footprint) return true;
+        const f = obs.footprint;
+        const dx = x - f.x;
+        const dz = z - f.z;
+        return Math.abs(dx * f.axisWidth.x + dz * f.axisWidth.z) < f.halfWidth
+          && Math.abs(dx * f.axisDepth.x + dz * f.axisDepth.z) < f.halfDepth;
+      });
     }
 
     enterArcadeView() {
@@ -6836,9 +7066,27 @@
       (this.worldStations || []).forEach(station => {
         const dist = Math.hypot(this.player.x - station.x, this.player.z - station.z);
         if (dist > (station.radius || 1.35)) return;
-        if (!closest || dist < closest.dist) closest = Object.assign({ dist }, station);
+        if (station.requiresAim && !this.isWorldStationTargeted(station)) return;
+        if (!closest || station.requiresAim && !closest.requiresAim || station.requiresAim === closest.requiresAim && dist < closest.dist) closest = Object.assign({ dist }, station);
       });
       return closest;
+    }
+
+    isWorldStationTargeted(station) {
+      if (!station.decorId || !this.camera || !this.root || !this.THREE?.Raycaster) return false;
+      if (!this._stationRaycaster) this._stationRaycaster = new this.THREE.Raycaster();
+      this.camera.updateMatrixWorld(true);
+      this.root.updateMatrixWorld(true);
+      this._stationRaycaster.setFromCamera(new this.THREE.Vector2(0, 0), this.camera);
+      const hit = this._stationRaycaster.intersectObjects(this.root.children, true).find(entry => {
+        const mesh = entry.object;
+        if (!mesh.isMesh || mesh.userData.isDecorMoveHitbox) return false;
+        let parent = mesh;
+        while (parent) { if (!parent.visible || parent === this.placementMode?.ghost) return false; parent = parent.parent; }
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        return materials.some(material => material?.visible !== false && (!material?.transparent || material.opacity > 0.05));
+      });
+      return this.getDecorMoveTargetFromObject(hit?.object)?.id === station.decorId;
     }
 
     getArcadeDistance() {
@@ -6922,10 +7170,13 @@
       if (this.keys.a || this.keys.arrowleft) strafe -= 1;
       if (this.keys.d || this.keys.arrowright) strafe += 1;
       if (this.mobileControls.active) {
-        strafe += this.mobileControls.strafe;
-        forward += this.mobileControls.forward;
+        const touchLength = Math.hypot(this.mobileControls.strafe, this.mobileControls.forward);
+        if (touchLength > 0.08) {
+          strafe += this.mobileControls.strafe;
+          forward += this.mobileControls.forward;
+        }
       }
-      const length = Math.hypot(strafe, forward) || 1;
+      const length = Math.max(1, Math.hypot(strafe, forward));
       strafe /= length;
       forward /= length;
       if (strafe || forward) {
@@ -7447,10 +7698,11 @@
       if (!this.animatedLavaLamps.length) return;
       this.animatedLavaLamps = this.animatedLavaLamps.filter(entry => entry && entry.group && entry.group.parent);
       this.animatedLavaLamps.forEach((entry, lampIndex) => {
+        const fixtureScale = entry.group.userData.fixtureBrightnessScale ?? 1;
         const pulse = 0.82 + Math.abs(Math.sin(t * 1.6 + lampIndex * 0.9)) * 0.28;
         if (entry.glass && entry.glass.material) {
           const glassMultiplier = entry.kind === 'uploadedModelContained' ? 0.62 : 1;
-          entry.glass.material.emissiveIntensity = entry.glowIntensity * glassMultiplier * pulse;
+          entry.glass.material.emissiveIntensity = entry.glowIntensity * glassMultiplier * pulse * fixtureScale;
         }
         if (entry.kind === 'uploadedModelContained') {
           const range = Math.max(0.001, entry.glassMaxY - entry.glassMinY);
@@ -7472,21 +7724,21 @@
               blob.stretch + Math.cos(tt * 1.75) * 0.16,
               1 / Math.max(0.84, squash)
             );
-            if (blob.mesh.material) blob.mesh.material.emissiveIntensity = 0.36 + Math.abs(Math.sin(tt * 2.25)) * 0.22;
+            if (blob.mesh.material) blob.mesh.material.emissiveIntensity = (0.36 + Math.abs(Math.sin(tt * 2.25)) * 0.22) * fixtureScale;
           });
           if (entry.bottomGlow && entry.bottomGlow.material) {
-            entry.bottomGlow.material.emissiveIntensity = 0.62 + Math.abs(Math.sin(t * 1.9 + lampIndex)) * 0.24;
+            entry.bottomGlow.material.emissiveIntensity = (0.62 + Math.abs(Math.sin(t * 1.9 + lampIndex)) * 0.24) * fixtureScale;
             entry.bottomGlow.material.opacity = 0.16 + Math.abs(Math.sin(t * 1.4 + lampIndex)) * 0.08;
           }
           if (entry.light) {
-            entry.light.intensity = 0.46 + Math.abs(Math.sin(t * 1.7 + lampIndex)) * 0.20;
+            entry.light.intensity = (0.46 + Math.abs(Math.sin(t * 1.7 + lampIndex)) * 0.20) * (entry.light.userData.fixtureBrightnessScale ?? 1);
             entry.light.position.y = entry.glassMinY + 0.14 + Math.sin(t * 0.9 + lampIndex) * 0.03;
           }
           return;
         }
-        if (entry.innerGlow && entry.innerGlow.material) entry.innerGlow.material.emissiveIntensity = entry.glowIntensity * 0.9 * pulse;
+        if (entry.innerGlow && entry.innerGlow.material) entry.innerGlow.material.emissiveIntensity = entry.glowIntensity * 0.9 * pulse * fixtureScale;
         if (entry.light) {
-          entry.light.intensity = 0.30 + Math.abs(Math.sin(t * 1.8 + lampIndex)) * 0.18;
+          entry.light.intensity = (0.30 + Math.abs(Math.sin(t * 1.8 + lampIndex)) * 0.18) * (entry.light.userData.fixtureBrightnessScale ?? 1);
           entry.light.position.y = 0.24 * (entry.scale || 1) + Math.sin(t * 0.95 + lampIndex) * 0.02;
         }
         (entry.blobs || []).forEach((blob, blobIndex) => {
@@ -7499,7 +7751,7 @@
           const squash = 1 + Math.sin(tt * 2.1) * 0.10;
           blob.mesh.position.set(x * (entry.scale || 1), y * (entry.scale || 1), z * (entry.scale || 1));
           blob.mesh.scale.set(squash, blob.stretch + Math.cos(tt * 1.8) * 0.18, 1 / Math.max(0.72, squash));
-          if (blob.mesh.material) blob.mesh.material.emissiveIntensity = 0.32 + Math.abs(Math.sin(tt * 2.4)) * 0.22;
+          if (blob.mesh.material) blob.mesh.material.emissiveIntensity = (0.32 + Math.abs(Math.sin(tt * 2.4)) * 0.22) * fixtureScale;
         });
       });
     }
@@ -7561,7 +7813,7 @@
           const range = Number.isFinite(obj.userData.blinkRange) ? obj.userData.blinkRange : 0.9;
           const power = Number.isFinite(obj.userData.blinkPower) ? obj.userData.blinkPower : 1.0;
           const pulse = Math.pow(Math.abs(Math.sin(t * speed)), power);
-          obj.material.emissiveIntensity = base + pulse * range;
+          obj.material.emissiveIntensity = (base + pulse * range) * (obj.userData.fixtureBrightnessScale ?? 1);
         }
       });
     }
